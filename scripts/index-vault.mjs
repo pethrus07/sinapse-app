@@ -7,7 +7,7 @@ import matter from 'gray-matter';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(__dirname, '..');
-const VAULT = process.env.VAULT_PATH ? resolve(process.env.VAULT_PATH) : resolve(APP_ROOT, '..', 'cerebro');
+const VAULT = process.env.VAULT_PATH ? resolve(process.env.VAULT_PATH) : resolve(APP_ROOT, '..', 'sinapse');
 const OUT = resolve(APP_ROOT, 'src', 'data');
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.obsidian', '_templates', '_attachments']);

@@ -128,7 +128,7 @@ export default function App() {
         <div className="brand">
           <span className="brand-mark">🧠</span>
           <div>
-            <div className="brand-name">Cérebro</div>
+            <div className="brand-name">Sinapse</div>
             <div className="brand-sub">segundo cérebro · v1</div>
           </div>
         </div>
