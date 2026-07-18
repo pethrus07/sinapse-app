@@ -4,6 +4,7 @@ import type { Note } from '../types';
 interface Props {
   notes: Note[];
   onOpen: (id: string) => void;
+  onProgress: (rel: string, progresso: string) => void;
 }
 
 const STATUS: Record<string, { label: string }> = {
@@ -11,8 +12,10 @@ const STATUS: Record<string, { label: string }> = {
   estudando: { label: 'estudando' },
   'a-fazer': { label: 'a fazer' },
 };
+const CYCLE = ['a-fazer', 'estudando', 'dominado'];
+const nextProg = (st: string) => CYCLE[(CYCLE.indexOf(st) + 1) % CYCLE.length];
 
-export function RoadmapView({ notes, onOpen }: Props) {
+export function RoadmapView({ notes, onOpen, onProgress }: Props) {
   const tracks = useMemo(() => {
     const map = new Map<string, Note[]>();
     for (const n of notes) {
@@ -45,7 +48,7 @@ export function RoadmapView({ notes, onOpen }: Props) {
         <div>
           <div className="eyebrow-mono">Roadmap de estudo</div>
           <h1 className="rm-title">Sua trilha de conhecimento</h1>
-          <p className="muted">Cada marco vira verde quando você domina. A meta é ver isto tudo acender.</p>
+          <p className="muted">Clique no número de cada marco pra avançar: a fazer → estudando → dominado. A meta é ver tudo verde.</p>
         </div>
         <div className="rm-ring" style={{ ['--p' as any]: overallPct }}>
           <div className="rm-ring-num">{overallPct}%</div>
@@ -76,27 +79,31 @@ export function RoadmapView({ notes, onOpen }: Props) {
               const st = (n.progresso && STATUS[n.progresso] ? n.progresso : 'a-fazer') as string;
               const isCurrent = n.id === t.currentId;
               return (
-                <button
-                  key={n.id}
-                  className={'milestone ms-' + st + (isCurrent ? ' current' : '')}
-                  onClick={() => onOpen(n.id)}
-                >
-                  <span className="ms-node">{st === 'dominado' ? '✓' : n.ordem ?? i + 1}</span>
-                  <span className="ms-body">
+                <div key={n.id} className={'milestone ms-' + st + (isCurrent ? ' current' : '')}>
+                  <button
+                    className="ms-node"
+                    title="clique pra avançar o progresso"
+                    onClick={() => onProgress(n.rel, nextProg(st))}
+                  >
+                    {st === 'dominado' ? '✓' : n.ordem ?? i + 1}
+                  </button>
+                  <button className="ms-body-btn" onClick={() => onOpen(n.id)}>
                     <span className="ms-title">{n.title}</span>
                     <span className="ms-status">
                       {STATUS[st]?.label || st}
                       {isCurrent ? ' · você está aqui' : ''}
                     </span>
-                  </span>
-                </button>
+                  </button>
+                </div>
               );
             })}
           </div>
         </section>
       ))}
 
-      {!tracks.length && <p className="muted">Nenhuma trilha de estudo ainda. Adicione `trilha:` e `ordem:` no frontmatter das notas de estudo.</p>}
+      {!tracks.length && (
+        <p className="muted">Nenhuma trilha ainda. Adicione `trilha:`, `ordem:` e `progresso:` no frontmatter das notas de estudo.</p>
+      )}
     </div>
   );
 }

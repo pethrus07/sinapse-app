@@ -1,21 +1,37 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import type { Note } from '../types';
 import { areaLabel, colorForArea } from '../lib/colors';
+import { NoteEditor } from './NoteEditor';
 
 interface Props {
   note: Note;
   byId: Map<string, Note>;
   onNav: (path: string) => void;
+  onIndex: (idx: any) => void;
 }
 
-export function NoteView({ note, byId, onNav }: Props) {
+export function NoteView({ note, byId, onNav, onIndex }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
   const html = useMemo(() => marked.parse(note.body) as string, [note.body]);
 
   useEffect(() => {
     if (ref.current) ref.current.scrollTop = 0;
+    setEditing(false);
   }, [note.id]);
+
+  if (editing) {
+    return (
+      <NoteEditor
+        mode="edit"
+        note={note}
+        onIndex={onIndex}
+        onDone={() => setEditing(false)}
+        onCancel={() => setEditing(false)}
+      />
+    );
+  }
 
   function onClick(e: React.MouseEvent) {
     const a = (e.target as HTMLElement).closest('a');
@@ -49,6 +65,9 @@ export function NoteView({ note, byId, onNav }: Props) {
               #{t}
             </span>
           ))}
+          <button className="btn ghost note-edit-btn" onClick={() => setEditing(true)}>
+            ✎ Editar
+          </button>
         </div>
 
         <div className="note-body" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
