@@ -6,6 +6,11 @@ export interface Note {
   type: string;
   tags: string[];
   status: string;
+  progresso?: string;
+  trilha?: string;
+  ordem?: number | null;
+  cliente?: string;
+  stack?: string;
   body: string;
   links: string[];
   backlinks: string[];

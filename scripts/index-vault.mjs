@@ -49,7 +49,21 @@ for (const file of files) {
   const type = (data.tipo || 'nota').toString();
   let tags = data.tags || [];
   if (typeof tags === 'string') tags = [tags];
-  notes.push({ id, rel, title, area, type, tags, status: (data.status || '').toString(), body: content });
+  notes.push({
+    id,
+    rel,
+    title,
+    area,
+    type,
+    tags,
+    status: (data.status || '').toString(),
+    progresso: (data.progresso || '').toString(),
+    trilha: (data.trilha || '').toString(),
+    ordem: data.ordem != null && data.ordem !== '' ? Number(data.ordem) : null,
+    cliente: (data.cliente || '').toString(),
+    stack: (data.stack || '').toString(),
+    body: content,
+  });
 }
 
 // mapa de resolução: id e título (várias formas) -> id

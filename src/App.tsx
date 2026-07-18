@@ -7,6 +7,8 @@ import type { GraphData, Note, Stats } from './types';
 import { GraphView } from './components/GraphView';
 import { NoteView } from './components/NoteView';
 import { SearchView } from './components/SearchView';
+import { RoadmapView } from './components/RoadmapView';
+import { ProjectsView } from './components/ProjectsView';
 import { areaLabel, colorForArea } from './lib/colors';
 
 const notes = notesData as unknown as Note[];
@@ -18,7 +20,7 @@ function go(path: string) {
   window.location.hash = path;
 }
 
-type Route = { type: 'graph' | 'search' } | { type: 'note' | 'area'; arg: string };
+type Route = { type: 'graph' | 'search' | 'roadmap' | 'projetos' } | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
   const [hash, setHash] = useState(() => window.location.hash);
@@ -31,7 +33,9 @@ function useRoute(): Route {
   if (m.startsWith('note/')) return { type: 'note', arg: decodeURIComponent(m.slice(5)) };
   if (m.startsWith('area/')) return { type: 'area', arg: decodeURIComponent(m.slice(5)) };
   if (m.startsWith('search')) return { type: 'search' };
-  return { type: 'graph' };
+  if (m.startsWith('grafo')) return { type: 'graph' };
+  if (m.startsWith('projetos')) return { type: 'projetos' };
+  return { type: 'roadmap' };
 }
 
 function StatsPanel() {
@@ -118,8 +122,12 @@ export default function App() {
     );
   } else if (route.type === 'search') {
     main = <SearchView notes={notes} query={query} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
-  } else {
+  } else if (route.type === 'projetos') {
+    main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else if (route.type === 'graph') {
     main = <GraphView data={graph} onSelect={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else {
+    main = <RoadmapView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   }
 
   return (
@@ -136,7 +144,13 @@ export default function App() {
           <input placeholder="Buscar…" value={query} onChange={(e) => onSearchChange(e.target.value)} />
         </div>
         <nav className="nav">
-          <a className={'nav-item' + (route.type === 'graph' ? ' active' : '')} href="#/">
+          <a className={'nav-item' + (route.type === 'roadmap' ? ' active' : '')} href="#/">
+            <span className="nav-text">🗺️ Roadmap</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'projetos' ? ' active' : '')} href="#/projetos">
+            <span className="nav-text">🚀 Projetos</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'graph' ? ' active' : '')} href="#/grafo">
             <span className="nav-text">🕸️ Grafo</span>
           </a>
           <div className="nav-label">Áreas</div>
