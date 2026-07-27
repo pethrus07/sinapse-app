@@ -10,6 +10,7 @@ import { SearchView } from './components/SearchView';
 import { RoadmapView } from './components/RoadmapView';
 import { ProjectsView } from './components/ProjectsView';
 import { TreeView } from './components/TreeView';
+import { SkillTreeView } from './components/SkillTreeView';
 import { NoteEditor } from './components/NoteEditor';
 import { setProgress } from './lib/api';
 import { areaLabel, colorForArea } from './lib/colors';
@@ -19,7 +20,7 @@ function go(path: string) {
 }
 
 type Route =
-  | { type: 'graph' | 'search' | 'roadmap' | 'projetos' | 'arvore' | 'nova' }
+  | { type: 'graph' | 'search' | 'roadmap' | 'projetos' | 'arvore' | 'skills' | 'nova' }
   | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
@@ -36,6 +37,7 @@ function useRoute(): Route {
   if (m.startsWith('grafo')) return { type: 'graph' };
   if (m.startsWith('projetos')) return { type: 'projetos' };
   if (m.startsWith('arvore')) return { type: 'arvore' };
+  if (m.startsWith('skills')) return { type: 'skills' };
   if (m.startsWith('nova')) return { type: 'nova' };
   return { type: 'roadmap' };
 }
@@ -136,6 +138,8 @@ export default function App() {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'arvore') {
     main = <TreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else if (route.type === 'skills') {
+    main = <SkillTreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'graph') {
     main = <GraphView data={graph} onSelect={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'nova') {
@@ -179,6 +183,9 @@ export default function App() {
           </a>
           <a className={'nav-item' + (route.type === 'graph' ? ' active' : '')} href="#/grafo">
             <span className="nav-text">🕸️ Grafo</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'skills' ? ' active' : '')} href="#/skills">
+            <span className="nav-text">🌟 Skill Tree</span>
           </a>
           <div className="nav-label">Áreas</div>
           {areas.map(([area, count]) => (

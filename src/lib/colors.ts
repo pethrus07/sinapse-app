@@ -10,8 +10,16 @@ const AREA_COLORS: Record<string, string> = {
   diario: '#C0C7D4',
 };
 
+// cor estável por hash — pra qualquer área NOVA sem cor fixa não cair no cinza
+function hashColor(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return `hsl(${Math.abs(h) % 360} 62% 62%)`;
+}
+
 export function colorForArea(area?: string): string {
-  return AREA_COLORS[(area || '').toLowerCase()] || '#8A93A6';
+  const a = (area || '').toLowerCase();
+  return AREA_COLORS[a] || (a ? hashColor(a) : '#8A93A6');
 }
 
 export function areaLabel(area: string): string {

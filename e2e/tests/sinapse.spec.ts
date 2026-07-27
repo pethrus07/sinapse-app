@@ -37,6 +37,12 @@ test('carrega e navega todas as views sem erro de runtime (+ screenshots)', asyn
   await page.waitForTimeout(1800) // d3 assenta
   await page.screenshot({ path: `${SHOTS}/4-grafo.png`, fullPage: true })
 
+  // Skill Tree (nova view — ramos por domínio)
+  await page.locator('a[href="#/skills"]').click()
+  await expect(page.getByText('Skill Tree')).toBeVisible()
+  await page.waitForTimeout(1500)
+  await page.screenshot({ path: `${SHOTS}/7-skills.png`, fullPage: true })
+
   expect(erros, erros.join('\n')).toEqual([])
 })
 

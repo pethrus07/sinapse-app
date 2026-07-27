@@ -264,3 +264,16 @@ a { color: inherit; text-decoration: none; }
 .tw-node:hover .tw-label { fill: #ffffff; }
 .tw-leaf:hover circle { stroke: var(--ink); stroke-width: 2; }
 .tw-collapsed-ring { fill: none; stroke-width: 1.5; opacity: 0.6; }
+
+/* ── Skill Tree (competências por domínio) ─────────────── */
+.skill-wrap { position: relative; height: 100%; display: flex; flex-direction: column; }
+.skill-head { padding: 22px 26px 8px; }
+.skill-svg { flex: 1; width: 100%; cursor: grab; background: radial-gradient(ellipse at 50% 42%, rgba(20,26,38,0.4) 0%, var(--bg) 78%); }
+.skill-svg:active { cursor: grabbing; }
+.sk-link { fill: none; }
+.sk-label { fill: var(--soft); font-family: var(--font); stroke: var(--bg); stroke-width: 3px; paint-order: stroke; pointer-events: none; user-select: none; }
+.sk-node.sk-active .sk-core { animation: sk-pulse 1.9s ease-in-out infinite; }
+@keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.skill-legend { position: absolute; right: 20px; bottom: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--soft); background: rgba(12,14,20,0.72); padding: 8px 12px; border-radius: 10px; border: 1px solid #1e2430; backdrop-filter: blur(4px); }
+.skill-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.skill-legend i { width: 10px; height: 10px; border-radius: 3px; border: 1px solid transparent; display: inline-block; }
