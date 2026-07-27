@@ -5,6 +5,7 @@ const AREA_COLORS: Record<string, string> = {
   pessoas: '#F2739D',
   fontes: '#4FA3F0',
   ideias: '#7BE0A3',
+  crescimento: '#7FD858',
   sistema: '#9AA3B2',
   diario: '#C0C7D4',
 };
@@ -21,6 +22,7 @@ export function areaLabel(area: string): string {
     pessoas: '👥 Pessoas',
     fontes: '📎 Fontes',
     ideias: '💡 Ideias',
+    crescimento: '🌱 Crescimento',
     sistema: '⚙️ Sistema',
     diario: '🗓️ Diário',
   };
