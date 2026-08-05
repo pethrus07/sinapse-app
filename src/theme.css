@@ -277,3 +277,55 @@ a { color: inherit; text-decoration: none; }
 .skill-legend { position: absolute; right: 20px; bottom: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--soft); background: rgba(12,14,20,0.72); padding: 8px 12px; border-radius: 10px; border: 1px solid #1e2430; backdrop-filter: blur(4px); }
 .skill-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .skill-legend i { width: 10px; height: 10px; border-radius: 3px; border: 1px solid transparent; display: inline-block; }
+
+/* ===== Projeto com abas (Visão geral · Roadmap) ===== */
+.proj-detail { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.proj-tabs { display: flex; gap: 4px; padding: 10px 16px 0; background: var(--panel); border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+.proj-tab { font-size: 13px; font-weight: 600; padding: 8px 14px; border: 1px solid transparent; border-bottom: none; border-radius: 9px 9px 0 0; background: transparent; color: var(--soft); cursor: pointer; margin-bottom: -1px; }
+.proj-tab:hover { color: var(--ink); }
+.proj-tab.active { color: var(--ink); background: var(--bg); border-color: var(--line); }
+.proj-tabbody { flex: 1; position: relative; min-height: 0; }
+
+/* ===== Roadmap Canvas (aba Sistema) ===== */
+:root { --rc-done: var(--accent); --rc-ready: #58a9e6; --rc-plan: var(--violet); --rc-idea: var(--amber); --rc-strat: #e86a8a; }
+.rc-root { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
+.rc-bar { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; z-index: 6; }
+.rc-title b { font-size: 14px; letter-spacing: -0.01em; display: block; line-height: 1.15; color: var(--ink); }
+.rc-title span { font-size: 10.5px; color: var(--faint); font-family: var(--mono); }
+.rc-filters { display: flex; gap: 6px; margin-left: 8px; flex-wrap: wrap; }
+.rc-chip { font-size: 11px; font-family: var(--mono); padding: 4px 9px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--soft); cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 6px; transition: .12s; }
+.rc-chip:hover { color: var(--ink); }
+.rc-chip.rc-off { opacity: .38; }
+.rc-zoomwrap { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.rc-zoom { display: flex; align-items: center; gap: 2px; font-family: var(--mono); font-size: 12px; color: var(--soft); }
+.rc-zoom button { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; font-size: 14px; }
+.rc-btn { font-size: 12px; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; }
+.rc-btn:hover { border-color: var(--accent-dim); }
+.rc-canvas { flex: 1; position: relative; overflow: hidden; cursor: grab; background-color: var(--bg); background-image: radial-gradient(var(--line) 1.2px, transparent 1.2px); background-size: 26px 26px; }
+.rc-canvas.rc-grabbing { cursor: grabbing; }
+.rc-world { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+.rc-wires { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+.rc-lane { position: absolute; border-radius: 16px; border: 1px dashed var(--line); background: color-mix(in srgb, var(--panel) 30%, transparent); }
+.rc-lane h3 { position: absolute; top: -13px; left: 16px; margin: 0; font-size: 12px; font-family: var(--mono); letter-spacing: .05em; text-transform: uppercase; padding: 2px 10px; border-radius: 999px; background: var(--bg); display: flex; align-items: center; gap: 7px; color: var(--soft); font-weight: 600; }
+.rc-lane .rc-cnt { position: absolute; top: -11px; right: 16px; font-size: 11px; font-family: var(--mono); color: var(--faint); background: var(--bg); padding: 0 6px; }
+.rc-sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.rc-card { position: absolute; background: var(--panel); border: 1px solid var(--line); border-left-width: 4px; border-radius: 11px; padding: 11px 13px; cursor: grab; box-shadow: 0 8px 24px -18px rgba(0,0,0,.8); transition: box-shadow .12s, opacity .15s; }
+.rc-card:hover { box-shadow: 0 12px 30px -14px rgba(0,0,0,.9); z-index: 5; }
+.rc-card.rc-dragging { cursor: grabbing; box-shadow: 0 20px 44px -14px rgba(0,0,0,.95); z-index: 9; }
+.rc-card.rc-dim { opacity: .14; pointer-events: none; }
+.rc-card .rc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.rc-card .rc-tag { font-family: var(--mono); font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--panel2); }
+.rc-card .rc-pri { font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; margin-left: auto; }
+.rc-p1 { background: color-mix(in srgb, var(--rc-strat) 22%, transparent); color: var(--rc-strat); }
+.rc-p2 { background: color-mix(in srgb, var(--rc-idea) 20%, transparent); color: var(--rc-idea); }
+.rc-p3 { background: color-mix(in srgb, var(--line) 70%, transparent); color: var(--faint); }
+.rc-card h4 { margin: 0; font-size: 13.5px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; color: var(--ink); }
+.rc-card p { margin: 5px 0 0; font-size: 11.5px; line-height: 1.4; color: var(--soft); }
+.rc-detail { position: absolute; right: 14px; bottom: 14px; width: 320px; max-width: calc(100% - 28px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 17px; box-shadow: 0 20px 50px -20px rgba(0,0,0,.9); z-index: 8; display: none; }
+.rc-detail.rc-show { display: block; }
+.rc-detail .rc-x { position: absolute; top: 12px; right: 14px; cursor: pointer; color: var(--faint); font-size: 15px; }
+.rc-detail .rc-dst { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 7px; color: var(--soft); }
+.rc-detail h3 { margin: 8px 0 6px; font-size: 16px; letter-spacing: -0.01em; padding-right: 18px; color: var(--ink); }
+.rc-detail p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--soft); }
+.rc-detail .rc-dd { margin-top: 12px; font-size: 11.5px; color: var(--faint); font-family: var(--mono); }
+.rc-hint { position: absolute; left: 14px; bottom: 14px; z-index: 6; font-size: 11px; color: var(--faint); font-family: var(--mono); background: color-mix(in srgb, var(--panel) 72%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; pointer-events: none; max-width: 46%; }

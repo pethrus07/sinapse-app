@@ -30,6 +30,7 @@ export function slugify(s) {
 export function buildIndex(VAULT, OUT) {
   const files = walk(VAULT);
   const notes = [];
+  const roadmaps = []; // notas `tipo: roadmap` → alimentam o canvas do roadmap do sistema
 
   for (const file of files) {
     const rel = relative(VAULT, file).replace(/\\/g, '/');
@@ -38,6 +39,16 @@ export function buildIndex(VAULT, OUT) {
     const data = fm.data || {};
     const content = fm.content || '';
     const id = basename(file, '.md');
+    // bloco ```roadmap { "items": [...] } ``` → canvas (aba Sistema)
+    if ((data.tipo || '').toString() === 'roadmap') {
+      const m = content.match(/```roadmap\s*\n([\s\S]*?)```/);
+      if (m) {
+        try {
+          const parsed = JSON.parse(m[1]);
+          roadmaps.push({ rel, id, title: (data.title || id).toString(), projeto: (data.projeto || '').toString(), items: parsed.items || [] });
+        } catch { /* JSON inválido → ignora, não quebra o índice */ }
+      }
+    }
     const h1 = content.match(/^#\s+(.+)$/m);
     const title = data.title || (h1 ? h1[1].trim() : id);
     const area = (data.area || rel.split('/')[0] || '').toString();
@@ -141,11 +152,13 @@ export function buildIndex(VAULT, OUT) {
   };
 
   const graph = { nodes, edges };
+  const roadmap = roadmaps[0] || { items: [] }; // 1 roadmap de sistema por vault (por ora)
   if (OUT) {
     mkdirSync(OUT, { recursive: true });
     writeFileSync(join(OUT, 'notes.json'), JSON.stringify(outNotes));
     writeFileSync(join(OUT, 'graph.json'), JSON.stringify(graph));
     writeFileSync(join(OUT, 'stats.json'), JSON.stringify(stats));
+    writeFileSync(join(OUT, 'roadmap.json'), JSON.stringify(roadmap));
   }
-  return { notes: outNotes, graph, stats };
+  return { notes: outNotes, graph, stats, roadmap };
 }

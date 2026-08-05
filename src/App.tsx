@@ -3,8 +3,10 @@ import type { ReactNode } from 'react';
 import notesData from './data/notes.json';
 import graphData from './data/graph.json';
 import statsData from './data/stats.json';
+import roadmapData from './data/roadmap.json';
 import type { GraphData, Note, Stats } from './types';
 import { GraphView } from './components/GraphView';
+import { RoadmapCanvasView } from './components/RoadmapCanvasView';
 import { NoteView } from './components/NoteView';
 import { SearchView } from './components/SearchView';
 import { RoadmapView } from './components/RoadmapView';
@@ -68,6 +70,28 @@ function StatsPanel({ stats }: { stats: Stats }) {
   );
 }
 
+// Projeto com roadmap → abas (Visão geral · Roadmap canvas). É o fluxo Projetos → Commagente → Canvas.
+function ProjectView({ note, byId, roadmap, onNav, onIndex }: {
+  note: Note; byId: Map<string, Note>; roadmap: any; onNav: (p: string) => void; onIndex: (i: any) => void;
+}) {
+  const [tab, setTab] = useState<'nota' | 'roadmap'>('nota');
+  return (
+    <div className="proj-detail">
+      <div className="proj-tabs">
+        <button className={'proj-tab' + (tab === 'nota' ? ' active' : '')} onClick={() => setTab('nota')}>📄 Visão geral</button>
+        <button className={'proj-tab' + (tab === 'roadmap' ? ' active' : '')} onClick={() => setTab('roadmap')}>🗺️ Roadmap · {roadmap.items?.length ?? 0}</button>
+      </div>
+      <div className="proj-tabbody">
+        {tab === 'nota' ? (
+          <NoteView note={note} byId={byId} onNav={onNav} onIndex={onIndex} />
+        ) : (
+          <RoadmapCanvasView roadmap={roadmap} onOpenSource={() => onNav('/note/' + encodeURIComponent(roadmap.id || 'commagente-roadmap'))} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const route = useRoute();
   const [query, setQuery] = useState('');
@@ -98,11 +122,17 @@ export default function App() {
     if (v && route.type !== 'search') go('/search');
   }
 
+  const roadmap = roadmapData as any;
   let main: ReactNode;
   if (route.type === 'note') {
     const note = byId.get(route.arg);
+    const temRoadmap = note && roadmap.projeto === note.id && (roadmap.items?.length ?? 0) > 0;
     main = note ? (
-      <NoteView note={note} byId={byId} onNav={go} onIndex={applyIndex} />
+      temRoadmap ? (
+        <ProjectView note={note} byId={byId} roadmap={roadmap} onNav={go} onIndex={applyIndex} />
+      ) : (
+        <NoteView note={note} byId={byId} onNav={go} onIndex={applyIndex} />
+      )
     ) : (
       <div className="pad-scroll">
         <h2 className="page-title">Nota não encontrada</h2>
