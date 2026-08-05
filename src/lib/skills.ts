@@ -14,12 +14,12 @@ const REGRAS: Regra[] = [
   { dominio: 'Dados', sub: 'IA & Machine Learning', kw: ['machine learning', 'machine leaning', ' ml', 'inteligencia artificial', 'inteligência artificial', ' ia ', ' ia', 'ia no', 'analise preditiva', 'análise preditiva', 'classificacao', 'classificação', 'llm', 'embeddings'] },
   { dominio: 'Dados', sub: 'Bancos & Modelagem', kw: ['banco de dados', 'bancos de dados', 'bancos-de-dados', 'modelagem de dados', 'modelagem', 'nosql', ' sql', 'prisma', 'duckdb', 'postgres'] },
   { dominio: 'Dados', sub: 'Estatística & Matemática', kw: ['probabilidade', 'estatistica', 'estatística', 'calculo', 'cálculo', 'matematica', 'matemática'] },
+  // ── Segurança (ANTES de Infra: "Segurança de Data Center" não pode cair em Cloud) ──
+  { dominio: 'Segurança', sub: 'Segurança & Forense', kw: ['seguranca', 'segurança', 'forense', 'pericia', 'perícia', 'phishing', 'unphising', 'lgpd', 'credenciais', 'cofre', 'criptografia'] },
   // ── Infra & Nuvem ───────────────────────────────────────────────
   { dominio: 'Infra & Nuvem', sub: 'Redes', kw: ['redes', 'protocolo', 'proxies', 'proxy', ' tcp', ' dns'] },
   { dominio: 'Infra & Nuvem', sub: 'Cloud & DevOps', kw: ['cloud', 'nuvem', 'cloudflare', 'virtualizacao', 'virtualização', 'datacenter', 'data center', 'docker', 'deploy', 'devops', 'worker', 'wrangler'] },
   { dominio: 'Infra & Nuvem', sub: 'Sistemas & IoT', kw: ['sistemas operacionais', 'iot', 'internet das coisas', 'circuitos', 'arquitetura de computadores', 'organizacao e arquitetura', 'modbus', ' clp', 'industrial', 'machine monitor'] },
-  // ── Segurança ───────────────────────────────────────────────────
-  { dominio: 'Segurança', sub: 'Segurança & Forense', kw: ['seguranca', 'segurança', 'forense', 'pericia', 'perícia', 'phishing', 'unphising', 'lgpd', 'credenciais', 'cofre', 'criptografia'] },
   // ── Engenharia de Software ──────────────────────────────────────
   { dominio: 'Engenharia', sub: 'Arquitetura', kw: ['arquitetura', 'multilayer', 'layered', 'vertical slice', 'vertical-slice', 'design de sistema'] },
   { dominio: 'Engenharia', sub: 'Processos & Ágil', kw: ['agil', 'ágil', 'metodos ageis', 'métodos ágeis', 'engenharia de software', 'analise e projeto', 'análise e projeto', 'scrum', 'tecnicas de pesquisa', 'técnicas de pesquisa'] },
