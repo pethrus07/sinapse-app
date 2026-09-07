@@ -4,7 +4,9 @@ import notesData from './data/notes.json';
 import graphData from './data/graph.json';
 import statsData from './data/stats.json';
 import roadmapData from './data/roadmap.json';
-import type { GraphData, Note, Stats } from './types';
+import agendaData from './data/agenda.json';
+import financeiroData from './data/financeiro.json';
+import type { Agenda, Financeiro, GraphData, Note, Stats } from './types';
 import { GraphView } from './components/GraphView';
 import { RoadmapCanvasView } from './components/RoadmapCanvasView';
 import { NoteView } from './components/NoteView';
@@ -13,8 +15,12 @@ import { RoadmapView } from './components/RoadmapView';
 import { ProjectsView } from './components/ProjectsView';
 import { TreeView } from './components/TreeView';
 import { SkillTreeView } from './components/SkillTreeView';
+import { AgendaView } from './components/AgendaView';
+import { FinanceiroView } from './components/FinanceiroView';
 import { NoteEditor } from './components/NoteEditor';
-import { setProgress } from './lib/api';
+import { acaoFinanceiro, buscarIndice, buscarVersao, criarDaily, lancarFinanceiro, setProgress } from './lib/api';
+import { corpoDaDaily, normalizar } from './lib/agenda';
+import { normalizarFin } from './lib/financeiro';
 import { areaLabel, colorForArea } from './lib/colors';
 
 function go(path: string) {
@@ -22,7 +28,7 @@ function go(path: string) {
 }
 
 type Route =
-  | { type: 'graph' | 'search' | 'roadmap' | 'projetos' | 'arvore' | 'skills' | 'nova' }
+  | { type: 'graph' | 'search' | 'roadmap' | 'projetos' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' }
   | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
@@ -40,6 +46,8 @@ function useRoute(): Route {
   if (m.startsWith('projetos')) return { type: 'projetos' };
   if (m.startsWith('arvore')) return { type: 'arvore' };
   if (m.startsWith('skills')) return { type: 'skills' };
+  if (m.startsWith('agenda')) return { type: 'agenda' };
+  if (m.startsWith('financeiro')) return { type: 'financeiro' };
   if (m.startsWith('nova')) return { type: 'nova' };
   return { type: 'roadmap' };
 }
@@ -98,6 +106,8 @@ export default function App() {
   const [notes, setNotes] = useState(notesData as unknown as Note[]);
   const [graph, setGraph] = useState(graphData as unknown as GraphData);
   const [stats, setStats] = useState(statsData as unknown as Stats);
+  const [agenda, setAgenda] = useState<Agenda>(() => normalizar(agendaData as unknown as Agenda));
+  const [financeiro, setFinanceiro] = useState<Financeiro>(() => normalizarFin(financeiroData as unknown as Financeiro));
 
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
   const areas = useMemo(() => Object.entries(stats.byArea).sort((a, b) => b[1] - a[1]), [stats]);
@@ -106,7 +116,47 @@ export default function App() {
     if (idx?.notes) setNotes(idx.notes as Note[]);
     if (idx?.graph) setGraph(idx.graph as GraphData);
     if (idx?.stats) setStats(idx.stats as Stats);
+    if (idx?.agenda) setAgenda(normalizar(idx.agenda as Agenda));
+    if (idx?.financeiro) setFinanceiro(normalizarFin(idx.financeiro as Financeiro));
   }
+
+  // O JSON empacotado (src/data) fica no server.watch.ignored do Vite, logo pode estar
+  // velho: reindex por CLI, edicao do .md na mao ou outra aba nao invalidam o cache.
+  // Por isso a fonte de verdade e o /api/indice — no mount e ao voltar o foco.
+  useEffect(() => {
+    let vivo = true;
+    const versaoRef = { atual: -1 };
+
+    const puxar = async () => {
+      try {
+        const idx = await buscarIndice();
+        if (!vivo) return;
+        versaoRef.atual = idx.versao ?? versaoRef.atual;
+        applyIndex(idx);
+      } catch {
+        /* build estatico ou servidor fora: segue com o JSON empacotado */
+      }
+    };
+
+    const revalidar = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const { versao } = await buscarVersao();
+        if (vivo && versao !== versaoRef.atual) await puxar();
+      } catch {
+        /* sem servidor: nada a revalidar */
+      }
+    };
+
+    puxar();
+    window.addEventListener('focus', revalidar);
+    document.addEventListener('visibilitychange', revalidar);
+    return () => {
+      vivo = false;
+      window.removeEventListener('focus', revalidar);
+      document.removeEventListener('visibilitychange', revalidar);
+    };
+  }, []);
 
   async function handleProgress(rel: string, progresso: string) {
     try {
@@ -114,6 +164,30 @@ export default function App() {
       applyIndex(idx);
     } catch (e) {
       alert('Não deu pra salvar o progresso: ' + (e as Error).message + '\n(o app precisa estar rodando via npm run dev)');
+    }
+  }
+
+  async function handleCriarDaily(dia: string) {
+    try {
+      const idx = await criarDaily(dia, corpoDaDaily(dia));
+      applyIndex(idx);
+      go('/note/' + encodeURIComponent(dia));
+    } catch (e) {
+      alert('Nao deu pra criar a daily: ' + (e as Error).message + String.fromCharCode(10) + '(o app precisa estar rodando via npm run dev)');
+    }
+  }
+
+  async function handleLancar(l: Record<string, unknown>) {
+    const idx = await lancarFinanceiro(l);
+    applyIndex(idx);
+  }
+
+  async function handleAcaoFin(acao: 'liquidar' | 'reabrir' | 'remover', mes: string, id: string) {
+    try {
+      const idx = await acaoFinanceiro(acao, mes, id);
+      applyIndex(idx);
+    } catch (e) {
+      alert('Nao deu pra salvar: ' + (e as Error).message);
     }
   }
 
@@ -168,6 +242,25 @@ export default function App() {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'arvore') {
     main = <TreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else if (route.type === 'agenda') {
+    main = (
+      <AgendaView
+        agenda={agenda}
+        notes={notes}
+        onOpen={(id) => go('/note/' + encodeURIComponent(id))}
+        onCriarDaily={handleCriarDaily}
+      />
+    );
+  } else if (route.type === 'financeiro') {
+    main = (
+      <FinanceiroView
+        financeiro={financeiro}
+        notes={notes}
+        onOpen={(id) => go('/note/' + encodeURIComponent(id))}
+        onLancar={handleLancar}
+        onAcao={handleAcaoFin}
+      />
+    );
   } else if (route.type === 'skills') {
     main = <SkillTreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'graph') {
@@ -204,6 +297,12 @@ export default function App() {
         <nav className="nav">
           <a className={'nav-item' + (route.type === 'roadmap' ? ' active' : '')} href="#/">
             <span className="nav-text">🗺️ Roadmap</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'agenda' ? ' active' : '')} href="#/agenda">
+            <span className="nav-text">🗓️ Agenda</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'financeiro' ? ' active' : '')} href="#/financeiro">
+            <span className="nav-text">💰 Financeiro</span>
           </a>
           <a className={'nav-item' + (route.type === 'projetos' ? ' active' : '')} href="#/projetos">
             <span className="nav-text">🚀 Projetos</span>

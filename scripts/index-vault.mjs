@@ -8,5 +8,8 @@ const APP_ROOT = resolve(__dirname, '..');
 const VAULT = process.env.VAULT_PATH ? resolve(process.env.VAULT_PATH) : resolve(APP_ROOT, '..', 'sinapse');
 const OUT = resolve(APP_ROOT, 'src', 'data');
 
-const { stats } = buildIndex(VAULT, OUT);
+const { stats, agenda, financeiro } = buildIndex(VAULT, OUT);
+const ag = `${agenda.blocos.length} blocos · ${agenda.semanal.length} semanais · ${agenda.mensal.length} mensais · ${agenda.datas.length} datas · ${agenda.dailys.length} dailys`;
 console.log(`[index-vault] ${stats.notes} notas · ${stats.links} conexoes · ${stats.ghosts} sementes (de ${VAULT})`);
+console.log(`[index-vault] agenda: ${ag}`);
+console.log(`[index-vault] financeiro: ${financeiro.lancamentos.length} lancamentos em ${financeiro.meses.length} mes(es)`);

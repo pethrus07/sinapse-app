@@ -39,7 +39,8 @@ test('carrega e navega todas as views sem erro de runtime (+ screenshots)', asyn
 
   // Skill Tree (nova view — ramos por domínio)
   await page.locator('a[href="#/skills"]').click()
-  await expect(page.getByText('Skill Tree')).toBeVisible()
+  // titulo da view, nao o item do nav (getByText casaria com os dois)
+  await expect(page.getByRole('heading', { name: 'Skill Tree' })).toBeVisible()
   await page.waitForTimeout(1500)
   await page.screenshot({ path: `${SHOTS}/7-skills.png`, fullPage: true })
 

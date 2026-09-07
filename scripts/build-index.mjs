@@ -27,10 +27,24 @@ export function slugify(s) {
     .replace(/^-+|-+$/g, '');
 }
 
+// YAML sem quotes vira Date; data-só é meia-noite UTC, então o slice do ISO dá o dia certo.
+function toYmd(v) {
+  if (!v) return '';
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[0] : s;
+}
+
 export function buildIndex(VAULT, OUT) {
   const files = walk(VAULT);
   const notes = [];
   const roadmaps = []; // notas `tipo: roadmap` → alimentam o canvas do roadmap do sistema
+  // Agenda: `tipo: agenda` traz a rotina em bloco JSON; `quando:` em qualquer nota vira evento;
+  // `tipo: daily` alimenta o link do dia na grade.
+  const agenda = { blocos: [], semanal: [], mensal: [], datas: [], dailys: [], fonte: '' };
+  // Financeiro: um arquivo por mes (`tipo: financeiro`) com bloco JSON de lancamentos.
+  const financeiro = { lancamentos: [], meses: [] };
 
   for (const file of files) {
     const rel = relative(VAULT, file).replace(/\\/g, '/');
@@ -53,6 +67,49 @@ export function buildIndex(VAULT, OUT) {
     const title = data.title || (h1 ? h1[1].trim() : id);
     const area = (data.area || rel.split('/')[0] || '').toString();
     const type = (data.tipo || 'nota').toString();
+
+    // ---- agenda: rotina em bloco JSON, dailys e eventos por frontmatter ----
+    if (type === 'agenda') {
+      const m = content.match(/```agenda\s*\n([\s\S]*?)```/);
+      if (m) {
+        try {
+          const p = JSON.parse(m[1]);
+          agenda.fonte = id;
+          for (const k of ['blocos', 'semanal', 'mensal', 'datas'])
+            if (Array.isArray(p[k])) agenda[k].push(...p[k]);
+        } catch { /* JSON inválido → ignora, não quebra o índice */ }
+      }
+    }
+    if (type === 'financeiro') {
+      const m = content.match(/```financeiro\s*\n([\s\S]*?)```/);
+      const mes = toYmd(data.mes).slice(0, 7) || String(data.mes || id).slice(0, 7);
+      if (m) {
+        try {
+          const p = JSON.parse(m[1]);
+          const arr = Array.isArray(p.lancamentos) ? p.lancamentos : [];
+          financeiro.meses.push({ mes, rel, id, total: arr.length });
+          for (const l of arr) financeiro.lancamentos.push({ ...l, mes, rel });
+        } catch { /* JSON invalido -> ignora, nao quebra o indice */ }
+      }
+    }
+    if (type === 'daily') {
+      const dia = /^\d{4}-\d{2}-\d{2}$/.test(id) ? id : toYmd(data.criado);
+      if (dia) agenda.dailys.push({ dia, id, rel });
+    }
+    // qualquer nota com `quando:` entra no calendário como evento próprio
+    if (data.quando) {
+      agenda.datas.push({
+        de: toYmd(data.quando),
+        ate: toYmd(data.fim),
+        titulo: title,
+        frente: (data.frente || '').toString(),
+        hora: (data.hora || '').toString(),
+        onde: (data.onde || '').toString(),
+        link: (data.link || '').toString(),
+        nota: id,
+        deNota: true,
+      });
+    }
     let tags = data.tags || [];
     if (typeof tags === 'string') tags = [tags];
     notes.push({
@@ -153,12 +210,50 @@ export function buildIndex(VAULT, OUT) {
 
   const graph = { nodes, edges };
   const roadmap = roadmaps[0] || { items: [] }; // 1 roadmap de sistema por vault (por ora)
+  // O financeiro alimenta o calendario: vencimento ABERTO vira data na agenda.
+  // Sem isso a mesma data existiria em dois lugares e uma das duas envelheceria.
+  //
+  // AGRUPADO por (dia, cliente, direcao): o ciclo do Desbravando sao 6 lancamentos
+  // no dia 26, mas e UMA cobranca — 6 chips no mesmo dia afogam a grade. O detalhe
+  // item por item vive na view Financeiro, que e o lugar dele.
+  const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const grupos = new Map();
+  for (const l of financeiro.lancamentos) {
+    if (!l.vencimento) continue;
+    if (l.status !== 'a-receber' && l.status !== 'a-pagar') continue;
+    if (l.tipo === 'reserva') continue; // guardar e decisao, nao compromisso com data
+    const saida = l.tipo === 'saida';
+    const chave = [l.vencimento, saida ? 'saida' : 'entrada', l.cliente || ''].join('|');
+    const g = grupos.get(chave) || { de: l.vencimento, saida, cliente: l.cliente || '', total: 0, itens: 0, nota: '', desc: '' };
+    g.total += Number(l.valor) || 0;
+    g.itens += 1;
+    if (!g.nota && l.nota) g.nota = l.nota;
+    if (!g.desc) g.desc = l.descricao || '';
+    grupos.set(chave, g);
+  }
+  for (const g of grupos.values()) {
+    const quem = g.cliente || g.desc;
+    const sufixo = g.itens > 1 ? ` (${g.itens} itens)` : '';
+    agenda.datas.push({
+      de: g.de,
+      titulo: `${g.saida ? 'Pagar' : 'Receber'} R$ ${brl(g.total)} · ${quem}${sufixo}`,
+      frente: g.saida ? 'pagar' : 'receber',
+      nota: g.nota,
+      doFinanceiro: true,
+    });
+  }
+  financeiro.lancamentos.sort((a, b) => String(a.vencimento || '9999').localeCompare(String(b.vencimento || '9999')));
+  financeiro.meses.sort((a, b) => String(a.mes).localeCompare(String(b.mes)));
+  agenda.datas.sort((a, b) => String(a.de).localeCompare(String(b.de)));
+  agenda.dailys.sort((a, b) => a.dia.localeCompare(b.dia));
   if (OUT) {
     mkdirSync(OUT, { recursive: true });
     writeFileSync(join(OUT, 'notes.json'), JSON.stringify(outNotes));
     writeFileSync(join(OUT, 'graph.json'), JSON.stringify(graph));
     writeFileSync(join(OUT, 'stats.json'), JSON.stringify(stats));
     writeFileSync(join(OUT, 'roadmap.json'), JSON.stringify(roadmap));
+    writeFileSync(join(OUT, 'agenda.json'), JSON.stringify(agenda));
+    writeFileSync(join(OUT, 'financeiro.json'), JSON.stringify(financeiro));
   }
-  return { notes: outNotes, graph, stats, roadmap };
+  return { notes: outNotes, graph, stats, roadmap, agenda, financeiro };
 }

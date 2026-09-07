@@ -1,0 +1,13 @@
+{
+  "name": "sinapse-nlm",
+  "private": true,
+  "type": "module",
+  "description": "Extrator local do NotebookLM: usa o Chrome instalado + um perfil dedicado (login uma vez) e grava o conteudo dos notebooks como arquivos, prontos pro importar-notebooklm.mjs.",
+  "scripts": {
+    "explorar": "node explorar.mjs",
+    "extrair": "node extrair.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}
