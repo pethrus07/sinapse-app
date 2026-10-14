@@ -100,6 +100,7 @@ export function NoteEditor({ mode, note, onIndex, onDone, onCancel }: Props) {
                 <option value="">—</option>
                 <option value="a-fazer">a fazer</option>
                 <option value="estudando">estudando</option>
+                <option value="revisar">revisar</option>
                 <option value="dominado">dominado</option>
               </select>
             </label>

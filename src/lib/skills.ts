@@ -6,6 +6,12 @@ import type { Note } from '../types';
 type Regra = { dominio: string; sub: string; kw: string[] };
 
 const REGRAS: Regra[] = [
+  // ── Produto (antes de tudo: "Transição QA → PO" não pode cair em Qualidade pelo "qa") ──
+  { dominio: 'Produto', sub: 'Product Owner & Descoberta', kw: ['product-owner', 'product owner', ' po ', 'produto', 'backlog', 'roadmap', 'descoberta', 'posthog', 'onboarding'] },
+  // ── Negócio ─────────────────────────────────────────────────────
+  { dominio: 'Negócio', sub: 'Preço & Formalização', kw: ['precificacao', 'precificação', 'cobranca', 'cobrança', 'formalizacao', 'formalização', 'cnpj', 'freelancer', 'comercial'] },
+  { dominio: 'Negócio', sub: 'Finanças', kw: ['financeiro', 'financas', 'finanças', 'cartao', 'cartão', 'reorganizacao financeira', 'reorganização financeira', 'investimento'] },
+  { dominio: 'Negócio', sub: 'Carreira', kw: ['carreira', 'salario', 'salário', 'linkedin', 'certificacao', 'certificação'] },
   // ── Desenvolvimento ─────────────────────────────────────────────
   { dominio: 'Desenvolvimento', sub: 'Front-end', kw: ['frontend', 'front-end', 'react', ' html', ' css', 'programacao web', 'programação web', 'aplicacoes para internet', 'aplicações para internet', 'jack herrington', 'jack-herrington', 'flutter', 'interface humano', 'ux', 'ui/'] },
   { dominio: 'Desenvolvimento', sub: 'Back-end', kw: ['backend', 'back-end', 'http', 'comunicacao backend', 'comunicação backend', ' api', 'fastify', 'servidor', 'cliente/servidor', 'cliente-servidor', 'design de backend', 'harness'] },

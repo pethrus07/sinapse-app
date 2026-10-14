@@ -41,7 +41,7 @@ export function buildIndex(VAULT, OUT) {
   const notes = [];
   const roadmaps = []; // notas `tipo: roadmap` → alimentam o canvas do roadmap do sistema
   // Agenda: `tipo: agenda` traz a rotina em bloco JSON; `quando:` em qualquer nota vira evento;
-  // `tipo: daily` alimenta o link do dia na grade.
+  // `tipo: diario` (ou o antigo `daily`) alimenta o link do dia na grade.
   const agenda = { blocos: [], semanal: [], mensal: [], datas: [], dailys: [], fonte: '' };
   // Financeiro: um arquivo por mes (`tipo: financeiro`) com bloco JSON de lancamentos.
   const financeiro = { lancamentos: [], meses: [] };
@@ -92,7 +92,7 @@ export function buildIndex(VAULT, OUT) {
         } catch { /* JSON invalido -> ignora, nao quebra o indice */ }
       }
     }
-    if (type === 'daily') {
+    if (type === 'daily' || type === 'diario') {
       const dia = /^\d{4}-\d{2}-\d{2}$/.test(id) ? id : toYmd(data.criado);
       if (dia) agenda.dailys.push({ dia, id, rel });
     }
@@ -137,14 +137,18 @@ export function buildIndex(VAULT, OUT) {
   }
   const resolveTarget = (t) => idByKey.get(t.toLowerCase()) || idByKey.get(slugify(t)) || null;
 
-  const WL = /\[\[([^\]]+)\]\]/g;
+  // Uma passada só: ou casa código (bloco cercado ou trecho em crase) e o devolve, ou casa um wikilink.
+  const CODE_OR_WL = /```[\s\S]*?```|`[^`\n]*`|\[\[([^\]]+)\]\]/g;
   const linksByNote = new Map();
   const ghostLinksByNote = new Map();
   const ghosts = new Map();
 
   for (const n of notes) {
     const set = new Set();
-    n.body = n.body.replace(WL, (_m, inner) => {
+    // `[[x]]` dentro de código (bloco ``` ou `trecho`) é exemplo, não link — igual ao
+    // Obsidian e à régua do vault (scripts/saude-vault.py). Só o texto fora de código vira link.
+    n.body = n.body.replace(CODE_OR_WL, (m, inner) => {
+      if (inner === undefined) return m; // era código: devolve intacto
       const [rawTarget, rawAlias] = inner.split('|');
       const target = rawTarget.trim();
       const alias = (rawAlias ?? rawTarget).trim();

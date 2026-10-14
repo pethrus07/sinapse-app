@@ -6,13 +6,17 @@ interface Props {
   onOpen: (id: string) => void;
 }
 
-const STATUS_ORDER = ['producao', 'ativo', 'proposta', 'aguardando-cliente', 'incubando', ''];
+// Os 7 status do vault (ciclo de vida) — o mesmo vocabulário que a régua
+// `scripts/saude-vault.py` do Sinapse trava no commit. `progresso` é outro eixo (estudo).
+const STATUS_ORDER = ['em-producao', 'ativo', 'aguardando', 'pausado', 'ideia', 'concluido', 'arquivado', ''];
 const STATUS_META: Record<string, { label: string; cls: string }> = {
-  producao: { label: 'em produção', cls: 'st-prod' },
+  'em-producao': { label: 'em produção', cls: 'st-prod' },
   ativo: { label: 'ativo', cls: 'st-ativo' },
-  proposta: { label: 'proposta', cls: 'st-prop' },
-  'aguardando-cliente': { label: 'aguardando cliente', cls: 'st-wait' },
-  incubando: { label: 'incubando', cls: 'st-inc' },
+  aguardando: { label: 'aguardando', cls: 'st-wait' },
+  pausado: { label: 'pausado', cls: 'st-inc' },
+  ideia: { label: 'ideia', cls: 'st-prop' },
+  concluido: { label: 'concluído', cls: 'st-none' },
+  arquivado: { label: 'arquivado', cls: 'st-none' },
 };
 
 export function ProjectsView({ notes, onOpen }: Props) {
@@ -34,7 +38,10 @@ export function ProjectsView({ notes, onOpen }: Props) {
   }, [notes]);
 
   const total = groups.reduce((s, g) => s + g.items.length, 0);
-  const prod = groups.find((g) => g.status === 'producao')?.items.length || 0;
+  const prod = groups.find((g) => g.status === 'em-producao')?.items.length || 0;
+  const vivos = groups
+    .filter((g) => g.status === 'ativo' || g.status === 'aguardando')
+    .reduce((s, g) => s + g.items.length, 0);
 
   return (
     <div className="pad-scroll">
@@ -42,7 +49,7 @@ export function ProjectsView({ notes, onOpen }: Props) {
         <div>
           <div className="eyebrow-mono">Projetos</div>
           <h1 className="rm-title">{total} projetos no radar</h1>
-          <p className="muted">{prod} em produção · o resto ativo, em proposta ou aguardando cliente.</p>
+          <p className="muted">{prod} em produção · {vivos} ativos ou aguardando · o resto em ideia, pausado ou encerrado.</p>
         </div>
       </div>
 

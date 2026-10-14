@@ -9,19 +9,22 @@ interface Props {
   onOpen: (id: string) => void;
 }
 
-// Estado da "habilidade": progresso (trilha de estudo) manda; senão o status (projetos).
+// Estado da "habilidade": progresso (eixo do estudo) manda; senão o status (ciclo de vida).
+//   progresso: a-fazer · estudando · revisar · dominado
+//   status:    ideia · ativo · aguardando · pausado · em-producao · concluido · arquivado
 type Estado = 'mastered' | 'active' | 'locked' | 'known';
 function estado(n: Note): Estado {
   const p = (n.progresso || '').toLowerCase();
   if (p) {
-    if (p.includes('domin')) return 'mastered';
-    if (p.includes('estud')) return 'active';
+    if (p === 'dominado') return 'mastered';
+    if (p === 'estudando') return 'active';
+    if (p === 'revisar') return 'known'; // já passou por mim, mas pede releitura
     return 'locked'; // a-fazer
   }
   const s = (n.status || '').toLowerCase();
-  if (/producao|conclu|feito/.test(s)) return 'mastered';
-  if (/andamento|progresso/.test(s)) return 'active';
-  if (/proposta|pausado|experimento|inbox|aguard/.test(s)) return 'locked';
+  if (s === 'em-producao' || s === 'concluido') return 'mastered';
+  if (s === 'ativo') return 'active';
+  if (s === 'ideia' || s === 'aguardando' || s === 'pausado' || s === 'arquivado') return 'locked';
   return 'known';
 }
 const EST_COR: Record<Estado, string> = {

@@ -7,12 +7,14 @@ interface Props {
   onProgress: (rel: string, progresso: string) => void;
 }
 
+// `progresso` é o eixo do estudo (o `status` da nota é o ciclo de vida, outro eixo).
 const STATUS: Record<string, { label: string }> = {
   dominado: { label: 'dominado' },
+  revisar: { label: 'revisar' },
   estudando: { label: 'estudando' },
   'a-fazer': { label: 'a fazer' },
 };
-const CYCLE = ['a-fazer', 'estudando', 'dominado'];
+const CYCLE = ['a-fazer', 'estudando', 'revisar', 'dominado'];
 const nextProg = (st: string) => CYCLE[(CYCLE.indexOf(st) + 1) % CYCLE.length];
 
 export function RoadmapView({ notes, onOpen, onProgress }: Props) {
@@ -48,7 +50,7 @@ export function RoadmapView({ notes, onOpen, onProgress }: Props) {
         <div>
           <div className="eyebrow-mono">Roadmap de estudo</div>
           <h1 className="rm-title">Sua trilha de conhecimento</h1>
-          <p className="muted">Clique no número de cada marco pra avançar: a fazer → estudando → dominado. A meta é ver tudo verde.</p>
+          <p className="muted">Clique no número de cada marco pra avançar: a fazer → estudando → revisar → dominado. A meta é ver tudo verde.</p>
         </div>
         <div className="rm-ring" style={{ ['--p' as any]: overallPct }}>
           <div className="rm-ring-num">{overallPct}%</div>

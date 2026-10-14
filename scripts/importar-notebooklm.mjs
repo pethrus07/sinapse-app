@@ -138,11 +138,13 @@ for (const [notebook, notas] of porNotebook) {
   for (const nota of notas) {
     const id = idUnico(`nlm-${slugNb}-${slugify(nota.titulo) || 'nota'}`);
     itens.push({ id, titulo: nota.titulo });
+    // Resumo de IA sobre material de terceiro é fonte, e fonte não tem ciclo de vida:
+    // sem `status` (o vault só aceita o vocabulário de 7 status — a régua trava o resto).
+    // O "ainda cru" fica na tag `inbox`.
     const md = `---
-tipo: nota
+tipo: fonte
 area: notebooklm
-tags: [notebooklm, ${slugNb}]
-status: inbox
+tags: [notebooklm, inbox, ${slugNb}]
 origem: notebooklm
 notebook: ${escapar(notebook)}
 criado: ${HOJE}
@@ -154,18 +156,17 @@ ${nota.corpo}
 
 ## Conexões
 - Veio de: [[${mocId}]]
-- Relaciona-se com [[ ]]
-- Onde aplico: [[ ]]
+- Relaciona-se com: (a ligar no processamento)
+- Onde aplico: (a ligar no processamento)
 `;
     if (!DRY) { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, `${id}.md`), md, 'utf8'); }
     escritas++;
   }
 
   const moc = `---
-tipo: nota
+tipo: moc
 area: notebooklm
-tags: [notebooklm, moc, ${slugNb}]
-status: inbox
+tags: [notebooklm, moc, inbox, ${slugNb}]
 origem: notebooklm
 criado: ${HOJE}
 ---
@@ -174,7 +175,7 @@ criado: ${HOJE}
 
 Importado em ${HOJE} — **${itens.length} ${itens.length === 1 ? 'nota' : 'notas'}** ainda CRUAS.
 
-No review: cada item vira nota atômica na área certa (ou é apagado). Resumo de IA
+No processamento (feito pelo Claude): cada item vira nota atômica na área certa (ou é apagado). Resumo de IA
 sobre material de terceiro é **fonte** → [[MOC-fontes]]; nota atômica é o que
 *você* concluiu.
 
