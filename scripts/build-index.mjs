@@ -1,8 +1,69 @@
 // Lógica de indexação do vault, reutilizável (CLI + API do dev server).
 // Fonte da verdade = os .md; isto gera um índice derivado e o retorna.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, extname, basename } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { join, relative, extname, basename, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import matter from 'gray-matter';
+
+/* ---------- Frentes: movimento pelo git ----------
+   "Último movimento" de uma frente = último commit nas pastas que a nota declara em
+   `pastas:` (relativas a ~/Projetos, como no verificar-pastas.py do vault). Sem pasta,
+   vale o último commit da própria nota no vault. Os commits dos últimos 30 dias vão
+   junto para o app medir as horas pelo método de sessões (src/lib/frentes.ts).
+   Cache de 60 s: o watcher reindexa a cada .md salvo e o git não muda nesse ritmo. */
+const STATUS_FRENTE = new Set(['ativo', 'aguardando', 'em-producao', 'pausado']);
+const JANELA_COMMITS = 30 * 86400; // segundos
+const CACHE_GIT_MS = 60_000;
+const cacheGit = new Map();
+
+function git(dir, args) {
+  const chave = dir + '|' + args.join(' ');
+  const hit = cacheGit.get(chave);
+  if (hit && Date.now() - hit.em < CACHE_GIT_MS) return hit.saida;
+  let saida = '';
+  try {
+    saida = execFileSync('git', ['-C', dir, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 8000,
+      windowsHide: true,
+    });
+  } catch {
+    saida = ''; // não é repositório, pasta sem commit ou git ausente: sem movimento
+  }
+  cacheGit.set(chave, { em: Date.now(), saida });
+  return saida;
+}
+
+// Timestamps (segundos) dos commits que mexeram na pasta, do mais novo para o mais velho.
+// `-- .` restringe à pasta: `qa-parresia/analise-5cvb` não herda os commits do repo inteiro.
+function commitsDaPasta(dir) {
+  if (!existsSync(dir)) return [];
+  return git(dir, ['log', '--format=%ct', '--max-count=300', '--', '.'])
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(Number)
+    .filter(Number.isFinite);
+}
+
+function atividadeDaFrente(VAULT, PROJETOS, rel, pastas) {
+  const agora = Math.floor(Date.now() / 1000);
+  const todos = new Set();
+  for (const p of pastas) for (const t of commitsDaPasta(resolve(PROJETOS, p))) todos.add(t);
+  if (todos.size) {
+    const lista = [...todos].sort((a, b) => b - a);
+    return { ultimo: lista[0], commits: lista.filter((t) => agora - t <= JANELA_COMMITS), fonte: 'pastas' };
+  }
+  // sem pasta (ou pasta sem git): o último commit da nota no vault diz quando a frente andou
+  const t = Number(git(VAULT, ['log', '-1', '--format=%ct', '--', rel]).trim());
+  return { ultimo: Number.isFinite(t) && t > 0 ? t : null, commits: [], fonte: 'nota' };
+}
+
+function listaDe(v) {
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+  if (v == null || v === '') return [];
+  return String(v).split(',').map((x) => x.trim()).filter(Boolean);
+}
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.obsidian', '_templates', '_attachments']);
 
@@ -37,6 +98,8 @@ function toYmd(v) {
 }
 
 export function buildIndex(VAULT, OUT) {
+  // pastas de projeto: as de `pastas:` são relativas a ~/Projetos (o pai do vault)
+  const PROJETOS = process.env.PROJETOS_PATH ? resolve(process.env.PROJETOS_PATH) : resolve(VAULT, '..');
   const files = walk(VAULT);
   const notes = [];
   const roadmaps = []; // notas `tipo: roadmap` → alimentam o canvas do roadmap do sistema
@@ -112,7 +175,23 @@ export function buildIndex(VAULT, OUT) {
     }
     let tags = data.tags || [];
     if (typeof tags === 'string') tags = [tags];
+    const status = (data.status || '').toString();
+    const vaga = data.vaga === true || String(data.vaga).toLowerCase() === 'true';
+    // Frente = projeto vivo (ou com vaga). Só essas pagam o custo do git.
+    const frente = type === 'projeto' && (vaga || STATUS_FRENTE.has(status));
+    const pastas = listaDe(data.pastas);
     notes.push({
+      ...(frente
+        ? {
+            vaga,
+            pastas,
+            cutucar: toYmd(data.cutucar),
+            esperando: (data.esperando || '').toString(),
+            proximo: (data.proximo || '').toString(),
+            motivo: (data.motivo || '').toString(),
+            atividade: atividadeDaFrente(VAULT, PROJETOS, rel, pastas),
+          }
+        : {}),
       id,
       rel,
       title,

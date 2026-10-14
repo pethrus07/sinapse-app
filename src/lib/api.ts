@@ -28,6 +28,11 @@ export function criarDaily(dia: string, body: string) {
   });
 }
 
+/** Põe (vaga=true) ou tira uma frente da vaga. Com as 3 ocupadas, `sai` diz quem dá lugar. */
+export function trocarVaga(rel: string, vaga: boolean, sai?: string) {
+  return post('/api/vaga', sai ? { rel, vaga, sai } : { rel, vaga });
+}
+
 export function lancarFinanceiro(lancamento: unknown) {
   return post('/api/financeiro', { acao: 'lancar', lancamento });
 }

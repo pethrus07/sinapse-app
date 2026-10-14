@@ -11,10 +11,25 @@ export interface Note {
   ordem?: number | null;
   cliente?: string;
   stack?: string;
+  // ---- frentes (só em nota de projeto viva; ver scripts/build-index.mjs) ----
+  vaga?: boolean;
+  pastas?: string[];
+  cutucar?: string;      // AAAA-MM-DD
+  esperando?: string;    // quem
+  proximo?: string;
+  motivo?: string;       // de `status: pausado`
+  atividade?: Atividade;
   body: string;
   links: string[];
   backlinks: string[];
   degree: number;
+}
+
+/** Movimento de uma frente, em segundos Unix. */
+export interface Atividade {
+  ultimo: number | null;   // último commit
+  commits: number[];       // commits dos últimos 30 dias (para as horas por sessão)
+  fonte: 'pastas' | 'nota'; // repos de `pastas:` ou, sem pasta, a própria nota no vault
 }
 
 export interface GraphNode {

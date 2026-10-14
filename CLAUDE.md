@@ -30,6 +30,10 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
 - Testes: só e2e com Playwright, em `e2e/` (pacote próprio). Em `e2e/`: `npm test`
   (e2e/package.json:6 → `playwright test`). O config sobe `npm run dev` na raiz e **reusa** um
   servidor já aberto em :5173 (e2e/playwright.config.ts:30-35). Não há teste unitário nem CI.
+- `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
+  porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
+  (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.
+  Screenshots em `e2e/shots/13…15-frentes*.png` (gitignored).
 - `e2e/tests/indice-vivo.spec.ts` grava e apaga `00-INBOX/_teste-e2e-evento.md` **no vault real**
   (linhas 9-10 e 22): rodar com o vault limpo e conferir `git status` do vault depois.
 - Importar NotebookLM para o INBOX do vault:
@@ -52,6 +56,9 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
 - `vault-api.mjs` junta o corpo do POST como Buffer e decodifica uma vez em UTF-8 (concatenar
   string quebra acento partido entre chunks). Manter assim.
 - `[[x]]` dentro de código é exemplo, não vira link (README.md:6).
+- `build-index.mjs` chama `git log` nas `pastas:` de cada frente (cache de 60 s): o `reindex` leva
+  ~2 s por isso. `/api/vaga` edita só a linha `vaga:` (não usa `matter.stringify`, que reescreveria
+  o YAML inteiro).
 - Importador do NotebookLM escreve só em `00-INBOX/notebooklm/` + 1 MOC por notebook; nada cai
   direto nas áreas do vault.
 - Porta 5173 ocupada por outro dev server órfão faz o app/e2e falar com o servidor errado:

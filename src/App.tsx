@@ -13,6 +13,7 @@ import { NoteView } from './components/NoteView';
 import { SearchView } from './components/SearchView';
 import { RoadmapView } from './components/RoadmapView';
 import { ProjectsView } from './components/ProjectsView';
+import { FrentesView } from './components/FrentesView';
 import { TreeView } from './components/TreeView';
 import { SkillTreeView } from './components/SkillTreeView';
 import { AgendaView } from './components/AgendaView';
@@ -28,7 +29,7 @@ function go(path: string) {
 }
 
 type Route =
-  | { type: 'graph' | 'search' | 'roadmap' | 'projetos' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' }
+  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' }
   | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
@@ -43,6 +44,7 @@ function useRoute(): Route {
   if (m.startsWith('area/')) return { type: 'area', arg: decodeURIComponent(m.slice(5)) };
   if (m.startsWith('search')) return { type: 'search' };
   if (m.startsWith('grafo')) return { type: 'graph' };
+  if (m.startsWith('frentes')) return { type: 'frentes' };
   if (m.startsWith('projetos')) return { type: 'projetos' };
   if (m.startsWith('arvore')) return { type: 'arvore' };
   if (m.startsWith('skills')) return { type: 'skills' };
@@ -238,6 +240,8 @@ export default function App() {
     );
   } else if (route.type === 'search') {
     main = <SearchView notes={notes} query={query} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else if (route.type === 'frentes') {
+    main = <FrentesView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
   } else if (route.type === 'projetos') {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'arvore') {
@@ -297,6 +301,9 @@ export default function App() {
         <nav className="nav">
           <a className={'nav-item' + (route.type === 'roadmap' ? ' active' : '')} href="#/">
             <span className="nav-text">🗺️ Roadmap</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'frentes' ? ' active' : '')} href="#/frentes">
+            <span className="nav-text">🎯 Frentes</span>
           </a>
           <a className={'nav-item' + (route.type === 'agenda' ? ' active' : '')} href="#/agenda">
             <span className="nav-text">🗓️ Agenda</span>

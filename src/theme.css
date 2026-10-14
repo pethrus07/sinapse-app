@@ -595,3 +595,77 @@ button.ag-chip:hover, a.ag-chip:hover { border-color: var(--line); background: #
   margin-left: 6px; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
   color: var(--amber); border: 1px solid rgba(232,163,61,0.32); border-radius: 999px; padding: 0 5px;
 }
+
+/* ---------- frentes ----------
+   Regra do Pedro: pouca informação, muito respiro. Cartão sem borda (tom sobre o fundo),
+   um sinal por informação e uma única cor de alerta: a 4ª vaga. */
+.fr { max-width: 1080px; margin: 0 auto; }
+.fr-head { margin-bottom: 40px; scroll-margin-top: 24px; }
+.fr-leitura { color: var(--soft); margin: 0; font-size: 15px; }
+.fr-erro { color: var(--soft); margin: 12px 0 0; font-size: 14px; }
+
+.fr-vagas { margin-bottom: 56px; }
+.fr-pergunta { color: #F2739D; font-weight: 600; margin: 0 0 16px; font-size: 15px; }
+.fr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+.fr-card {
+  background: var(--panel); border-radius: 16px; padding: 28px 28px 22px;
+  display: flex; flex-direction: column; gap: 10px; min-height: 196px;
+}
+.fr-card.alerta { background: rgba(242, 115, 157, 0.10); }
+.fr-card.livre {
+  background: transparent; outline: 1px dashed var(--line); outline-offset: -1px;
+  color: var(--faint); align-items: center; justify-content: center; font-size: 14px;
+}
+.fr-nome {
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+  color: var(--ink); font: inherit; font-size: 21px; font-weight: 700; letter-spacing: -0.02em;
+}
+span.fr-nome { cursor: default; }
+button.fr-nome:hover { color: var(--accent); }
+.fr-meta { margin: 0; color: var(--faint); font-size: 14px; }
+.fr-parada { color: var(--ink); }
+.fr-prox { margin: 6px 0 0; color: var(--soft); font-size: 14px; line-height: 1.5; }
+.fr-pergunta-card { margin: 0; color: #F2739D; font-size: 14px; font-weight: 600; }
+.fr-card .fr-acao { margin-top: auto; align-self: flex-start; }
+
+.fr-acao {
+  background: none; border: none; padding: 6px 0; cursor: pointer;
+  color: var(--faint); font: inherit; font-size: 13px;
+}
+.fr-acao:hover:not(:disabled) { color: var(--accent); }
+.fr-acao:disabled { opacity: 0.5; cursor: progress; }
+
+.fr-lista { margin-bottom: 44px; }
+.fr-lista ul { list-style: none; margin: 0; padding: 0; }
+.fr-titulo { font-size: 14px; font-weight: 600; color: var(--soft); margin: 0 0 10px; letter-spacing: 0; }
+.fr-conta { color: var(--faint); font-weight: 400; margin-left: 6px; }
+.fr-linha {
+  display: grid; grid-template-columns: minmax(180px, 1.1fr) 2fr auto; align-items: center; gap: 24px;
+  padding: 12px 16px; margin: 0 -16px; border-radius: 12px;
+}
+.fr-linha:hover { background: var(--panel); }
+/* a ação da linha só aparece na linha em foco: 20 "Pôr na vaga" repetidos seriam ruído */
+.fr-linha .fr-acao { opacity: 0; transition: opacity .12s; }
+.fr-linha:hover .fr-acao, .fr-linha:focus-within .fr-acao { opacity: 1; }
+.fr-linha-nome {
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+  color: var(--ink); font: inherit; font-size: 15px; font-weight: 600;
+}
+.fr-linha-nome:hover { color: var(--accent); }
+.fr-linha-meta { color: var(--faint); font-size: 14px; }
+.fr-cutucar-ja { color: var(--ink); }
+
+.fr-mais { margin-bottom: 44px; }
+.fr-mais summary {
+  cursor: pointer; color: var(--faint); font-size: 14px; list-style: none; padding: 6px 0;
+}
+.fr-mais summary::-webkit-details-marker { display: none; }
+.fr-mais summary::before { content: '▸ '; }
+.fr-mais[open] summary::before { content: '▾ '; }
+.fr-mais summary:hover { color: var(--soft); }
+.fr-mais[open] summary { margin-bottom: 14px; }
+.fr-retomar { color: var(--faint); font-size: 14px; margin: 0 0 12px; }
+.fr-mais .fr-lista { margin-bottom: 0; }
+.fr-link { background: none; border: none; padding: 0; cursor: pointer; color: var(--soft); font: inherit; text-decoration: underline; }
+.fr-link:hover { color: var(--accent); }
+.fr-parresia { color: var(--faint); font-size: 13px; margin: 0; }

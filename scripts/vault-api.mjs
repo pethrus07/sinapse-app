@@ -1,8 +1,9 @@
 // Plugin do Vite: adiciona endpoints de ESCRITA no vault ao dev server.
 // POST /api/note      -> cria/edita uma nota (.md) e reindexa
 // POST /api/progress  -> atualiza só o `progresso` de uma nota e reindexa
+// POST /api/vaga      -> põe/tira uma frente da vaga (`vaga: true` no frontmatter) e reindexa
 import { readFileSync, writeFileSync, existsSync, mkdirSync, watch } from 'node:fs';
-import { resolve, join, dirname, basename } from 'node:path';
+import { resolve, join, dirname, basename, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { buildIndex, slugify } from './build-index.mjs';
@@ -42,11 +43,50 @@ function clean(obj) {
   return obj;
 }
 
+/* ---------- vaga: edição mínima do frontmatter ----------
+   Não usa matter.stringify: ele re-serializa o YAML inteiro (lista em bloco, aspas,
+   datas) e a nota inteira mudaria por causa de uma linha. Aqui só a linha `vaga:`
+   entra ou sai; o resto do arquivo fica byte a byte igual. `vaga: false` não é
+   escrito: campo ausente já quer dizer "fora da vaga". */
+const MAX_VAGAS = 3;
+const FM = /^---(\r?\n)([\s\S]*?)\r?\n---/;
+
+function erro(msg, code) {
+  const e = new Error(msg);
+  e.code = code;
+  return e;
+}
+
+// Caminho relativo -> arquivo dentro do vault, que existe e é nota de projeto.
+function notaDeProjeto(VAULT, rel) {
+  if (typeof rel !== 'string' || !rel.toLowerCase().endsWith('.md')) throw erro('nota inválida', 400);
+  const full = resolve(VAULT, rel);
+  const dentro = relative(VAULT, full);
+  if (!dentro || dentro.startsWith('..') || isAbsolute(dentro)) throw erro('fora do vault', 400);
+  if (!existsSync(full)) throw erro('nota não encontrada: ' + rel, 404);
+  const texto = readFileSync(full, 'utf8');
+  const m = texto.match(FM);
+  if (!m || !/^tipo:\s*projeto\s*$/m.test(m[2])) throw erro('só nota de projeto ocupa vaga: ' + rel, 400);
+  return { full, texto, m };
+}
+
+function comVaga({ texto, m }, valor) {
+  const eol = m[1];
+  const linhas = m[2].split(/\r?\n/).filter((l) => !/^vaga:/.test(l));
+  if (valor) {
+    const i = linhas.findIndex((l) => /^status:/.test(l));
+    linhas.splice(i >= 0 ? i + 1 : linhas.length, 0, 'vaga: true');
+  }
+  const fm = '---' + eol + linhas.join(eol) + eol + '---';
+  return fm + texto.slice(m[0].length);
+}
+
 export function vaultApi() {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const APP_ROOT = resolve(__dirname, '..');
   const VAULT = process.env.VAULT_PATH ? resolve(process.env.VAULT_PATH) : resolve(APP_ROOT, '..', 'sinapse');
-  const OUT = resolve(APP_ROOT, 'src', 'data');
+  // INDEX_OUT: o e2e aponta para fora de src/data, para o vault temporário não sobrescrever o índice real
+  const OUT = process.env.INDEX_OUT ? resolve(process.env.INDEX_OUT) : resolve(APP_ROOT, 'src', 'data');
   let versao = 0;
   let ultimo = null;
   const reindex = () => {
@@ -127,6 +167,31 @@ export function vaultApi() {
             const cur = matter(readFileSync(full, 'utf8'));
             cur.data.progresso = p.progresso;
             writeFileSync(full, matter.stringify(cur.content, clean(cur.data)));
+            const idx = reindex();
+            return sendJson(res, { ok: true, ...idx });
+          }
+
+          // ---- /api/vaga: { rel, vaga: true|false, sai?: rel } ----
+          // Máximo de 3 vagas também aqui, não só na tela: entrar com as 3 ocupadas
+          // exige dizer qual sai (`sai`), e as duas escritas vão juntas.
+          if (url === '/api/vaga' && req.method === 'POST') {
+            const p = JSON.parse((await readBody(req)) || '{}');
+            const valor = p.vaga === true;
+            try {
+              const entra = notaDeProjeto(VAULT, p.rel);
+              const sai = p.sai ? notaDeProjeto(VAULT, p.sai) : null;
+              if (valor) {
+                const idx = reindex(); // fresco: a nota pode ter sido editada à mão agora
+                const ocupadas = idx.notes.filter((n) => n.vaga && n.rel !== p.rel && n.rel !== p.sai).length;
+                if (ocupadas >= MAX_VAGAS)
+                  return sendJson(res, { error: `as ${MAX_VAGAS} vagas estão ocupadas: diga qual sai` }, 409);
+              }
+              if (sai) writeFileSync(sai.full, comVaga(sai, false));
+              writeFileSync(entra.full, comVaga(entra, valor));
+            } catch (e) {
+              if (e && e.code) return sendJson(res, { error: e.message }, e.code);
+              throw e;
+            }
             const idx = reindex();
             return sendJson(res, { ok: true, ...idx });
           }
