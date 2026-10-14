@@ -6,7 +6,7 @@ import statsData from './data/stats.json';
 import roadmapData from './data/roadmap.json';
 import agendaData from './data/agenda.json';
 import financeiroData from './data/financeiro.json';
-import type { Agenda, Financeiro, GraphData, Note, Stats } from './types';
+import type { Agenda, Compromisso, Financeiro, GraphData, Note, Stats } from './types';
 import { GraphView } from './components/GraphView';
 import { RoadmapCanvasView } from './components/RoadmapCanvasView';
 import { NoteView } from './components/NoteView';
@@ -110,6 +110,8 @@ export default function App() {
   const [stats, setStats] = useState(statsData as unknown as Stats);
   const [agenda, setAgenda] = useState<Agenda>(() => normalizar(agendaData as unknown as Agenda));
   const [financeiro, setFinanceiro] = useState<Financeiro>(() => normalizarFin(financeiroData as unknown as Financeiro));
+  // dado de reunião: só vem do servidor local (/api/indice), nunca do JSON empacotado
+  const [compromissos, setCompromissos] = useState<Compromisso[]>([]);
 
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
   const areas = useMemo(() => Object.entries(stats.byArea).sort((a, b) => b[1] - a[1]), [stats]);
@@ -120,6 +122,7 @@ export default function App() {
     if (idx?.stats) setStats(idx.stats as Stats);
     if (idx?.agenda) setAgenda(normalizar(idx.agenda as Agenda));
     if (idx?.financeiro) setFinanceiro(normalizarFin(idx.financeiro as Financeiro));
+    if (idx?.compromissos) setCompromissos((idx.compromissos.itens || []) as Compromisso[]);
   }
 
   // O JSON empacotado (src/data) fica no server.watch.ignored do Vite, logo pode estar
@@ -241,7 +244,7 @@ export default function App() {
   } else if (route.type === 'search') {
     main = <SearchView notes={notes} query={query} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'frentes') {
-    main = <FrentesView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
+    main = <FrentesView notes={notes} compromissos={compromissos} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
   } else if (route.type === 'projetos') {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'arvore') {

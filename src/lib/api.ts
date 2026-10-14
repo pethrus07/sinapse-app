@@ -33,6 +33,11 @@ export function trocarVaga(rel: string, vaga: boolean, sai?: string) {
   return post('/api/vaga', sai ? { rel, vaga, sai } : { rel, vaga });
 }
 
+/** Marca (ou desmarca) um compromisso das atas como feito. Estado local do app, fora do vault. */
+export function marcarCompromisso(id: string, feito: boolean) {
+  return post('/api/compromisso', { id, feito });
+}
+
 export function lancarFinanceiro(lancamento: unknown) {
   return post('/api/financeiro', { acao: 'lancar', lancamento });
 }

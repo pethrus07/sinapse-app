@@ -2,11 +2,15 @@
 // POST /api/note      -> cria/edita uma nota (.md) e reindexa
 // POST /api/progress  -> atualiza só o `progresso` de uma nota e reindexa
 // POST /api/vaga      -> põe/tira uma frente da vaga (`vaga: true` no frontmatter) e reindexa
+// POST /api/compromisso -> marca/desmarca "feito" num compromisso das atas (estado LOCAL do app,
+//                          ~/.sinapse/compromissos-feitos.json; não escreve no vault nem no Atas)
+// GET  /api/ata/<id>  -> serve o ata.html local de uma reunião que tem compromisso no índice
 import { readFileSync, writeFileSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { resolve, join, dirname, basename, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { buildIndex, slugify } from './build-index.mjs';
+import { caminhoAtas, lerFeitos, marcarFeito } from './compromissos.mjs';
 
 const AREA_FOLDER = {
   estudo: '02-ESTUDO',
@@ -117,6 +121,28 @@ export function vaultApi() {
         server.config.logger.warn('[vault] watcher indisponivel: ' + String(e && e.message));
       }
 
+      // Ata nova (ou refeita) no Atas: só o ata.json conta. O sessao.json muda a cada 5 s
+      // durante a gravação e não traz compromisso nenhum.
+      const ATAS_SALVAS = join(caminhoAtas(), 'atas-salvas');
+      if (existsSync(ATAS_SALVAS)) {
+        let pendenteAta = null;
+        try {
+          watch(ATAS_SALVAS, { recursive: true }, (_ev, arquivo) => {
+            if (!arquivo || basename(String(arquivo)).toLowerCase() !== 'ata.json') return;
+            clearTimeout(pendenteAta);
+            pendenteAta = setTimeout(() => {
+              try {
+                reindex();
+              } catch (e) {
+                server.config.logger.warn('[atas] reindex falhou: ' + String(e && e.message));
+              }
+            }, 800);
+          });
+        } catch (e) {
+          server.config.logger.warn('[atas] watcher indisponivel: ' + String(e && e.message));
+        }
+      }
+
       server.middlewares.use(async (req, res, next) => {
         if (!req.url || !req.url.startsWith('/api/')) return next();
         try {
@@ -194,6 +220,36 @@ export function vaultApi() {
             }
             const idx = reindex();
             return sendJson(res, { ok: true, ...idx });
+          }
+
+          // ---- /api/compromisso: { id, feito: true|false } ----
+          // Só aceita id que está no índice agora (ou já marcado, para desfazer). Grava fora do
+          // vault e do git; o Atas não é tocado.
+          if (url === '/api/compromisso' && req.method === 'POST') {
+            const p = JSON.parse((await readBody(req)) || '{}');
+            const id = typeof p.id === 'string' ? p.id : '';
+            const atual = ultimo || reindex();
+            const conhecido = (atual.compromissos?.itens || []).some((c) => c.id === id) || !!lerFeitos()[id];
+            if (!id || !conhecido) return sendJson(res, { error: 'compromisso não encontrado' }, 404);
+            marcarFeito(id, p.feito !== false);
+            const idx = reindex();
+            return sendJson(res, { ok: true, ...idx });
+          }
+
+          // ---- GET /api/ata/<id>: a ata local (HTML interno do Atas), só de reunião do índice ----
+          if (url.startsWith('/api/ata/') && req.method === 'GET') {
+            const id = decodeURIComponent(url.slice('/api/ata/'.length));
+            const atual = ultimo || reindex();
+            const ok = (atual.compromissos?.itens || []).some((c) => c.reuniao.id === id && c.reuniao.temHtml);
+            const arq = join(caminhoAtas(), 'atas-salvas', id, 'ata.html');
+            if (!ok || /[\\/]|\.\./.test(id) || !existsSync(arq)) {
+              res.statusCode = 404;
+              return res.end('ata não encontrada');
+            }
+            res.statusCode = 200;
+            res.setHeader('content-type', 'text/html; charset=utf-8');
+            res.setHeader('cache-control', 'no-store');
+            return res.end(readFileSync(arq));
           }
 
           // ---- /api/financeiro: lançar, liquidar e remover no arquivo do mês ----

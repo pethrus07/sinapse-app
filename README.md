@@ -51,6 +51,31 @@ resto em estados que não ocupam vaga — tudo lido do frontmatter das notas de 
   sai — a única cor de alerta da tela. O servidor também recusa a 4ª sem dizer qual sai.
 - A régua do vault mede as vagas (alvo ≤ 3, aviso) em `99-MOCS/SAUDE.md`.
 
+### O que prometi
+
+Dentro de cada vaga e de cada linha aparece "Prometi: <ação> · até 15/10" — os compromissos
+que o Pedro fez em reunião, lidos do **Atas** (`../atas`, ou `ATAS_PATH`). No máximo 2 à vista
+por frente; o resto em "Mais N". Vencido vira "venceu há N dias" com o mesmo realce sem cor do
+"parada há N dias". O clique abre a **citação literal**, a reunião de origem (título, data,
+momento da fala) e "Abrir a ata" (o `ata.html` local, servido por `GET /api/ata/<id>`).
+
+- **O que entra** (`scripts/compromissos.mjs`): encaminhamentos do `ata.json` cujo dono é
+  "Você" ou o nome do rótulo "Você" — só com esse rótulo **confirmado** —, com a citação achada
+  (`verificado` ≠ false), prazo nos últimos 30 dias ou futuro (sem prazo: reunião dos últimos
+  30 dias). Só reunião de tipo `cliente` ou `carreira`.
+- **O que fica fora**: tipo `parresia` (a operação da Parresia não entra no Sinapse), `pessoal`,
+  `pendente` e qualquer tipo novo; reunião sem `ata.json` (as legadas); frente da Parresia.
+- **Reunião → frente**: o `projeto` do `sessao.json` (slug) contra, nesta ordem, `atas_projeto:`
+  da nota (opcional, string ou lista), o id da nota, o título, e o nome da última pasta de cada
+  `pastas:`. O primeiro que casar ganha. Sem `projeto`, ou sem casamento: vai para
+  "Mais · N promessas sem frente". Para casar, dê o projeto à reunião no Atas
+  (`atas.py tipo <id> <tipo> --projeto <slug>`) ou ponha `atas_projeto:` na nota da frente.
+- **Feito** (dentro do detalhe, com "Desfazer"): estado LOCAL do app, fora do vault e do git —
+  `~/.sinapse/compromissos-feitos.json` (ou `SINAPSE_ESTADO=<pasta>`). O Atas nunca é alterado.
+- **Onde o dado mora**: `src/data/compromissos.json` (gitignored) e o `/api/indice`. O app não
+  importa esse JSON no bundle: sem o dev server (build estático), o bloco não aparece. Nada de
+  reunião vai para o vault. Ata nova é lida sozinha (o servidor vigia os `ata.json`).
+
 ## Rodar
 
 ```bash

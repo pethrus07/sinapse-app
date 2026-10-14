@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Note } from '../types';
-import { trocarVaga } from '../lib/api';
+import type { Compromisso, Note } from '../types';
+import { marcarCompromisso, trocarVaga } from '../lib/api';
 import {
   DIAS_ALERTA,
   MAX_VAGAS,
@@ -9,6 +9,7 @@ import {
   fmtDias,
   fmtEspera,
   fmtHoras,
+  fmtPrazo,
   horasDe,
   inicioDaSemana,
   separarFrentes,
@@ -17,18 +18,40 @@ import {
 
 interface Props {
   notes: Note[];
+  compromissos: Compromisso[];
   onOpen: (id: string) => void;
   onIndex: (idx: any) => void;
 }
 
+// à vista por frente; o resto fica em "Mais N"
+const PROMESSAS_A_VISTA = 2;
+
 // Regra de UI do Pedro: essencial à vista, o resto em "Mais"; um sinal por informação;
 // cartão sem borda (separação por tom); a única cor de alerta é a 4ª vaga.
-export function FrentesView({ notes, onOpen, onIndex }: Props) {
+export function FrentesView({ notes, compromissos, onOpen, onIndex }: Props) {
   const g = useMemo(() => separarFrentes(notes), [notes]);
   const [entrando, setEntrando] = useState<Frente | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
+  const [feitoAgora, setFeitoAgora] = useState<Compromisso | null>(null);
   const topo = useRef<HTMLElement>(null);
+
+  // compromissos por frente; os sem frente vão para "Mais"
+  const { porFrente, semFrente } = useMemo(() => {
+    const ids = new Set([...g.vaga, ...g.esperando, ...g.demanda, ...g.fila, ...g.parado].map((f) => f.note.id));
+    const porFrente = new Map<string, Compromisso[]>();
+    const semFrente: Compromisso[] = [];
+    for (const c of compromissos) {
+      if (c.frente && ids.has(c.frente)) {
+        const l = porFrente.get(c.frente) || [];
+        l.push(c);
+        porFrente.set(c.frente, l);
+      } else {
+        semFrente.push(c);
+      }
+    }
+    return { porFrente, semFrente };
+  }, [compromissos, g]);
 
   const desde = inicioDaSemana();
   const todas = [...g.vaga, ...g.esperando, ...g.demanda, ...g.fila, ...g.parado];
@@ -53,6 +76,19 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
     }
   }
 
+  async function feito(c: Compromisso, valor: boolean) {
+    setOcupado(true);
+    setErro('');
+    try {
+      onIndex(await marcarCompromisso(c.id, valor));
+      setFeitoAgora(valor ? c : null);
+    } catch (e) {
+      setErro('Não deu para salvar: ' + (e as Error).message);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   function porNaVaga(f: Frente) {
     if (vagas.length < MAX_VAGAS) return salvar(f.note.rel, true);
     setEntrando(f);
@@ -64,6 +100,10 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
     if (entrando) return salvar(entrando.note.rel, true, f.note.rel);
     return salvar(f.note.rel, false);
   }
+
+  const promessas = (f: Frente) => (
+    <Promessas itens={porFrente.get(f.note.id) || []} ocupado={ocupado} onFeito={(c) => feito(c, true)} />
+  );
 
   const titulo =
     vagas.length === 0
@@ -77,6 +117,11 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
       ? 'Nenhum commit nos últimos 7 dias.'
       : `Nos últimos 7 dias, ${fmtHoras(hVagas)} nas vagas e ${fmtHoras(hResto)} no resto.`;
 
+  const maisPartes = [
+    g.parado.length ? `${g.parado.length} ${g.parado.length === 1 ? 'parada' : 'paradas'}` : '',
+    semFrente.length ? `${semFrente.length} ${semFrente.length === 1 ? 'promessa' : 'promessas'} sem frente` : '',
+  ].filter(Boolean);
+
   return (
     <div className="pad-scroll">
       <div className="fr">
@@ -87,6 +132,14 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
             {leitura}
           </p>
           {erro && <p className="fr-erro">{erro}</p>}
+          {feitoAgora && (
+            <p className="fr-erro" data-testid="feito-agora">
+              Marcado como feito.{' '}
+              <button className="fr-link" disabled={ocupado} onClick={() => feito(feitoAgora, false)}>
+                Desfazer
+              </button>
+            </p>
+          )}
         </header>
 
         <section className="fr-vagas" aria-label="Em andamento">
@@ -110,6 +163,7 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
                   )}
                 </p>
                 {f.note.proximo && <p className="fr-prox">Próximo: {f.note.proximo}</p>}
+                {promessas(f)}
                 <button className="fr-acao" disabled={ocupado} onClick={() => acaoDaVaga(f)}>
                   {escolhendo ? 'Sai esta' : 'Tirar da vaga'}
                 </button>
@@ -135,6 +189,7 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
         </section>
 
         <Lista titulo="Esperando alguém" itens={g.esperando} onOpen={onOpen} onVaga={porNaVaga} ocupado={ocupado}
+          extra={promessas}
           meta={(f) => (
             <>
               {[f.note.esperando, fmtEspera(f.dias)].filter(Boolean).join(' · ')}
@@ -143,19 +198,32 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
           )}
         />
         <Lista titulo="Sob demanda" itens={g.demanda} onOpen={onOpen} onVaga={porNaVaga} ocupado={ocupado}
-          meta={(f) => <>mexeu {fmtDias(f.dias)}</>} />
+          extra={promessas} meta={(f) => <>mexeu {fmtDias(f.dias)}</>} />
         <Lista titulo="Na fila" itens={g.fila} onOpen={onOpen} onVaga={porNaVaga} ocupado={ocupado}
-          meta={(f) => <>mexeu {fmtDias(f.dias)}</>} />
+          extra={promessas} meta={(f) => <>mexeu {fmtDias(f.dias)}</>} />
 
-        {g.parado.length > 0 && (
+        {maisPartes.length > 0 && (
           <details className="fr-mais">
-            <summary>Mais · {g.parado.length} {g.parado.length === 1 ? 'parada' : 'paradas'}</summary>
-            <p className="fr-retomar">
-              Por que pararam e o que faz voltar:{' '}
-              <button className="fr-link" onClick={() => onOpen('RETOMAR')}>RETOMAR</button>
-            </p>
-            <Lista itens={g.parado} onOpen={onOpen} onVaga={porNaVaga} ocupado={ocupado}
-              meta={(f) => <>{f.note.motivo || `mexeu ${fmtDias(f.dias)}`}</>} />
+            <summary>Mais · {maisPartes.join(' · ')}</summary>
+            {g.parado.length > 0 && (
+              <>
+                <p className="fr-retomar">
+                  Por que pararam e o que faz voltar:{' '}
+                  <button className="fr-link" onClick={() => onOpen('RETOMAR')}>RETOMAR</button>
+                </p>
+                <Lista itens={g.parado} onOpen={onOpen} onVaga={porNaVaga} ocupado={ocupado}
+                  extra={promessas} meta={(f) => <>{f.note.motivo || `mexeu ${fmtDias(f.dias)}`}</>} />
+              </>
+            )}
+            {semFrente.length > 0 && (
+              <section className="fr-sem-frente" aria-label="Promessas sem frente" data-testid="sem-frente">
+                <h2 className="fr-titulo">
+                  Promessas sem frente <span className="fr-conta">{semFrente.length}</span>
+                </h2>
+                <p className="fr-retomar">A reunião não diz o projeto, ou o projeto não bate com nenhuma frente.</p>
+                <Promessas itens={semFrente} todas comReuniao ocupado={ocupado} onFeito={(c) => feito(c, true)} />
+              </section>
+            )}
           </details>
         )}
 
@@ -163,6 +231,69 @@ export function FrentesView({ notes, onOpen, onIndex }: Props) {
           <p className="fr-parresia">A Parresia é a faixa fixa do dia e não ocupa vaga.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+/* "Prometi: <texto> · até 15/10" — no máximo 2 à vista; clique abre a citação literal e a
+   reunião de origem, com "Feito". Vencido usa o mesmo realce sem cor do "parada há N dias". */
+function Promessas({ itens, todas, comReuniao, ocupado, onFeito }: {
+  itens: Compromisso[];
+  todas?: boolean;
+  comReuniao?: boolean;
+  ocupado: boolean;
+  onFeito: (c: Compromisso) => void;
+}) {
+  const [verTodas, setVerTodas] = useState(false);
+  const [aberta, setAberta] = useState<string | null>(null);
+  if (!itens.length) return null;
+  const visiveis = todas || verTodas ? itens : itens.slice(0, PROMESSAS_A_VISTA);
+  const resto = itens.length - visiveis.length;
+
+  return (
+    <div className="fr-prom" data-testid="promessas">
+      <ul>
+        {visiveis.map((c) => {
+          const prazo = fmtPrazo(c.prazo);
+          const open = aberta === c.id;
+          return (
+            <li key={c.id} className={'fr-prom-item' + (open ? ' aberta' : '')} data-testid="promessa">
+              <button className="fr-prom-linha" aria-expanded={open} onClick={() => setAberta(open ? null : c.id)}>
+                <span className="fr-prom-rotulo">Prometi:</span> <span className="fr-prom-acao">{c.acao}</span>
+                {prazo && (
+                  <span className={'fr-prom-prazo' + (prazo.vencido ? ' vencido' : '')}> · {prazo.texto}</span>
+                )}
+                {comReuniao && <span className="fr-prom-prazo"> · reunião de {fmtData(c.reuniao.data)}</span>}
+              </button>
+              {open && (
+                <div className="fr-prom-detalhe" data-testid="promessa-detalhe">
+                  {c.citacao && <blockquote className="fr-prom-citacao">“{c.citacao}”</blockquote>}
+                  <p className="fr-prom-origem">
+                    {c.reuniao.titulo} · {fmtData(c.reuniao.data)}
+                    {c.t && <> · {c.t}</>}
+                    {c.prazoDito && <> · prazo dito: “{c.prazoDito}”</>}
+                  </p>
+                  <p className="fr-prom-acoes">
+                    {c.reuniao.temHtml && (
+                      <a className="fr-link" href={`/api/ata/${encodeURIComponent(c.reuniao.id)}`} target="_blank" rel="noreferrer">
+                        Abrir a ata
+                      </a>
+                    )}
+                    <button className="fr-acao" disabled={ocupado} onClick={() => onFeito(c)}>
+                      Feito
+                    </button>
+                  </p>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {resto > 0 && (
+        <button className="fr-prom-mais" onClick={() => setVerTodas(true)}>
+          Mais {resto}
+        </button>
+      )}
     </div>
   );
 }
@@ -178,10 +309,11 @@ function Cutucar({ ymd }: { ymd: string }) {
   );
 }
 
-function Lista({ titulo, itens, meta, onOpen, onVaga, ocupado }: {
+function Lista({ titulo, itens, meta, extra, onOpen, onVaga, ocupado }: {
   titulo?: string;
   itens: Frente[];
   meta: (f: Frente) => ReactNode;
+  extra?: (f: Frente) => ReactNode;
   onOpen: (id: string) => void;
   onVaga: (f: Frente) => void;
   ocupado: boolean;
@@ -204,6 +336,7 @@ function Lista({ titulo, itens, meta, onOpen, onVaga, ocupado }: {
             <button className="fr-acao" disabled={ocupado} onClick={() => onVaga(f)}>
               Pôr na vaga
             </button>
+            {extra && <div className="fr-linha-extra">{extra(f)}</div>}
           </li>
         ))}
       </ul>

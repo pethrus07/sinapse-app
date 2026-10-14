@@ -127,3 +127,27 @@ export function fmtData(ymd: string): string {
   const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}` : ymd;
 }
+
+/* ---------- "o que prometi" (compromissos das atas) ---------- */
+
+/** Hoje no fuso da máquina (AAAA-MM-DD), não o do UTC. */
+export function hojeLocal(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function diasEntre(de: string, ate: string): number {
+  const ms = (s: string) => {
+    const [a, m, d] = s.split('-').map(Number);
+    return Date.UTC(a, m - 1, d);
+  };
+  return Math.round((ms(ate) - ms(de)) / 86_400_000);
+}
+
+/** "até 15/10", "até hoje", "venceu ontem", "venceu há 4 dias"; sem prazo, nada. */
+export function fmtPrazo(prazo: string | null, hoje = hojeLocal()): { texto: string; vencido: boolean } | null {
+  if (!prazo) return null;
+  const d = diasEntre(prazo, hoje);
+  if (d <= 0) return { texto: d === 0 ? 'até hoje' : `até ${fmtData(prazo)}`, vencido: false };
+  return { texto: d === 1 ? 'venceu ontem' : `venceu há ${d} dias`, vencido: true };
+}

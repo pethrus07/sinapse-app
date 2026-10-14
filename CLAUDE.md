@@ -33,7 +33,10 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.
-  Screenshots em `e2e/shots/13…15-frentes*.png` (gitignored).
+  Screenshots em `e2e/shots/13…15-frentes*.png` (gitignored). O mesmo spec monta um **Atas
+  falso** (5 reuniões, uma `parresia` e uma `pessoal` que não podem aparecer) e passa
+  `ATAS_PATH` + `SINAPSE_ESTADO` para a pasta temporária: nunca ler o `atas-salvas` real em
+  teste. Screenshots do "o que prometi" em `e2e/shots/16…18-promessa*.png`.
 - `e2e/tests/indice-vivo.spec.ts` grava e apaga `00-INBOX/_teste-e2e-evento.md` **no vault real**
   (linhas 9-10 e 22): rodar com o vault limpo e conferir `git status` do vault depois.
 - Importar NotebookLM para o INBOX do vault:
@@ -59,6 +62,12 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
 - `build-index.mjs` chama `git log` nas `pastas:` de cada frente (cache de 60 s): o `reindex` leva
   ~2 s por isso. `/api/vaga` edita só a linha `vaga:` (não usa `matter.stringify`, que reescreveria
   o YAML inteiro).
+- "O que prometi" (`scripts/compromissos.mjs`, README "O que prometi") **só lê** o Atas
+  (`../atas` ou `ATAS_PATH`) e grava o "feito" em `~/.sinapse/compromissos-feitos.json`
+  (`SINAPSE_ESTADO`). Dado de reunião não vai para o vault nem para o bundle (o app não importa
+  `src/data/compromissos.json`; vem só do `/api/indice`). Tipo `parresia`/`pessoal`/`pendente`
+  fica fora — não afrouxar. Em 14/10/2026 as atas com `ata.json` não tinham `projeto`: tudo caía
+  em "sem frente".
 - Importador do NotebookLM escreve só em `00-INBOX/notebooklm/` + 1 MOC por notebook; nada cai
   direto nas áreas do vault.
 - Porta 5173 ocupada por outro dev server órfão faz o app/e2e falar com o servidor errado:

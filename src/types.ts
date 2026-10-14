@@ -18,11 +18,33 @@ export interface Note {
   esperando?: string;    // quem
   proximo?: string;
   motivo?: string;       // de `status: pausado`
+  atasProjeto?: string[]; // `atas_projeto:` — projeto do Atas que cai nesta frente
   atividade?: Atividade;
   body: string;
   links: string[];
   backlinks: string[];
   degree: number;
+}
+
+/* ---------- "O que prometi" ----------
+   Encaminhamentos do Pedro nas atas do Atas (scripts/compromissos.mjs). Só chegam pelo
+   /api/indice (o app não importa src/data/compromissos.json no bundle). */
+export interface Compromisso {
+  id: string;              // "<id da reunião>#E3"
+  frente: string | null;   // id da nota da frente; null = sem frente
+  acao: string;
+  prazo: string | null;    // AAAA-MM-DD
+  prazoDito: string | null;
+  citacao: string;
+  t: string | null;        // momento da fala na reunião ("01:17")
+  reuniao: { id: string; titulo: string; data: string; projeto: string; temHtml: boolean };
+}
+
+export interface Compromissos {
+  itens: Compromisso[];
+  existe: boolean;
+  fonte: string;
+  contagem: Record<string, number>;
 }
 
 /** Movimento de uma frente, em segundos Unix. */
