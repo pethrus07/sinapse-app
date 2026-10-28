@@ -229,7 +229,7 @@ export default function App() {
   } else if (route.type === 'projetos') {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'panorama') {
-    main = <PanoramaView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+    main = <PanoramaView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
   } else if (route.type === 'arvore') {
     main = <TreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'agenda') {

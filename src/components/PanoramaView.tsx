@@ -1,9 +1,56 @@
 import { useMemo, useState } from 'react';
 import type { Note } from '../types';
+import { QuadroTarefas } from './QuadroTarefas';
 
 interface Props {
   notes: Note[];
   onOpen: (id: string) => void;
+  onIndex: (i: any) => void;
+}
+
+// Situação do projeto, para o filtro do quadro de tarefas
+const SITUACAO: [string, string, string[] | null][] = [
+  ['vivos', 'Em andamento', ['em-producao', 'ativo', 'aguardando']],
+  ['parados', 'Pausados e ideias', ['pausado', 'ideia']],
+  ['encerrados', 'Encerrados', ['concluido', 'arquivado']],
+  ['todos', 'Todos', null],
+];
+
+function Tarefas({ projetos, onOpen, onIndex }: { projetos: Note[]; onOpen: (id: string) => void; onIndex: (i: any) => void }) {
+  const [situacao, setSituacao] = useState('vivos');
+  const [projeto, setProjeto] = useState('');
+  const abertas = (n: Note) => (n.tarefas || []).filter((t) => t.estado !== 'feito').length;
+  const daSituacao = useMemo(() => {
+    const st = SITUACAO.find(([k]) => k === situacao)?.[2];
+    return projetos.filter((n) => !st || st.includes(n.status || ''));
+  }, [projetos, situacao]);
+  const visiveis = projeto ? projetos.filter((n) => n.id === projeto) : daSituacao;
+  const opcoes = [...daSituacao].sort((a, b) => abertas(b) - abertas(a) || a.title.localeCompare(b.title));
+
+  return (
+    <div>
+      <div className="filtros">
+        {SITUACAO.map(([k, rotulo]) => (
+          <button
+            key={k}
+            className={'mini-chip' + (situacao === k && !projeto ? '' : ' ghost')}
+            style={{ cursor: 'pointer' }}
+            onClick={() => { setSituacao(k); setProjeto(''); }}
+          >
+            {rotulo}
+          </button>
+        ))}
+        <select value={projeto} onChange={(e) => setProjeto(e.target.value)}>
+          <option value="">todos os projetos ({daSituacao.length})</option>
+          {opcoes.map((n) => (
+            <option key={n.id} value={n.id}>{n.title}{abertas(n) ? ` · ${abertas(n)}` : ''}</option>
+          ))}
+        </select>
+        {projeto && <button className="linkbtn small" onClick={() => onOpen(projeto)}>abrir o projeto</button>}
+      </div>
+      <QuadroTarefas key={projeto || situacao} projetos={visiveis} onIndex={onIndex} onOpen={onOpen} />
+    </div>
+  );
 }
 
 // Mesmo vocabulário de ProjectsView (régua do vault). Cada coluna do quadro é um status.
@@ -29,9 +76,9 @@ function ultimoDia(n: Note) {
   return n.historia?.find((e) => e.tipo === 'commit')?.data || n.historia?.[0]?.data || '';
 }
 
-export function PanoramaView({ notes, onOpen }: Props) {
+export function PanoramaView({ notes, onOpen, onIndex }: Props) {
   const projetos = useMemo(() => notes.filter((n) => n.type === 'projeto'), [notes]);
-  const [visao, setVisao] = useState<'quadro' | 'ano'>('quadro');
+  const [visao, setVisao] = useState<'quadro' | 'tarefas' | 'ano'>('quadro');
 
   return (
     <div className="pad-scroll">
@@ -43,10 +90,13 @@ export function PanoramaView({ notes, onOpen }: Props) {
         </div>
         <div className="ag-tabs" style={{ display: 'flex', gap: 6 }}>
           <button className={'proj-tab' + (visao === 'quadro' ? ' active' : '')} onClick={() => setVisao('quadro')}>Quadro</button>
+          <button className={'proj-tab' + (visao === 'tarefas' ? ' active' : '')} onClick={() => setVisao('tarefas')}>Tarefas</button>
           <button className={'proj-tab' + (visao === 'ano' ? ' active' : '')} onClick={() => setVisao('ano')}>Linha do ano</button>
         </div>
       </div>
-      {visao === 'quadro' ? <Quadro projetos={projetos} onOpen={onOpen} /> : <LinhaDoAno projetos={projetos} onOpen={onOpen} />}
+      {visao === 'quadro' && <Quadro projetos={projetos} onOpen={onOpen} />}
+      {visao === 'tarefas' && <Tarefas projetos={projetos} onOpen={onOpen} onIndex={onIndex} />}
+      {visao === 'ano' && <LinhaDoAno projetos={projetos} onOpen={onOpen} />}
     </div>
   );
 }

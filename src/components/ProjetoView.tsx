@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { EstadoTarefa, Evento, Note, Tarefa } from '../types';
+import type { Evento, Note } from '../types';
 import { NoteView } from './NoteView';
 import { RoadmapCanvasView } from './RoadmapCanvasView';
 import { DesenhoView } from './DesenhoView';
-import { mudarTarefa, novaTarefa } from '../lib/api';
+import { QuadroTarefas } from './QuadroTarefas';
 
 type Aba = 'nota' | 'historia' | 'tarefas' | 'desenho' | 'roadmap';
 
@@ -124,98 +124,13 @@ function dataBr(d: string) {
 
 /* ---------- Tarefas (quadro) ---------- */
 
-const COLUNAS: [EstadoTarefa, string][] = [
-  ['a-fazer', 'A fazer'],
-  ['fazendo', 'Fazendo'],
-  ['feito', 'Feito'],
-];
-
 function Quadro({ note, onIndex }: { note: Note; onIndex: (i: any) => void }) {
-  const tarefas = note.tarefas || [];
-  const [texto, setTexto] = useState('');
-  const [ocupado, setOcupado] = useState(false);
-  const [arrastando, setArrastando] = useState<Tarefa | null>(null);
-
-  async function mover(t: Tarefa, estado: EstadoTarefa) {
-    if (t.estado === estado) return;
-    setOcupado(true);
-    try {
-      onIndex(await mudarTarefa(note.rel, t.linha, estado));
-    } catch (e) {
-      alert('Não deu pra mover: ' + (e as Error).message);
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  async function acrescentar() {
-    if (!texto.trim()) return;
-    setOcupado(true);
-    try {
-      onIndex(await novaTarefa(note.rel, texto));
-      setTexto('');
-    } catch (e) {
-      alert('Não deu pra criar: ' + (e as Error).message);
-    } finally {
-      setOcupado(false);
-    }
-  }
-
   return (
     <div className="pad-scroll">
       <div className="eyebrow-mono">Tarefas</div>
       <h1 className="rm-title">{note.title}</h1>
       {note.proximo && <p className="muted">Próximo passo da nota: {note.proximo}</p>}
-      <div className="quadro-nova">
-        <input
-          placeholder="Nova tarefa…"
-          value={texto}
-          disabled={ocupado}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && acrescentar()}
-        />
-        <button className="btn" disabled={ocupado || !texto.trim()} onClick={acrescentar}>Adicionar</button>
-      </div>
-      <div className="quadro">
-        {COLUNAS.map(([estado, rotulo]) => {
-          const lista = tarefas.filter((t) => t.estado === estado);
-          return (
-            <div
-              key={estado}
-              className="quadro-col"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => arrastando && mover(arrastando, estado)}
-            >
-              <div className="quadro-col-head">
-                <span>{rotulo}</span>
-                <span className="muted small">{lista.length}</span>
-              </div>
-              {lista.map((t) => (
-                <div
-                  key={t.linha}
-                  className={'quadro-card' + (estado === 'feito' ? ' feito' : '')}
-                  draggable={!ocupado}
-                  onDragStart={() => setArrastando(t)}
-                  onDragEnd={() => setArrastando(null)}
-                >
-                  <div>{t.texto}</div>
-                  <div className="quadro-card-pe">
-                    {t.secao && <span className="muted small">{t.secao}</span>}
-                    <span className="quadro-setas">
-                      {COLUNAS.filter(([e]) => e !== estado).map(([e, r]) => (
-                        <button key={e} className="linkbtn small" disabled={ocupado} onClick={() => mover(t, e)}>
-                          {r.toLowerCase()}
-                        </button>
-                      ))}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-      {!tarefas.length && <p className="muted small">A nota ainda não tem tarefas. As que entrarem aqui vão para a seção "Tarefas" do .md.</p>}
+      <QuadroTarefas projetos={[note]} onIndex={onIndex} />
     </div>
   );
 }

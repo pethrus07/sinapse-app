@@ -750,3 +750,6 @@ button.fr-nome:hover { color: var(--accent); }
 .ano-ponto { position: absolute; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; opacity: 0.9; }
 .ano-ponto.marco { border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); background: var(--ink) !important; opacity: 0.7; }
 .ano-num { text-align: right; font-family: var(--mono); }
+.filtros { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.filtros select, .quadro-nova select { background: var(--panel2); border: 1px solid var(--line); color: var(--ink); border-radius: 9px; padding: 7px 10px; font: inherit; font-size: 13px; max-width: 320px; }
+.quadro-proj { display: block; font-size: 11.5px; text-decoration: none; margin-bottom: 4px; text-align: left; }

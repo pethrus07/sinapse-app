@@ -77,7 +77,7 @@ function extrairTarefas(conteudo) {
     const marca = m[2];
     tarefas.push({
       linha,
-      texto: m[4].replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (_, a, b) => b || a).replace(/\*\*/g, '').trim(),
+      texto: m[4].replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (_, a, b) => b || a).replace(/\*\*|~~/g, '').trim(),
       estado: marca === ' ' ? 'a-fazer' : marca === '/' ? 'fazendo' : 'feito',
       secao,
     });
