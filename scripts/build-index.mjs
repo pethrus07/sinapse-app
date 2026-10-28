@@ -1,7 +1,8 @@
 // Lógica de indexação do vault, reutilizável (CLI + API do dev server).
 // Fonte da verdade = os .md; isto gera um índice derivado e o retorna.
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { join, relative, extname, basename, resolve } from 'node:path';
+import { join, relative, extname, basename, resolve, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import matter from 'gray-matter';
 import { lerCompromissos } from './compromissos.mjs';
@@ -16,6 +17,60 @@ const STATUS_FRENTE = new Set(['ativo', 'aguardando', 'em-producao', 'pausado'])
 const JANELA_COMMITS = 30 * 86400; // segundos
 const CACHE_GIT_MS = 60_000;
 const cacheGit = new Map();
+
+/* Cache em disco do `git log` por pasta, válido enquanto o HEAD do repositório não muda.
+   O HEAD sai dos arquivos do .git (sem abrir processo): no Windows, abrir ~60 `git` custava
+   ~15 s no primeiro índice depois de subir o servidor (medido em 28/10/2026). Só guarda saída
+   de git de repositórios locais; fica fora do vault e do repo do app. */
+const ARQ_CACHE = process.env.SINAPSE_CACHE_GIT || join(homedir(), '.sinapse', 'cache-git.json');
+let cacheDisco = null;
+let cacheSujo = false;
+function lerCacheDisco() {
+  if (cacheDisco) return cacheDisco;
+  try { cacheDisco = JSON.parse(readFileSync(ARQ_CACHE, 'utf8')); } catch { cacheDisco = {}; }
+  return cacheDisco;
+}
+function gravarCacheDisco() {
+  if (!cacheSujo) return;
+  try {
+    mkdirSync(dirname(ARQ_CACHE), { recursive: true });
+    writeFileSync(ARQ_CACHE, JSON.stringify(cacheDisco));
+    cacheSujo = false;
+  } catch { /* sem cache em disco: só fica mais lento */ }
+}
+// commit atual do repositório que contém `dir`, lido do .git; null se não der para saber
+export function headDe(dir) {
+  try {
+    let d = resolve(dir);
+    while (!existsSync(join(d, '.git'))) {
+      const pai = dirname(d);
+      if (pai === d) return null;
+      d = pai;
+    }
+    let gd = join(d, '.git');
+    if (statSync(gd).isFile()) gd = resolve(d, readFileSync(gd, 'utf8').replace(/^gitdir:\s*/, '').trim());
+    const head = readFileSync(join(gd, 'HEAD'), 'utf8').trim();
+    if (!head.startsWith('ref:')) return head;
+    const ref = head.slice(4).trim();
+    if (existsSync(join(gd, ref))) return readFileSync(join(gd, ref), 'utf8').trim();
+    const packed = existsSync(join(gd, 'packed-refs')) ? readFileSync(join(gd, 'packed-refs'), 'utf8') : '';
+    const linha = packed.split(/\r?\n/).find((l) => l.endsWith(' ' + ref));
+    return linha ? linha.split(' ')[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+// `git log` de uma pasta com o cache em disco por HEAD (o resultado só muda com commit novo)
+function gitLogCacheado(dir, args) {
+  const head = headDe(dir);
+  const chave = dir + '|' + args.join(' ');
+  const c = lerCacheDisco();
+  if (head && c[chave]?.head === head) return c[chave].saida;
+  const saida = git(dir, args);
+  if (head) { c[chave] = { head, saida }; cacheSujo = true; }
+  return saida;
+}
 
 function git(dir, args) {
   const chave = dir + '|' + args.join(' ');
@@ -38,13 +93,14 @@ function git(dir, args) {
 
 // Timestamps (segundos) dos commits que mexeram na pasta, do mais novo para o mais velho.
 // `-- .` restringe à pasta: `qa-parresia/analise-5cvb` não herda os commits do repo inteiro.
+// Mesma chamada da História (commitsPorDia): um `git log` por pasta, não dois.
+const ARGS_LOG = ['log', '--format=%ct%x09%s', '--max-count=600', '--', '.'];
 function commitsDaPasta(dir) {
   if (!existsSync(dir)) return [];
-  return git(dir, ['log', '--format=%ct', '--max-count=300', '--', '.'])
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(Number)
-    .filter(Number.isFinite);
+  return gitLogCacheado(dir, ARGS_LOG)
+    .split(/\r?\n/)
+    .map((l) => Number(l.split('\t')[0]))
+    .filter((t) => Number.isFinite(t) && t > 0);
 }
 
 function atividadeDaFrente(VAULT, PROJETOS, rel, pastas) {
@@ -89,7 +145,7 @@ function extrairTarefas(conteudo) {
 function commitsPorDia(dir) {
   if (!existsSync(dir)) return [];
   const dias = new Map();
-  for (const l of git(dir, ['log', '--format=%ct%x09%s', '--max-count=600', '--', '.']).split(/\r?\n/)) {
+  for (const l of gitLogCacheado(dir, ARGS_LOG).split(/\r?\n/)) {
     const [t, ...resto] = l.split('\t');
     const ts = Number(t);
     if (!Number.isFinite(ts) || !ts) continue;
@@ -408,6 +464,7 @@ export function buildIndex(VAULT, OUT) {
   agenda.dailys.sort((a, b) => a.dia.localeCompare(b.dia));
   if (OUT) {
     mkdirSync(OUT, { recursive: true });
+    gravarCacheDisco();
     writeFileSync(join(OUT, 'notes.json'), JSON.stringify(outNotes));
     writeFileSync(join(OUT, 'graph.json'), JSON.stringify(graph));
     writeFileSync(join(OUT, 'stats.json'), JSON.stringify(stats));

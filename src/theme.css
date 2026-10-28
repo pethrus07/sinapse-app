@@ -6,7 +6,7 @@
   --line-soft: #1B2028;
   --ink: #E8EAF1;
   --soft: #A9B0C2;
-  --faint: #6E7688;
+  --faint: #7E8595; /* era #6E7688 (3,8–4,2:1, abaixo da WCAG 4,5:1); medido 28/10/2026: ≥ 4,65:1 em todos os fundos */
   --accent: #2CD4C0;
   --accent-dim: #1C7A72;
   --violet: #9A8CF0;

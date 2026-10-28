@@ -74,6 +74,12 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
   Spec nova segue o formato de `specs/hermes.json` (caixa ≤ 45 caracteres, 3–5 camadas).
 - Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de
   `window.EXCALIDRAW_ASSET_PATH` apontando para o `node_modules` (`DesenhoView.tsx`).
+- "Invalid hook call" / `reading 'useState'` em toda tela = duas cópias do React por cache de
+  dependências inconsistente. Conserto: parar o dev server e subir com `npx vite --force`.
+- O índice guarda o `git log` de cada pasta em `~/.sinapse/cache-git.json`, válido enquanto o
+  HEAD não muda (lido direto do `.git`). Apagar o arquivo só deixa o primeiro índice lento.
+- e2e: `financeiro.spec.ts` também escreve no vault real (lança em `04-NEGOCIO/financeiro/`) e,
+  se falhar no meio, deixa o lançamento "TESTE e2e": conferir `git status` do vault depois.
 - `/api/tarefa` acha a tarefa pela **linha exata**: se a nota mudou desde o índice, devolve 409
   em vez de editar a linha errada.
 - Importador do NotebookLM escreve só em `00-INBOX/notebooklm/` + 1 MOC por notebook; nada cai

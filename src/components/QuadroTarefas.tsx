@@ -31,7 +31,14 @@ export function QuadroTarefas({ projetos, onIndex, onOpen }: Props) {
   const [texto, setTexto] = useState('');
   const [destino, setDestino] = useState('');
   const [ocupado, setOcupado] = useState(false);
-  const [arrastando, setArrastando] = useState<Item | null>(null);
+  const chave = (i: Item) => i.nota.id + '|' + i.tarefa.linha;
+  // o cartão arrastado viaja no próprio dataTransfer (padrão do navegador), não em estado do React
+  function soltar(e: React.DragEvent, estado: EstadoTarefa) {
+    e.preventDefault();
+    const k = e.dataTransfer.getData('text/plain');
+    const i = itens.find((x) => chave(x) === k);
+    if (i) mover(i, estado);
+  }
   const alvo = varios ? projetos.find((n) => n.id === destino) : projetos[0];
 
   async function mover(i: Item, estado: EstadoTarefa) {
@@ -86,8 +93,11 @@ export function QuadroTarefas({ projetos, onIndex, onOpen }: Props) {
             <div
               key={estado}
               className="quadro-col"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => arrastando && mover(arrastando, estado)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => soltar(e, estado)}
             >
               <div className="quadro-col-head">
                 <span>{rotulo}</span>
@@ -95,11 +105,13 @@ export function QuadroTarefas({ projetos, onIndex, onOpen }: Props) {
               </div>
               {lista.map((i) => (
                 <div
-                  key={i.nota.id + '|' + i.tarefa.linha}
+                  key={chave(i)}
                   className={'quadro-card' + (estado === 'feito' ? ' feito' : '')}
                   draggable={!ocupado}
-                  onDragStart={() => setArrastando(i)}
-                  onDragEnd={() => setArrastando(null)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', chave(i));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
                 >
                   {varios && (
                     <button className="quadro-proj linkbtn" onClick={() => onOpen?.(i.nota.id)}>{i.nota.title}</button>
