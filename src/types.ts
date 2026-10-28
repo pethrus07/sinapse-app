@@ -20,10 +20,33 @@ export interface Note {
   motivo?: string;       // de `status: pausado`
   atasProjeto?: string[]; // `atas_projeto:` — projeto do Atas que cai nesta frente
   atividade?: Atividade;
+  // ---- página do projeto (scripts/build-index.mjs) ----
+  criado?: string;          // AAAA-MM-DD
+  tarefas?: Tarefa[];       // "- [ ]" / "- [/]" / "- [x]" do corpo da nota
+  historia?: Evento[];      // commits por dia + notas datadas que citam o projeto, mais novo primeiro
+  desenho?: boolean;        // existe 09-DESENHOS/<id>.excalidraw
   body: string;
   links: string[];
   backlinks: string[];
   degree: number;
+}
+
+export type EstadoTarefa = 'a-fazer' | 'fazendo' | 'feito';
+
+export interface Tarefa {
+  linha: string;           // a linha exata do arquivo: é a chave para o /api/tarefa
+  texto: string;
+  estado: EstadoTarefa;
+  secao: string;
+}
+
+export interface Evento {
+  data: string;            // AAAA-MM-DD
+  tipo: 'commit' | 'diario' | 'nota' | 'criado';
+  qtd?: number;            // commits no dia
+  textos?: string[];       // assuntos dos commits (até 4)
+  titulo?: string;
+  nota?: string;           // id da nota que gerou o evento
 }
 
 /* ---------- "O que prometi" ----------

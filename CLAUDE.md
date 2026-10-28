@@ -68,6 +68,14 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
   `src/data/compromissos.json`; vem só do `/api/indice`). Tipo `parresia`/`pessoal`/`pendente`
   fica fora — não afrouxar. Em 14/10/2026 as atas com `ata.json` não tinham `projeto`: tudo caía
   em "sem frente".
+- Desenhos: `scripts/gerar-desenhos.mjs` lê `../sinapse/09-DESENHOS/specs/*.json` e escreve
+  `09-DESENHOS/<id>.excalidraw`. Desenho sem o campo `gerado` (ou com `gerado` diferente da
+  assinatura) foi editado à mão: o gerador pula. **Não usar `--forcar` sem o Pedro pedir.**
+  Spec nova segue o formato de `specs/hermes.json` (caixa ≤ 45 caracteres, 3–5 camadas).
+- Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de
+  `window.EXCALIDRAW_ASSET_PATH` apontando para o `node_modules` (`DesenhoView.tsx`).
+- `/api/tarefa` acha a tarefa pela **linha exata**: se a nota mudou desde o índice, devolve 409
+  em vez de editar a linha errada.
 - Importador do NotebookLM escreve só em `00-INBOX/notebooklm/` + 1 MOC por notebook; nada cai
   direto nas áreas do vault.
 - Porta 5173 ocupada por outro dev server órfão faz o app/e2e falar com o servidor errado:

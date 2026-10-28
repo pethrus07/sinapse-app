@@ -12,6 +12,8 @@ App web que **lê o vault markdown do Sinapse** (`../sinapse`), indexa em grafo 
 - 🎯 **Frentes** (`#/frentes`) — no máximo 3 frentes em andamento, o resto em estados que não ocupam vaga (abaixo)
 - 📅 **Agenda** (rotina, prazos e o diário em `01-DIARIO/`) e 💰 **Financeiro** (um arquivo por mês)
 - 🧭 canvas do roadmap de sistema (notas `tipo: roadmap`)
+- 🚀 **Página do projeto** com abas: Visão geral · História · Tarefas · Desenho (abaixo)
+- 🧭 **Panorama** (`#/panorama`) — quadro de todos os projetos por status e a linha do ano
 
 O markdown continua sendo a fonte da verdade — este app é uma **lente** por cima. Quem escreve no
 vault é o Claude; o Pedro lê (pelo app, pelo Obsidian ou pelo VS Code).
@@ -76,6 +78,34 @@ momento da fala) e "Abrir a ata" (o `ata.html` local, servido por `GET /api/ata/
   importa esse JSON no bundle: sem o dev server (build estático), o bloco não aparece. Nada de
   reunião vai para o vault. Ata nova é lida sozinha (o servidor vigia os `ata.json`).
 
+## Página do projeto e Panorama
+
+Toda nota `tipo: projeto` (e qualquer nota com desenho) abre em abas. Tudo continua saindo da nota:
+
+| aba | de onde vem |
+|---|---|
+| Visão geral | o markdown da nota |
+| História | commits das `pastas:` agrupados por dia (assuntos de até 4) + notas com data no nome que citam o projeto + `criado:` |
+| Tarefas | linhas `- [ ]` (a fazer), `- [/]` (fazendo), `- [x]` (feito) do corpo. Mover (arrastar ou clicar) chama `POST /api/tarefa`, que troca só o marcador daquela linha; "Adicionar" acrescenta `- [ ] texto` na seção `## Tarefas` (criada antes de `## Conexões` se faltar). Linha que mudou no disco desde o índice → 409 |
+| Desenho | `09-DESENHOS/<id>.excalidraw` no vault, editável no Excalidraw (`GET/POST /api/desenho?nota=<id>`) |
+
+**Desenhos.** Cada projeto tem um desenho em três blocos: como funciona, fluxo principal e
+arquitetura. Ele nasce de uma especificação curta em `09-DESENHOS/specs/<id>.json`:
+
+```bash
+node scripts/gerar-desenhos.mjs              # gera todos; pula os editados à mão
+node scripts/gerar-desenhos.mjs hermes       # só alguns
+node scripts/gerar-desenhos.mjs --forcar     # regera até os editados (perde a edição)
+```
+
+O gerador grava uma assinatura (`gerado`) no arquivo. Salvar pelo app tira essa assinatura: daí
+em diante o desenho é do Pedro e o gerador o mantém. O pacote do Excalidraw (~2 MB) só carrega
+quando a aba abre; as fontes vêm do `node_modules` (funciona offline).
+
+**Panorama.** *Quadro*: uma coluna por status, cartões pelo movimento mais recente (concluídos e
+arquivados recolhidos). *Linha do ano*: uma linha por projeto com ponto por dia de commit (maior =
+mais commits), losango para nota datada ou criação, e a marca de hoje.
+
 ## Rodar
 
 ```bash
@@ -96,5 +126,5 @@ Vite + React + TypeScript · d3-force (grafo em canvas) · marked (markdown) · 
 ## Próximas fases
 - Mostrar o diário e a saúde do vault (`99-MOCS/SAUDE.md`) numa aba própria — hoje abrem como nota
 - Busca semântica + "pergunte ao Sinapse" — embeddings locais (Ollama) em estudo
-- Revisão espaçada (FSRS, `ts-fsrs`) e quadros (Excalidraw) — adiados
+- Revisão espaçada (FSRS, `ts-fsrs`) — adiada
 - Deploy em Cloudflare Pages

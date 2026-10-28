@@ -47,6 +47,25 @@ export function acaoFinanceiro(acao: string, mes: string, id: string) {
   return post('/api/financeiro', { acao, mes, id });
 }
 
+/** Muda o estado de uma tarefa da nota de projeto (a linha é a chave). */
+export function mudarTarefa(rel: string, linha: string, estado: string) {
+  return post('/api/tarefa', { rel, linha, estado });
+}
+
+/** Acrescenta "- [ ] texto" na seção "## Tarefas" da nota. */
+export function novaTarefa(rel: string, nova: string) {
+  return post('/api/tarefa', { rel, nova });
+}
+
+export function lerDesenho(nota: string) {
+  return get('/api/desenho?nota=' + encodeURIComponent(nota));
+}
+
+/** Gravar pelo app torna o desenho "do Pedro": o gerador não o sobrescreve mais. */
+export function salvarDesenho(nota: string, cena: { elements: readonly unknown[]; appState?: unknown; files?: unknown }) {
+  return post('/api/desenho?nota=' + encodeURIComponent(nota), cena);
+}
+
 async function get(url: string) {
   const r = await fetch(url);
   const j = await r.json().catch(() => ({}));

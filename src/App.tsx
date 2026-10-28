@@ -8,8 +8,9 @@ import agendaData from './data/agenda.json';
 import financeiroData from './data/financeiro.json';
 import type { Agenda, Compromisso, Financeiro, GraphData, Note, Stats } from './types';
 import { GraphView } from './components/GraphView';
-import { RoadmapCanvasView } from './components/RoadmapCanvasView';
 import { NoteView } from './components/NoteView';
+import { ProjetoView } from './components/ProjetoView';
+import { PanoramaView } from './components/PanoramaView';
 import { SearchView } from './components/SearchView';
 import { RoadmapView } from './components/RoadmapView';
 import { ProjectsView } from './components/ProjectsView';
@@ -29,7 +30,7 @@ function go(path: string) {
 }
 
 type Route =
-  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' }
+  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'panorama' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' }
   | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
@@ -46,6 +47,7 @@ function useRoute(): Route {
   if (m.startsWith('grafo')) return { type: 'graph' };
   if (m.startsWith('frentes')) return { type: 'frentes' };
   if (m.startsWith('projetos')) return { type: 'projetos' };
+  if (m.startsWith('panorama')) return { type: 'panorama' };
   if (m.startsWith('arvore')) return { type: 'arvore' };
   if (m.startsWith('skills')) return { type: 'skills' };
   if (m.startsWith('agenda')) return { type: 'agenda' };
@@ -75,28 +77,6 @@ function StatsPanel({ stats }: { stats: Stats }) {
           <span>{stats.with3}/{stats.notes}</span>
         </div>
         <div className="xp-bar"><div className="xp-fill" style={{ width: p3 + '%' }} /></div>
-      </div>
-    </div>
-  );
-}
-
-// Projeto com roadmap → abas (Visão geral · Roadmap canvas). É o fluxo Projetos → Commagente → Canvas.
-function ProjectView({ note, byId, roadmap, onNav, onIndex }: {
-  note: Note; byId: Map<string, Note>; roadmap: any; onNav: (p: string) => void; onIndex: (i: any) => void;
-}) {
-  const [tab, setTab] = useState<'nota' | 'roadmap'>('nota');
-  return (
-    <div className="proj-detail">
-      <div className="proj-tabs">
-        <button className={'proj-tab' + (tab === 'nota' ? ' active' : '')} onClick={() => setTab('nota')}>📄 Visão geral</button>
-        <button className={'proj-tab' + (tab === 'roadmap' ? ' active' : '')} onClick={() => setTab('roadmap')}>🗺️ Roadmap · {roadmap.items?.length ?? 0}</button>
-      </div>
-      <div className="proj-tabbody">
-        {tab === 'nota' ? (
-          <NoteView note={note} byId={byId} onNav={onNav} onIndex={onIndex} />
-        ) : (
-          <RoadmapCanvasView roadmap={roadmap} onOpenSource={() => onNav('/note/' + encodeURIComponent(roadmap.id || 'commagente-roadmap'))} />
-        )}
       </div>
     </div>
   );
@@ -206,9 +186,10 @@ export default function App() {
   if (route.type === 'note') {
     const note = byId.get(route.arg);
     const temRoadmap = note && roadmap.projeto === note.id && (roadmap.items?.length ?? 0) > 0;
+    // projeto, nota com desenho ou com roadmap → página com abas (ProjetoView)
     main = note ? (
-      temRoadmap ? (
-        <ProjectView note={note} byId={byId} roadmap={roadmap} onNav={go} onIndex={applyIndex} />
+      temRoadmap || note.type === 'projeto' || note.desenho ? (
+        <ProjetoView key={note.id} note={note} byId={byId} roadmap={temRoadmap ? roadmap : null} onNav={go} onIndex={applyIndex} />
       ) : (
         <NoteView note={note} byId={byId} onNav={go} onIndex={applyIndex} />
       )
@@ -247,6 +228,8 @@ export default function App() {
     main = <FrentesView notes={notes} compromissos={compromissos} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
   } else if (route.type === 'projetos') {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else if (route.type === 'panorama') {
+    main = <PanoramaView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'arvore') {
     main = <TreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'agenda') {
@@ -316,6 +299,9 @@ export default function App() {
           </a>
           <a className={'nav-item' + (route.type === 'projetos' ? ' active' : '')} href="#/projetos">
             <span className="nav-text">🚀 Projetos</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'panorama' ? ' active' : '')} href="#/panorama">
+            <span className="nav-text">🧭 Panorama</span>
           </a>
           <a className={'nav-item' + (route.type === 'arvore' ? ' active' : '')} href="#/arvore">
             <span className="nav-text">🌳 Árvore</span>

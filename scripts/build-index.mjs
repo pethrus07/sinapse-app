@@ -60,6 +60,48 @@ function atividadeDaFrente(VAULT, PROJETOS, rel, pastas) {
   return { ultimo: Number.isFinite(t) && t > 0 ? t : null, commits: [], fonte: 'nota' };
 }
 
+/* ---------- Página do projeto: tarefas, história e desenho ----------
+   Tarefas = caixas de seleção da própria nota: `- [ ]` a fazer, `- [/]` fazendo, `- [x]` feito.
+   A linha crua vai junto: é por ela que o /api/tarefa acha o que mudar no .md.
+   História = commits das `pastas:` (agrupados por dia) + notas datadas que citam o projeto
+   (históricos, diário) + a data de criação da nota. Desenho = 09-DESENHOS/<nota>.excalidraw. */
+const RE_TAREFA = /^(\s*[-*]\s+\[)( |x|X|\/)(\]\s+)(.+)$/;
+function extrairTarefas(conteudo) {
+  const tarefas = [];
+  let secao = '';
+  for (const linha of conteudo.split(/\r?\n/)) {
+    const h = linha.match(/^#{2,4}\s+(.+)$/);
+    if (h) { secao = h[1].trim(); continue; }
+    const m = linha.match(RE_TAREFA);
+    if (!m) continue;
+    const marca = m[2];
+    tarefas.push({
+      linha,
+      texto: m[4].replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (_, a, b) => b || a).replace(/\*\*/g, '').trim(),
+      estado: marca === ' ' ? 'a-fazer' : marca === '/' ? 'fazendo' : 'feito',
+      secao,
+    });
+  }
+  return tarefas;
+}
+
+// commits da pasta com assunto, agrupados por dia (o mais novo primeiro)
+function commitsPorDia(dir) {
+  if (!existsSync(dir)) return [];
+  const dias = new Map();
+  for (const l of git(dir, ['log', '--format=%ct%x09%s', '--max-count=600', '--', '.']).split(/\r?\n/)) {
+    const [t, ...resto] = l.split('\t');
+    const ts = Number(t);
+    if (!Number.isFinite(ts) || !ts) continue;
+    const dia = new Date(ts * 1000).toISOString().slice(0, 10);
+    const d = dias.get(dia) || { data: dia, tipo: 'commit', qtd: 0, textos: [] };
+    d.qtd += 1;
+    if (d.textos.length < 4) d.textos.push(resto.join('\t').slice(0, 140));
+    dias.set(dia, d);
+  }
+  return [...dias.values()];
+}
+
 function listaDe(v) {
   if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
   if (v == null || v === '') return [];
@@ -182,6 +224,9 @@ export function buildIndex(VAULT, OUT) {
     const frente = type === 'projeto' && (vaga || STATUS_FRENTE.has(status));
     const pastas = listaDe(data.pastas);
     notes.push({
+      ...(type === 'projeto'
+        ? { pastasProjeto: pastas, criado: toYmd(data.criado), tarefas: extrairTarefas(content) }
+        : {}),
       ...(frente
         ? {
             vaga,
@@ -260,6 +305,33 @@ export function buildIndex(VAULT, OUT) {
     const bl = [...(backlinks.get(n.id) || [])];
     return { ...n, links, backlinks: bl, degree: links.length + bl.length };
   });
+
+  // história de cada projeto: commits + notas datadas que o citam + criação da nota
+  const porId = new Map(outNotes.map((n) => [n.id, n]));
+  for (const n of outNotes) {
+    // desenho vale para qualquer nota (ferramenta, identidade, setup…), não só projeto
+    if (existsSync(join(VAULT, '09-DESENHOS', n.id + '.excalidraw'))) n.desenho = true;
+    if (n.type !== 'projeto') continue;
+    const eventos = [];
+    const vistos = new Set();
+    for (const p of n.pastasProjeto || []) {
+      for (const d of commitsPorDia(resolve(PROJETOS, p))) {
+        const ja = eventos.find((e) => e.tipo === 'commit' && e.data === d.data);
+        if (ja) { ja.qtd += d.qtd; ja.textos = [...ja.textos, ...d.textos].slice(0, 4); } else eventos.push(d);
+      }
+    }
+    for (const outro of n.backlinks) {
+      const o = porId.get(outro);
+      const dia = (o?.id.match(/\d{4}-\d{2}-\d{2}/) || [])[0];
+      if (o && dia && !vistos.has(o.id)) {
+        vistos.add(o.id);
+        eventos.push({ data: dia, tipo: o.type === 'diario' || o.type === 'daily' ? 'diario' : 'nota', nota: o.id, titulo: o.title });
+      }
+    }
+    if (n.criado) eventos.push({ data: n.criado, tipo: 'criado', titulo: 'nota do projeto criada' });
+    eventos.sort((a, b) => b.data.localeCompare(a.data));
+    n.historia = eventos;
+  }
 
   const nodes = outNotes.map((n) => ({ id: n.id, title: n.title, area: n.area, type: n.type, degree: n.degree }));
   for (const [gkey, disp] of ghosts)

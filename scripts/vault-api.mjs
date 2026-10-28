@@ -5,6 +5,8 @@
 // POST /api/compromisso -> marca/desmarca "feito" num compromisso das atas (estado LOCAL do app,
 //                          ~/.sinapse/compromissos-feitos.json; não escreve no vault nem no Atas)
 // GET  /api/ata/<id>  -> serve o ata.html local de uma reunião que tem compromisso no índice
+// POST /api/tarefa    -> muda o estado de uma tarefa "- [ ]" de nota de projeto, ou acrescenta uma
+// GET/POST /api/desenho?nota=<id> -> lê/grava o desenho Excalidraw (09-DESENHOS/<id>.excalidraw)
 import { readFileSync, writeFileSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { resolve, join, dirname, basename, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,6 +55,8 @@ function clean(obj) {
    entra ou sai; o resto do arquivo fica byte a byte igual. `vaga: false` não é
    escrito: campo ausente já quer dizer "fora da vaga". */
 const MAX_VAGAS = 3;
+// mesmo formato de scripts/build-index.mjs (RE_TAREFA): "- [ ] texto", "- [/] texto", "- [x] texto"
+const RE_TAREFA_API = /^(\s*[-*]\s+\[)( |x|X|\/)(\]\s+)(.+)$/;
 const FM = /^---(\r?\n)([\s\S]*?)\r?\n---/;
 
 function erro(msg, code) {
@@ -220,6 +224,74 @@ export function vaultApi() {
             }
             const idx = reindex();
             return sendJson(res, { ok: true, ...idx });
+          }
+
+          // ---- /api/tarefa: { rel, linha, estado } muda o marcador; { rel, nova } acrescenta ----
+          // Edição mínima, como na vaga: só a linha da tarefa muda (ou entra uma linha nova na
+          // seção "## Tarefas", criada antes de "## Conexões" se não existir).
+          if (url === '/api/tarefa' && req.method === 'POST') {
+            const p = JSON.parse((await readBody(req)) || '{}');
+            try {
+              const nota = notaDeProjeto(VAULT, p.rel);
+              const eol = nota.m[1];
+              const linhas = nota.texto.split(/\r?\n/);
+              if (typeof p.nova === 'string') {
+                const texto = p.nova.replace(/[\r\n]+/g, ' ').trim();
+                if (!texto) throw erro('tarefa vazia', 400);
+                const nova = '- [ ] ' + texto;
+                let i = linhas.findIndex((l) => /^##\s+Tarefas\s*$/.test(l));
+                if (i < 0) {
+                  let c = linhas.findIndex((l) => /^##\s+Conex/.test(l));
+                  if (c < 0) c = linhas.length;
+                  linhas.splice(c, 0, '## Tarefas', '', nova, '');
+                } else {
+                  let fim = i + 1;
+                  while (fim < linhas.length && !/^#{1,2}\s/.test(linhas[fim])) fim++;
+                  while (fim > i + 1 && linhas[fim - 1].trim() === '') fim--;
+                  linhas.splice(fim, 0, nova);
+                }
+              } else {
+                const marca = { 'a-fazer': ' ', fazendo: '/', feito: 'x' }[p.estado];
+                if (!marca) throw erro('estado inválido', 400);
+                const i = linhas.indexOf(p.linha);
+                if (i < 0 || !RE_TAREFA_API.test(p.linha)) throw erro('tarefa não encontrada (a nota mudou?)', 409);
+                linhas[i] = p.linha.replace(RE_TAREFA_API, (_, a, _m, b, t) => a + marca + b + t);
+              }
+              writeFileSync(nota.full, linhas.join(eol));
+            } catch (e) {
+              if (e && e.code) return sendJson(res, { error: e.message }, e.code);
+              throw e;
+            }
+            const idx = reindex();
+            return sendJson(res, { ok: true, ...idx });
+          }
+
+          // ---- /api/desenho?nota=<id>: GET lê, POST grava 09-DESENHOS/<id>.excalidraw ----
+          // Gravar pelo app tira o campo `gerado`: daí em diante o desenho é do Pedro e o
+          // gerador (scripts/gerar-desenhos.mjs) não o sobrescreve mais.
+          if (url === '/api/desenho') {
+            const nota = new URL(req.url, 'http://x').searchParams.get('nota') || '';
+            if (!/^[\w.-]+$/.test(nota)) return sendJson(res, { error: 'nota inválida' }, 400);
+            const arq = join(VAULT, '09-DESENHOS', nota + '.excalidraw');
+            if (req.method === 'GET') {
+              if (!existsSync(arq)) return sendJson(res, { error: 'sem desenho' }, 404);
+              return sendJson(res, JSON.parse(readFileSync(arq, 'utf8')));
+            }
+            if (req.method === 'POST') {
+              const p = JSON.parse((await readBody(req)) || '{}');
+              if (!Array.isArray(p.elements)) return sendJson(res, { error: 'cena inválida' }, 400);
+              const cena = {
+                type: 'excalidraw',
+                version: 2,
+                source: 'sinapse-app',
+                elements: p.elements,
+                appState: { viewBackgroundColor: p.appState?.viewBackgroundColor || '#ffffff', gridSize: null },
+                files: p.files || {},
+              };
+              mkdirSync(dirname(arq), { recursive: true });
+              writeFileSync(arq, JSON.stringify(cena, null, 1));
+              return sendJson(res, { ok: true });
+            }
           }
 
           // ---- /api/compromisso: { id, feito: true|false } ----
