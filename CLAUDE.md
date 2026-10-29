@@ -79,6 +79,16 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
   29/10 achou ~270 defeitos com o instrumento zerado. Armadilhas achadas: o ELK lê espaçamento do nó
   pai (repetir dentro de `__sistema`); a caixa do pool de destino não pode ser obstáculo da mensagem;
   origem/destino só se ignoram no primeiro/último trecho da rota.
+- Tema dos desenhos = RYZE (29/10, pedido do Pedro). O Excalidraw 0.17 só tem 3 fontes, então o
+  `fontFamily` é papel: 1 título (Space Grotesk), 2 texto (Plus Jakarta Sans), 3 técnico (JetBrains
+  Mono). A troca acontece em três lugares: `src/lib/diagramaSvg.ts` (SVG da aba Desenho e do GitHub,
+  fontes embutidas em base64, recortadas em `public/fontes-diagrama/`), `vite.config.ts`
+  (`fontesDoEditor`: Virgil/Cascadia do editor) e `DesenhoView.tsx` (Helvetica do editor por
+  FontFace). Fonte nova = medir a largura média no texto das specs e acertar `LARG` no gerador.
+- A aba Desenho abre no modo ver (os SVGs que vão para o GitHub); `#/note/<id>?aba=desenho` abre
+  direto nela. O Pedro quer ver no Sinapse ANTES de publicar nos repos.
+- `publicar-desenhos.mjs` nomeia os arquivos pelo título do diagrama (`nomeDe`, com exceções em
+  `NOMES`), renomeia os do nome antigo e nunca apaga.
 - Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de
   `window.EXCALIDRAW_ASSET_PATH` apontando para o `node_modules` (`DesenhoView.tsx`).
 - "Invalid hook call" / `reading 'useState'` em toda tela = duas cópias do React por cache de

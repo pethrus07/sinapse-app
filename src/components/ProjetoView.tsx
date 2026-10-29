@@ -18,7 +18,8 @@ interface Props {
 // Página do projeto: a nota continua sendo a fonte; as outras abas são lentes sobre ela
 // (história = commits das `pastas:` + notas datadas; tarefas = checkboxes do corpo).
 export function ProjetoView({ note, byId, roadmap, onNav, onIndex }: Props) {
-  const [aba, setAba] = useState<Aba>('nota');
+  // #/note/<id>?aba=desenho abre direto numa aba (link para mostrar os desenhos)
+  const [aba, setAba] = useState<Aba>(() => (new URLSearchParams(window.location.hash.split('?')[1]).get('aba') as Aba) || 'nota');
   const tarefas = note.tarefas || [];
   const abertas = tarefas.filter((t) => t.estado !== 'feito').length;
   const ehProjeto = note.type === 'projeto';

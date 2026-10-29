@@ -2,8 +2,8 @@
 //   vault/09-DESENHOS/specs/<nota>.json  →  vault/09-DESENHOS/<nota>.excalidraw
 // Três diagramas, cada um numa notação padrão (formato em docs/desenhos-formato.md):
 //   1. UML de casos de uso   2. BPMN 2.0 (processo com raias)   3. C4 nível 2 (containers)
-// Visual de diagrama técnico, não de rascunho: traço reto (roughness 0), fonte sem serifa,
-// fundo branco, cores da convenção de cada notação.
+// Visual de diagrama técnico, não de rascunho: traço reto (roughness 0), fundo branco, identidade
+// da RYZE (cores e fontes, ver a paleta abaixo).
 // Nunca sobrescreve desenho editado à mão: só escreve se o arquivo não existe, ou se ainda é o que o
 // gerador escreveu da última vez (campo "gerado" bate com o conteúdo). --forcar ignora isso.
 // Uso: node scripts/gerar-desenhos.mjs [nota ...] [--forcar]
@@ -19,22 +19,32 @@ const VAULT = process.env.VAULT_PATH || path.resolve(AQUI, "../../sinapse");
 const DIR = path.join(VAULT, "09-DESENHOS");
 const SPECS = path.join(DIR, "specs");
 
-/* ---------- paleta ---------- */
-const TINTA = "#1F2937", SUAVE = "#64748B", LINHA = "#334155";
-const UML = { caso: "#EEF2F7", traco: "#334155" };
+/* ---------- paleta: RYZE ----------
+   UML, BPMN e C4 fixam a forma, não a cor (o C4 pede só legenda), então a cor é a da marca: preto,
+   dourado e roxo. Texto branco sobre roxo e cinza passa de 5:1. Fontes por papel, no campo
+   fontFamily do Excalidraw 0.17 (que só tem três) e trocadas na exibição (src/lib/diagramaSvg.ts):
+   1 = títulos e nomes (Space Grotesk), 2 = texto (Plus Jakarta Sans), 3 = técnico (JetBrains Mono). */
+const TINTA = "#0D0D0D", SUAVE = "#5C5C5C", LINHA = "#3A3A3A";
+const OURO = "#FFB700", ROXO = "#6A28C9";
+const UML = { caso: "#F4EEFC", traco: ROXO };
 const BPMN = {
+  // raias neutras, alternando o fundo: com uma cor por raia (pela posição) o leitor procurava um
+  // significado que não existia. A cor fica nas tarefas (roxo) e no gateway (dourado).
   raias: [
-    { traco: "#2563EB", fundo: "#F5F8FF", cab: "#E8F0FE" },
-    { traco: "#0F8A7E", fundo: "#F4FBFA", cab: "#E2F5F2" },
-    { traco: "#7C3AED", fundo: "#F8F6FF", cab: "#EEE9FE" },
-    { traco: "#B45309", fundo: "#FFFBF5", cab: "#FDF0DD" },
+    { traco: ROXO, fundo: "#FFFFFF", cab: "#F0F0F0" },
+    { traco: ROXO, fundo: "#F7F7F7", cab: "#E8E8E8" },
   ],
-  pool: "#1E293B", externo: "#E8EDF5",
-  inicio: { traco: "#15803D", fundo: "#F0FDF4" }, fim: { traco: "#BE123C", fundo: "#FFF1F2" },
-  gateway: { traco: "#C2410C", fundo: "#FFF7ED" },
+  pool: "#0D0D0D", externo: "#F0F0F0",
+  // BPMN distingue início e fim pela espessura; a cor só reforça
+  inicio: { traco: "#8A6200", fundo: "#FFF3D1" }, fim: { traco: "#0D0D0D", fundo: "#EDEDED" },
+  gateway: { traco: "#0D0D0D", fundo: OURO },
 };
-// C4: cores da convenção (Simon Brown / Structurizr), escurecidas o bastante para texto branco legível
-const C4 = { pessoa: "#08427B", container: "#2F6FBA", banco: "#2F6FBA", externo: "#6B7280", fronteira: "#5B6676", seta: "#5B6676" };
+const C4 = {
+  // banco e arquivos num roxo mais fundo: na legenda as fichas eram idênticas à do container
+  pessoa: "#0D0D0D", container: ROXO, banco: "#4C1D95", externo: "#6B6B6B", fronteira: "#3A3A3A", seta: "#4A4A4A",
+  bordaRoxo: "#4C1D95", bordaDados: "#2E1065", tampaBanco: ROXO, bordaExterno: "#4A4A4A",
+  subPessoa: "#FFD666", subContainer: "#F1EBFA", subExterno: "#F2F2F2",
+};
 
 /* ---------- elementos básicos ---------- */
 let semente = 1;
@@ -44,11 +54,13 @@ const base = (extra) => ({
   strokeStyle: "solid", roughness: 0, opacity: 100, groupIds: [], frameId: null, roundness: null, seed: semente++,
   version: 1, versionNonce: semente * 7919, isDeleted: false, boundElements: [], updated: 1, link: null, locked: false, ...extra,
 });
-const LARG = 0.56; // largura média de caractere da Helvetica, em fração do corpo
-const largura = (t, tam) => Math.max(...String(t).split("\n").map((l) => l.length)) * tam * LARG;
+// largura média de caractere em fração do corpo, por fonte: média medida no texto das 56 specs
+// (Space Grotesk 0,495, Plus Jakarta 0,480) com a folga de 21% que a Helvetica já tinha; a mono é exata
+const LARG = { 1: 0.6, 2: 0.58, 3: 0.62 };
+const largura = (t, tam, fam = 2) => Math.max(...String(t).split("\n").map((l) => l.length)) * tam * LARG[fam];
 
-function quebrar(texto, maxPx, tam) {
-  const cabe = Math.max(6, Math.floor(maxPx / (tam * LARG)));
+function quebrar(texto, maxPx, tam, fam = 2) {
+  const cabe = Math.max(6, Math.floor(maxPx / (tam * LARG[fam])));
   const linhas = [];
   for (const par of String(texto).split("\n")) {
     let atual = "";
@@ -68,11 +80,11 @@ function quebrar(texto, maxPx, tam) {
   return linhas.join("\n");
 }
 
-function texto(els, { x, y, t, tam = 16, cor = TINTA, alinhar = "left", maxPx = 1400, grupo, angulo = 0, centroX }) {
-  const q = quebrar(t, maxPx, tam);
-  const w = Math.ceil(largura(q, tam)) + 4, h = q.split("\n").length * tam * 1.25;
+function texto(els, { x, y, t, tam = 16, cor = TINTA, alinhar = "left", maxPx = 1400, grupo, angulo = 0, centroX, fam = 2 }) {
+  const q = quebrar(t, maxPx, tam, fam);
+  const w = Math.ceil(largura(q, tam, fam)) + 4, h = q.split("\n").length * tam * 1.25;
   const xx = centroX != null ? centroX - w / 2 : alinhar === "center" ? x - w / 2 : x;
-  els.push(base({ id: novoId(), type: "text", x: xx, y, width: w, height: h, text: q, originalText: q, fontSize: tam, fontFamily: 2,
+  els.push(base({ id: novoId(), type: "text", x: xx, y, width: w, height: h, text: q, originalText: q, fontSize: tam, fontFamily: fam,
     textAlign: alinhar, verticalAlign: "top", containerId: null, lineHeight: 1.25, strokeColor: cor, autoResize: true,
     angle: angulo, groupIds: grupo ? [grupo] : [] }));
   return { w, h };
@@ -80,7 +92,7 @@ function texto(els, { x, y, t, tam = 16, cor = TINTA, alinhar = "left", maxPx = 
 
 // forma com texto preso dentro (move junto)
 function forma(els, { tipo = "rectangle", x, y, w, h, t = "", tam = 15, cor = TINTA, fundo = "#FFFFFF", traco = LINHA, espessura = 1,
-  tracejado = false, redondo = true, grupo, alinhar = "center" }) {
+  tracejado = false, redondo = true, grupo, alinhar = "center", fam = 2 }) {
   const id = novoId();
   const el = base({ id, type: tipo, x, y, width: w, height: h, backgroundColor: fundo, strokeColor: traco, strokeWidth: espessura,
     strokeStyle: tracejado ? "dashed" : "solid", roundness: redondo ? (tipo === "rectangle" ? { type: 3 } : { type: 2 }) : null,
@@ -89,11 +101,11 @@ function forma(els, { tipo = "rectangle", x, y, w, h, t = "", tam = 15, cor = TI
   if (t) {
     const tid = novoId();
     const util = tipo === "ellipse" ? w * 0.72 : tipo === "diamond" ? w * 0.5 : w - 20;
-    const q = quebrar(t, util, tam);
+    const q = quebrar(t, util, tam, fam);
     const th = q.split("\n").length * tam * 1.25;
     el.boundElements.push({ id: tid, type: "text" });
     els.push(base({ id: tid, type: "text", x: x + (w - util) / 2, y: y + (h - th) / 2, width: util, height: th, text: q, originalText: q,
-      fontSize: tam, fontFamily: 2, textAlign: alinhar, verticalAlign: "middle", containerId: id, lineHeight: 1.25, strokeColor: cor,
+      fontSize: tam, fontFamily: fam, textAlign: alinhar, verticalAlign: "middle", containerId: id, lineHeight: 1.25, strokeColor: cor,
       autoResize: true, groupIds: grupo ? [grupo] : [] }));
   }
   return { id, x, y, w, h, el };
@@ -260,8 +272,9 @@ function borda(a, px, py, elipse = false) {
 const centro = (a) => [a.x + a.w / 2, a.y + a.h / 2];
 
 function cabecalho(els, x, y, numero, titulo, notacao, projeto = "") {
-  texto(els, { x, y, t: `${numero} · ${titulo}`, tam: 24, cor: TINTA });
-  texto(els, { x, y: y + 34, t: projeto ? `${projeto}  ·  ${notacao}` : notacao, tam: 14, cor: SUAVE });
+  forma(els, { x, y: y + 2, w: 5, h: 52, fundo: OURO, traco: OURO, redondo: false });
+  texto(els, { x: x + 18, y, t: `${numero} · ${titulo}`, tam: 24, cor: TINTA, fam: 1 });
+  texto(els, { x: x + 18, y: y + 34, t: projeto ? `${projeto}  ·  ${notacao}` : notacao, tam: 14, cor: SUAVE });
   return y + 74;
 }
 const caixaDe = (els, desde) => {
@@ -395,7 +408,7 @@ function casosDeUso(els, u, X, Y) {
 
   const { pos, posAtor, bw, bh } = melhor;
   forma(els, { x: bx, y: by, w: bw, h: bh, fundo: "transparent", traco: LINHA, espessura: 2 });
-  texto(els, { x: bx + 18, y: by + 12, t: u.sistema, tam: 16, cor: TINTA });
+  texto(els, { x: bx + 18, y: by + 12, t: u.sistema, tam: 16, cor: TINTA, fam: 1 });
   const formas = {};
   for (const c of casos) if (pos[c.id]) formas[c.id] = forma(els, { tipo: "ellipse", ...pos[c.id], t: c.nome, tam: 14, fundo: UML.caso, traco: UML.traco });
   for (const a of atores) if (posAtor[a.id]) ator(els, a, posAtor[a.id].cx, posAtor[a.id].topo);
@@ -519,16 +532,16 @@ function processo(els, p, nomePool, X, Y) {
   forma(els, { x: X, y: topoLanes, w: larguraTotal, h: alturaPool, fundo: "transparent", traco: LINHA, espessura: 2, redondo: false });
   forma(els, { x: X, y: topoLanes, w: POOLBAND, h: alturaPool, fundo: BPMN.pool, traco: BPMN.pool, redondo: false });
   {
-    const t = quebrar(nomePool, alturaPool - 20, 15), w = largura(t, 15) + 4, h = 15 * 1.25 * t.split("\n").length;
-    texto(els, { x: X + POOLBAND / 2 - w / 2, y: topoLanes + alturaPool / 2 - h / 2, t, tam: 15, cor: "#FFFFFF", angulo: (3 * Math.PI) / 2, maxPx: alturaPool - 20 });
+    const t = quebrar(nomePool, alturaPool - 20, 15, 1), w = largura(t, 15, 1) + 4, h = 15 * 1.25 * t.split("\n").length;
+    texto(els, { x: X + POOLBAND / 2 - w / 2, y: topoLanes + alturaPool / 2 - h / 2, t, tam: 15, cor: "#FFFFFF", angulo: (3 * Math.PI) / 2, maxPx: alturaPool - 20, fam: 1 });
   }
   raias.forEach((r, i) => {
     const c = BPMN.raias[i % BPMN.raias.length];
     const y = topoRaia[r.id], h = alturaRaia[r.id];
     forma(els, { x: X + POOLBAND, y, w: larguraTotal - POOLBAND, h, fundo: c.fundo, traco: LINHA, redondo: false });
     forma(els, { x: X + POOLBAND, y, w: LANEBAND, h, fundo: c.cab, traco: LINHA, redondo: false });
-    const t = quebrar(r.nome, h - 16, 12), w = largura(t, 12) + 4, hh = 12 * 1.25 * t.split("\n").length;
-    texto(els, { x: X + POOLBAND + LANEBAND / 2 - w / 2, y: y + h / 2 - hh / 2, t, tam: 12, cor: c.traco, angulo: (3 * Math.PI) / 2, maxPx: h - 16 });
+    const t = quebrar(r.nome, h - 16, 13), w = largura(t, 13) + 4, hh = 13 * 1.25 * t.split("\n").length;
+    texto(els, { x: X + POOLBAND + LANEBAND / 2 - w / 2, y: y + h / 2 - hh / 2, t, tam: 13, cor: TINTA, angulo: (3 * Math.PI) / 2, maxPx: h - 16 });
   });
 
   // elementos
@@ -850,11 +863,11 @@ function processo(els, p, nomePool, X, Y) {
 // texto empilhado e centrado na vertical dentro de um cartão (nome, [tipo], descrição): cada linha
 // começa onde a anterior termina, então nome que quebra em duas linhas não cobre o [tipo]
 function pilha(els, cx, topo, alto, linhas, grupo) {
-  const altura = linhas.map((l) => quebrar(l.t, l.maxPx, l.tam).split("\n").length * l.tam * 1.25);
+  const altura = linhas.map((l) => quebrar(l.t, l.maxPx, l.tam, l.fam).split("\n").length * l.tam * 1.25);
   const total = altura.reduce((a, b) => a + b, 0) + (linhas.length - 1) * 5;
   let y = topo + Math.max(6, (alto - total) / 2);
   linhas.forEach((l, i) => {
-    texto(els, { x: cx, y, t: l.t, tam: l.tam, cor: l.cor, alinhar: "center", maxPx: l.maxPx, grupo });
+    texto(els, { x: cx, y, t: l.t, tam: l.tam, cor: l.cor, alinhar: "center", maxPx: l.maxPx, grupo, fam: l.fam });
     y += altura[i] + 5;
   });
 }
@@ -921,8 +934,8 @@ async function c4(els, c, X, Y) {
     forma(els, { tipo: "ellipse", x: x + CW / 2 - 28, y, w: 56, h: 56, fundo: C4.pessoa, traco: C4.pessoa, grupo: g2 });
     const f = forma(els, { x, y: y + 46, w: CW, h: 110, fundo: C4.pessoa, traco: C4.pessoa, grupo: g2 });
     pilha(els, x + CW / 2, y + 46, 110, [
-      { t: p.nome, tam: 17, cor: "#FFFFFF", maxPx: CW - 20 },
-      { t: "[Pessoa]", tam: 12, cor: "#C9D7EA", maxPx: CW - 16 },
+      { t: p.nome, tam: 17, cor: "#FFFFFF", maxPx: CW - 20, fam: 1 },
+      { t: "[Pessoa]", tam: 11, cor: C4.subPessoa, maxPx: CW - 16, fam: 3 },
       { t: p.descricao, tam: 12, cor: "#FFFFFF", maxPx: CW - 24 },
     ], g2);
     pos[p.id] = { id: f.id };
@@ -935,20 +948,20 @@ async function c4(els, c, X, Y) {
     let f;
     if (banco && !arquivos) {
       // cilindro: fundo curvo embaixo, corpo, tampa em cima
-      forma(els, { tipo: "ellipse", x, y: y + CH - 24, w: CW, h: 24, fundo: C4.banco, traco: "#1F4E89", grupo: g2 });
+      forma(els, { tipo: "ellipse", x, y: y + CH - 24, w: CW, h: 24, fundo: C4.banco, traco: C4.bordaDados, grupo: g2 });
       f = forma(els, { x, y: y + 12, w: CW, h: CH - 24, fundo: C4.banco, traco: C4.banco, grupo: g2, redondo: false });
-      linha(els, [[x, y + 12], [x, y + CH - 12]], { cor: "#1F4E89", grupo: g2 });
-      linha(els, [[x + CW, y + 12], [x + CW, y + CH - 12]], { cor: "#1F4E89", grupo: g2 });
-      forma(els, { tipo: "ellipse", x, y, w: CW, h: 24, fundo: "#3D80CC", traco: "#1F4E89", grupo: g2 });
+      linha(els, [[x, y + 12], [x, y + CH - 12]], { cor: C4.bordaDados, grupo: g2 });
+      linha(els, [[x + CW, y + 12], [x + CW, y + CH - 12]], { cor: C4.bordaDados, grupo: g2 });
+      forma(els, { tipo: "ellipse", x, y, w: CW, h: 24, fundo: C4.tampaBanco, traco: C4.bordaDados, grupo: g2 });
       tiposUsados.add("banco");
     } else {
-      f = forma(els, { x, y, w: CW, h: CH, fundo: C4.container, traco: "#1F4E89", grupo: g2, redondo: !arquivos });
+      f = forma(els, { x, y, w: CW, h: CH, fundo: arquivos ? C4.banco : C4.container, traco: arquivos ? C4.bordaDados : C4.bordaRoxo, grupo: g2, redondo: !arquivos });
       tiposUsados.add(arquivos ? "arquivos" : "container");
     }
     const tipo = arquivos ? "Arquivos" : banco ? "Banco" : k.tipo === "job" ? "Job" : k.tipo === "mobile" ? "App mobile" : k.tipo === "api" ? "API" : "Container";
     pilha(els, x + CW / 2, banco && !arquivos ? y + 14 : y, banco && !arquivos ? CH - 28 : CH, [
-      { t: k.nome, tam: 16, cor: "#FFFFFF", maxPx: CW - 20 },
-      { t: `[${tipo}: ${k.tecnologia}]`, tam: 11, cor: "#D6E4F5", maxPx: CW - 16 },
+      { t: k.nome, tam: 16, cor: "#FFFFFF", maxPx: CW - 20, fam: 1 },
+      { t: `[${tipo}: ${k.tecnologia}]`, tam: 11, cor: C4.subContainer, maxPx: CW - 16, fam: 3 },
       { t: k.descricao, tam: 12, cor: "#FFFFFF", maxPx: CW - 24 },
     ], g2);
     pos[k.id] = { id: f.id };
@@ -956,10 +969,10 @@ async function c4(els, c, X, Y) {
   // externos
   for (const e of exts) {
     const { x, y } = abs[e.id], g2 = novoId();
-    const f = forma(els, { x, y, w: CW, h: EH, fundo: C4.externo, traco: "#4B5563", grupo: g2 });
+    const f = forma(els, { x, y, w: CW, h: EH, fundo: C4.externo, traco: C4.bordaExterno, grupo: g2 });
     pilha(els, x + CW / 2, y, EH, [
-      { t: e.nome, tam: 16, cor: "#FFFFFF", maxPx: CW - 20 },
-      { t: "[Sistema externo]", tam: 11, cor: "#E5E7EB", maxPx: CW - 16 },
+      { t: e.nome, tam: 16, cor: "#FFFFFF", maxPx: CW - 20, fam: 1 },
+      { t: "[Sistema externo]", tam: 11, cor: C4.subExterno, maxPx: CW - 16, fam: 3 },
       { t: e.descricao, tam: 12, cor: "#FFFFFF", maxPx: CW - 24 },
     ], g2);
     pos[e.id] = { id: f.id };
@@ -1015,7 +1028,7 @@ async function c4(els, c, X, Y) {
     pessoas.length && ["Pessoa", C4.pessoa],
     tiposUsados.has("container") && ["Container", C4.container],
     tiposUsados.has("banco") && ["Banco de dados", C4.banco],
-    tiposUsados.has("arquivos") && ["Arquivos", C4.container],
+    tiposUsados.has("arquivos") && ["Arquivos", C4.banco],
     exts.length && ["Sistema externo", C4.externo],
   ].filter(Boolean);
   leg.forEach(([nome, cor], i) => forma(els, { x: X + i * 150, y: yLeg, w: 136, h: 30, t: nome, tam: 12, cor: "#FFFFFF", fundo: cor, traco: cor }));
@@ -1026,7 +1039,7 @@ export async function desenhar(spec) {
   const els = [];
   const X = 0;
   let y = 0;
-  texto(els, { x: X, y, t: spec.titulo, tam: 34, cor: TINTA });
+  texto(els, { x: X, y, t: spec.titulo, tam: 34, cor: TINTA, fam: 1 });
   y += 52;
   if (spec.resumo) y += texto(els, { x: X, y, t: spec.resumo, tam: 16, cor: SUAVE, maxPx: 1300 }).h + 50;
 

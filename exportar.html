@@ -7,48 +7,17 @@
   <body>
     <!--
       Ferramenta do dev server (não entra no build): exporta um desenho do vault para SVG com o
-      próprio Excalidraw, igual ao que aparece no app. Usada por scripts/publicar-desenhos.mjs:
-        window.exportarSvg('<id da nota>') → string SVG
+      próprio Excalidraw e as fontes da marca (src/lib/diagramaSvg.ts), igual à aba Desenho do app.
+      Usada por scripts/publicar-desenhos.mjs:
+        window.exportarSvg('<id da nota>')    → string SVG do desenho inteiro
+        window.exportarPartes('<id da nota>') → [UML, BPMN, C4], um SVG por diagrama
     -->
     <script type="module">
       window.EXCALIDRAW_ASSET_PATH = '/node_modules/@excalidraw/excalidraw/dist/';
-      const { exportToSvg } = await import('@excalidraw/excalidraw');
-      window.exportarSvg = async (nota) => {
-        const c = await (await fetch('/api/desenho?nota=' + encodeURIComponent(nota))).json();
-        const svg = await exportToSvg({
-          elements: c.elements,
-          appState: { ...c.appState, exportBackground: true, viewBackgroundColor: '#ffffff', exportWithDarkMode: false },
-          files: c.files || {},
-          exportPadding: 40,
-        });
-        return svg.outerHTML;
-      };
-      // um SVG por diagrama (UML, BPMN, C4), cortado no conteúdo: separa os elementos pela altura dos
-      // cabeçalhos "1 · ", "2 · ", "3 · " (o título geral do projeto vai junto com o primeiro)
-      window.exportarPartes = async (nota) => {
-        const c = await (await fetch('/api/desenho?nota=' + encodeURIComponent(nota))).json();
-        const els = c.elements.filter((e) => !e.isDeleted);
-        const topos = [1, 2, 3].map((n) => els.find((e) => e.type === 'text' && e.text.startsWith(`${n} · `))?.y);
-        if (topos.some((y) => y == null)) return [];
-        const partes = [];
-        for (let i = 0; i < 3; i++) {
-          // a parte 1 começa no próprio cabeçalho: título e resumo do projeto ficam de fora (o
-          // cabeçalho de cada parte já leva o nome, e o resumo largo deixava meia imagem em branco)
-          const y0 = topos[i] - 10, y1 = i < 2 ? topos[i + 1] - 10 : Infinity;
-          const parte = els.filter((e) => e.y >= y0 && e.y < y1);
-          // texto preso numa forma acompanha a forma
-          const ids = new Set(parte.map((e) => e.id));
-          for (const e of els) if (e.containerId && ids.has(e.containerId) && !ids.has(e.id)) parte.push(e);
-          const svg = await exportToSvg({
-            elements: parte,
-            appState: { ...c.appState, exportBackground: true, viewBackgroundColor: '#ffffff', exportWithDarkMode: false },
-            files: c.files || {},
-            exportPadding: 32,
-          });
-          partes.push(svg.outerHTML);
-        }
-        return partes;
-      };
+      const { svgInteiro, partesSvg } = await import('/src/lib/diagramaSvg.ts');
+      const ler = async (nota) => (await fetch('/api/desenho?nota=' + encodeURIComponent(nota))).json();
+      window.exportarSvg = async (nota) => svgInteiro(await ler(nota));
+      window.exportarPartes = async (nota) => partesSvg(await ler(nota));
       window.pronto = true;
     </script>
   </body>

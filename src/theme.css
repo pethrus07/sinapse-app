@@ -726,6 +726,10 @@ button.fr-nome:hover { color: var(--accent); }
 .desenho-barra { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: var(--panel); }
 .desenho-tela { flex: 1; position: relative; min-height: 0; }
 .desenho-tela > .excalidraw, .desenho-tela .excalidraw-wrapper { position: absolute; inset: 0; }
+/* modo ver: os três diagramas como vão para o GitHub, um abaixo do outro, em folhas brancas */
+.desenho-folhas { flex: 1; overflow: auto; padding: 28px 24px 48px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.desenho-folha { background: #fff; border-radius: 10px; padding: 8px; max-width: 100%; }
+.desenho-folha svg { display: block; max-width: 100%; height: auto; }
 .pad { padding: 20px; }
 
 /* ---------- panorama ---------- */
