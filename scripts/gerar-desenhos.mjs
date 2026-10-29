@@ -375,8 +375,13 @@ function casosDeUso(els, u, X, Y) {
     const a = posAtor[s.ator], c = pos[s.caso];
     if (!a || !c) continue;
     const p0 = a.cx < c.x ? [a.cx + 24, a.cy] : [a.cx - 24, a.cy];
-    // chega no ponto extremo da elipse (esquerdo ou direito): assim a reta fica sempre por fora das outras elipses da coluna
-    seta(els, [p0, a.cx < c.x ? [c.x, c.y + H / 2] : [c.x + c.w, c.y + H / 2]], { para: formas[s.caso].id, ponta: null, cor: LINHA });
+    // chega no ponto extremo da elipse (esquerdo ou direito): assim a reta fica sempre por fora das outras
+    // elipses da coluna; dois atores do mesmo lado no mesmo caso chegam em pontos separados da borda
+    const esq = a.cx < c.x;
+    const mesmos = assoc.filter((t) => t.caso === s.caso && posAtor[t.ator] && (posAtor[t.ator].cx < c.x) === esq).sort((p, q) => posAtor[p.ator].cy - posAtor[q.ator].cy);
+    const j = mesmos.indexOf(s), dy = (j - (mesmos.length - 1) / 2) * 18;
+    const bx2 = c.x + W / 2 + (esq ? -1 : 1) * (W / 2) * Math.sqrt(1 - (dy / (H / 2)) ** 2);
+    seta(els, [p0, [bx2, c.y + H / 2 + dy]], { para: formas[s.caso].id, ponta: null, cor: LINHA });
   }
   // include/extend: vizinhos em reta; os demais contornam pelo lado com menos associações
   const nEsq = assoc.filter((s) => ladoDe[s.ator] === "esq").length, nDir = assoc.length - nEsq;
@@ -551,6 +556,13 @@ function processo(els, p, nomePool, X, Y) {
   // trechos já traçados: rota que corre colada a outra por 20px ou mais fica para depois
   const usados = [];
   const pontas = []; // começo e ponta de cada seta já traçada (mensagem não sai colada a uma ponta)
+  const cruzamentos = (pts) => {
+    let n = 0;
+    const hv = (p, q, r, s2) => Math.abs(p[1] - q[1]) < 1 && Math.abs(r[0] - s2[0]) < 1 &&
+      r[0] > Math.min(p[0], q[0]) + 1 && r[0] < Math.max(p[0], q[0]) - 1 && p[1] > Math.min(r[1], s2[1]) + 1 && p[1] < Math.max(r[1], s2[1]) - 1;
+    for (let i = 0; i < pts.length - 1; i++) for (const [c, d] of usados) if (hv(pts[i], pts[i + 1], c, d) || hv(c, d, pts[i], pts[i + 1])) n++;
+    return n;
+  };
   const trilho = (pts) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [a, b] = [pts[i], pts[i + 1]];
@@ -578,7 +590,8 @@ function processo(els, p, nomePool, X, Y) {
     const xb = b.cx + Math.max(-b.meiaL + 6, Math.min(b.meiaL - 6, desloca[(portas[kb] || 0) % 5]));
     return { pts: [[xa, sa], [xa, y], [xb, y], [xb, sb]], lx: (xa + xb) / 2, ly: lado === "baixo" ? y + 3 : y - 18, portas: [ka, kb], lado };
   };
-  for (const f of fluxos) {
+  const deVolta = (f) => volta.has(f) || (pos[f.para] && pos[f.de] && pos[f.para].cx <= pos[f.de].cx);
+  for (const f of [...fluxos].sort((p, q) => deVolta(p) - deVolta(q))) {
     const a = pos[f.de], b = pos[f.para];
     if (!a || !b) continue;
     const gw = porId[f.de].tipo === "gateway";
@@ -610,8 +623,9 @@ function processo(els, p, nomePool, X, Y) {
     }
     const lado = (o) => { const [p, q] = o.pts; return Math.abs(p[1] - q[1]) < 1 ? "dir" : q[1] > p[1] ? "baixo" : "cima"; };
     const ladoLivre = (o) => !gw || !(ladosGw[f.de] || new Set()).has(lado(o));
-    const escolhida = opcoes.find((o) => !corta(o.pts, ign) && !trilho(o.pts) && ladoLivre(o)) || opcoes.find((o) => !corta(o.pts, ign) && !trilho(o.pts))
-      || opcoes.find((o) => !corta(o.pts, ign)) || opcoes[0];
+    const custoSeq = (o, i) => (corta(o.pts, ign) ? 1e6 : 0) + (trilho(o.pts) ? 400 : 0) + (ladoLivre(o) ? 0 : 150)
+      + cruzamentos(o.pts) * 70 + i * 8;
+    const escolhida = opcoes.map((o, i) => [o, custoSeq(o, i)]).reduce((m, x) => (x[1] < m[1] ? x : m))[0];
     if (gw) (ladosGw[f.de] ||= new Set()).add(lado(escolhida));
     for (const k of escolhida.portas || []) portas[k] = (portas[k] || 0) + 1;
     if (escolhida.lado) desvio[escolhida.lado] = (desvio[escolhida.lado] || 0) + 1;
