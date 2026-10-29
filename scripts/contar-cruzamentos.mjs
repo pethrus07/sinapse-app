@@ -1,7 +1,10 @@
 // Mede o roteamento: conta, por parte do desenho (uml/bpmn/c4), cruzamentos entre setas e "feixes" (setas paralelas a
 // < 32 px por >= 150 px). Uso: node scripts/contar-cruzamentos.mjs [ids...] (sem id: os 56; compara versões do gerador)
 import { readFileSync, readdirSync } from "node:fs";
-const DIR = (process.env.VAULT_PATH || new URL("../../sinapse/", import.meta.url).pathname.replace(/^/([A-Za-z]:)/, "$1")) + "/09-DESENHOS/";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+const AQUI = dirname(fileURLToPath(import.meta.url));
+const DIR = join(process.env.VAULT_PATH ? resolve(process.env.VAULT_PATH) : resolve(AQUI, "..", "..", "sinapse"), "09-DESENHOS") + "/";
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : readdirSync(DIR).filter((f) => f.endsWith(".excalidraw")).map((f) => f.replace(".excalidraw", ""));
 const tot = { uml: [0, 0], bpmn: [0, 0], c4: [0, 0] };
 const linhas = [];
