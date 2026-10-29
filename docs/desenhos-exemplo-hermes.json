@@ -1,0 +1,123 @@
+{
+  "versao": 2,
+  "nota": "hermes",
+  "titulo": "Hermes · propostas de freela no 99Freelas",
+  "resumo": "Vasculha o 99Freelas a cada 30 min, avalia cada projeto contra o que o Pedro já entregou, precifica e escreve a proposta. Quem envia é o Pedro.",
+  "casosDeUso": {
+    "sistema": "Hermes",
+    "atores": [
+      { "id": "relogio", "nome": "Agendador do Windows", "tipo": "tempo" },
+      { "id": "pedro", "nome": "Pedro", "tipo": "humano" },
+      { "id": "site", "nome": "99Freelas", "tipo": "sistema" },
+      { "id": "claude", "nome": "Claude", "tipo": "sistema" }
+    ],
+    "casos": [
+      { "id": "buscar", "nome": "Buscar projetos novos" },
+      { "id": "avaliar", "nome": "Avaliar e precificar o projeto" },
+      { "id": "escrever", "nome": "Escrever a proposta" },
+      { "id": "preparar", "nome": "Preparar o formulário no site" },
+      { "id": "enviar", "nome": "Revisar e enviar a proposta" },
+      { "id": "retornos", "nome": "Acompanhar enviadas e retornos" },
+      { "id": "ajustar", "nome": "Ajustar horas por dia" }
+    ],
+    "associacoes": [
+      { "ator": "relogio", "caso": "buscar" },
+      { "ator": "site", "caso": "buscar" },
+      { "ator": "claude", "caso": "avaliar" },
+      { "ator": "claude", "caso": "escrever" },
+      { "ator": "pedro", "caso": "preparar" },
+      { "ator": "pedro", "caso": "enviar" },
+      { "ator": "pedro", "caso": "retornos" },
+      { "ator": "site", "caso": "retornos" }
+    ],
+    "relacoes": [
+      { "de": "buscar", "para": "avaliar", "tipo": "include" },
+      { "de": "avaliar", "para": "escrever", "tipo": "include" },
+      { "de": "ajustar", "para": "retornos", "tipo": "extend", "condicao": "ritmo medido mudou" }
+    ]
+  },
+  "processo": {
+    "nome": "Do projeto novo à proposta enviada",
+    "raias": [
+      { "id": "hermes", "nome": "Hermes (automático)" },
+      { "id": "pedro", "nome": "Pedro" }
+    ],
+    "externos": [
+      { "id": "site", "nome": "99Freelas" },
+      { "id": "claude", "nome": "Claude" }
+    ],
+    "elementos": [
+      { "id": "i", "tipo": "inicio-timer", "nome": "A cada 30 min", "raia": "hermes" },
+      { "id": "t1", "tipo": "tarefa", "nome": "Tirar da fila o que já foi enviado", "raia": "hermes" },
+      { "id": "t2", "tipo": "tarefa", "nome": "Buscar projetos novos", "raia": "hermes" },
+      { "id": "g1", "tipo": "gateway", "nome": "Passa no filtro?", "raia": "hermes" },
+      { "id": "t3", "tipo": "tarefa", "nome": "Dar nota e estimar horas", "raia": "hermes" },
+      { "id": "g2", "tipo": "gateway", "nome": "Vale a proposta?", "raia": "hermes" },
+      { "id": "t4", "tipo": "tarefa", "nome": "Calcular preço e prazo", "raia": "hermes" },
+      { "id": "t5", "tipo": "tarefa", "nome": "Escrever o texto", "raia": "hermes" },
+      { "id": "g3", "tipo": "gateway", "nome": "Passa na checagem?", "raia": "hermes" },
+      { "id": "t6", "tipo": "tarefa", "nome": "Avisar na tela", "raia": "hermes" },
+      { "id": "t7", "tipo": "tarefa", "nome": "Revisar e clicar em Preparar", "raia": "pedro" },
+      { "id": "g4", "tipo": "gateway", "nome": "Enviar?", "raia": "pedro" },
+      { "id": "f1", "tipo": "fim", "nome": "Descartado", "raia": "hermes" },
+      { "id": "f2", "tipo": "fim", "nome": "Proposta enviada", "raia": "pedro" }
+    ],
+    "fluxos": [
+      { "de": "i", "para": "t1" },
+      { "de": "t1", "para": "t2" },
+      { "de": "t2", "para": "g1" },
+      { "de": "g1", "para": "t3", "rotulo": "Sim" },
+      { "de": "g1", "para": "f1", "rotulo": "Não" },
+      { "de": "t3", "para": "g2" },
+      { "de": "g2", "para": "t4", "rotulo": "Sim" },
+      { "de": "g2", "para": "f1", "rotulo": "Não" },
+      { "de": "t4", "para": "t5" },
+      { "de": "t5", "para": "g3" },
+      { "de": "g3", "para": "t5", "rotulo": "Não, reescreve" },
+      { "de": "g3", "para": "t6", "rotulo": "Sim" },
+      { "de": "t6", "para": "t7" },
+      { "de": "t7", "para": "g4" },
+      { "de": "g4", "para": "f2", "rotulo": "Sim" },
+      { "de": "g4", "para": "f1", "rotulo": "Não" }
+    ],
+    "mensagens": [
+      { "de": "site", "para": "t1", "rotulo": "Minhas propostas" },
+      { "de": "site", "para": "t2", "rotulo": "projetos da busca" },
+      { "de": "t3", "para": "claude", "rotulo": "nota e horas" },
+      { "de": "t5", "para": "claude", "rotulo": "texto" },
+      { "de": "g4", "para": "site", "rotulo": "Enviar" }
+    ]
+  },
+  "arquitetura": {
+    "sistema": "Hermes",
+    "pessoas": [
+      { "id": "pedro", "nome": "Pedro", "descricao": "Revisa e envia as propostas" }
+    ],
+    "containers": [
+      { "id": "ciclo", "nome": "Ciclo", "tecnologia": "Node.js + Playwright", "descricao": "Busca, filtra, avalia e escreve a cada 30 min", "tipo": "job" },
+      { "id": "vigia", "nome": "Vigia", "tecnologia": "Node.js", "descricao": "Confere retornos e mensagens a cada 2 h", "tipo": "job" },
+      { "id": "aviso", "nome": "Aviso do Windows", "tecnologia": "Toast + protocolo hermes://", "descricao": "Avisa e abre o projeto com Preparar", "tipo": "app" },
+      { "id": "painel", "nome": "Painel", "tecnologia": "Node.js HTTP local", "descricao": "Fila, enviadas e Atualizar agora", "tipo": "app" },
+      { "id": "chrome", "nome": "Chrome do perfil", "tecnologia": "Chrome + Playwright", "descricao": "Sessão logada que preenche o formulário", "tipo": "app" },
+      { "id": "dados", "nome": "Dados locais", "tecnologia": "JSON / JSONL", "descricao": "Fila, propostas, métricas, capacidades", "tipo": "banco" }
+    ],
+    "externos": [
+      { "id": "site", "nome": "99Freelas", "descricao": "Busca, projetos e Minhas propostas" },
+      { "id": "claude", "nome": "Claude", "descricao": "Avalia o projeto e escreve o texto" },
+      { "id": "vault", "nome": "Sinapse", "descricao": "O que o Pedro já entregou" }
+    ],
+    "relacoes": [
+      { "de": "pedro", "para": "aviso", "rotulo": "clica em Preparar" },
+      { "de": "pedro", "para": "painel", "rotulo": "acompanha" },
+      { "de": "aviso", "para": "chrome", "rotulo": "abre o formulário" },
+      { "de": "ciclo", "para": "site", "rotulo": "lê projetos", "tecnologia": "HTTPS" },
+      { "de": "ciclo", "para": "claude", "rotulo": "pede nota e texto", "tecnologia": "CLI" },
+      { "de": "ciclo", "para": "vault", "rotulo": "lê capacidades", "tecnologia": "arquivo" },
+      { "de": "ciclo", "para": "dados", "rotulo": "grava", "tecnologia": "arquivo" },
+      { "de": "vigia", "para": "site", "rotulo": "lê retornos", "tecnologia": "HTTPS" },
+      { "de": "vigia", "para": "dados", "rotulo": "atualiza", "tecnologia": "arquivo" },
+      { "de": "painel", "para": "dados", "rotulo": "lê", "tecnologia": "arquivo" },
+      { "de": "chrome", "para": "site", "rotulo": "preenche", "tecnologia": "HTTPS" }
+    ]
+  }
+}

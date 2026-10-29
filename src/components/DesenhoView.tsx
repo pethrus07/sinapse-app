@@ -89,8 +89,10 @@ export function DesenhoView({ nota }: Props) {
               // abre com o desenho inteiro enquadrado, não em 100% cortado
               setTimeout(() => a.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.85 }), 150);
             }}
-            initialData={{ elements: cena.elements, appState: { ...cena.appState, theme: 'dark' }, files: cena.files }}
-            theme="dark"
+            // tema claro: os diagramas usam as cores das notações (UML, BPMN, C4) sobre papel branco;
+            // o tema escuro do Excalidraw inverte as cores do canvas
+            initialData={{ elements: cena.elements, appState: { ...cena.appState, theme: 'light' }, files: cena.files }}
+            theme="light"
             langCode="pt-BR"
             onChange={(els: readonly any[]) => {
               const a = assinatura(els);

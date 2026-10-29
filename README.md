@@ -89,18 +89,32 @@ Toda nota `tipo: projeto` (e qualquer nota com desenho) abre em abas. Tudo conti
 | Tarefas | linhas `- [ ]` (a fazer), `- [/]` (fazendo), `- [x]` (feito) do corpo. Mover (arrastar ou clicar) chama `POST /api/tarefa`, que troca só o marcador daquela linha; "Adicionar" acrescenta `- [ ] texto` na seção `## Tarefas` (criada antes de `## Conexões` se faltar). Linha que mudou no disco desde o índice → 409 |
 | Desenho | `09-DESENHOS/<id>.excalidraw` no vault, editável no Excalidraw (`GET/POST /api/desenho?nota=<id>`) |
 
-**Desenhos.** Cada projeto tem um desenho em três blocos: como funciona, fluxo principal e
-arquitetura. Ele nasce de uma especificação curta em `09-DESENHOS/specs/<id>.json`:
+**Desenhos.** Cada projeto tem três diagramas, cada um numa notação padrão de mercado:
+**UML de casos de uso** (quem usa e para quê), **BPMN 2.0** (o processo principal, com raias) e
+**C4 nível 2** (containers, tecnologia e sistemas externos). Visual de diagrama técnico: traço
+reto, fonte sem serifa, fundo branco, cores da convenção de cada notação. Tudo nasce de uma
+especificação em `09-DESENHOS/specs/<id>.json` (formato em [`docs/desenhos-formato.md`](docs/desenhos-formato.md),
+exemplo em [`docs/desenhos-exemplo-hermes.json`](docs/desenhos-exemplo-hermes.json)):
 
 ```bash
-node scripts/gerar-desenhos.mjs              # gera todos; pula os editados à mão
-node scripts/gerar-desenhos.mjs hermes       # só alguns
-node scripts/gerar-desenhos.mjs --forcar     # regera até os editados (perde a edição)
+node scripts/validar-specs.mjs [id ...]          # confere as especificações (regras de cada notação)
+node scripts/gerar-desenhos.mjs [id ...]         # gera; pula os editados à mão e os inválidos
+node scripts/gerar-desenhos.mjs --forcar         # regera até os editados (perde a edição)
+node scripts/publicar-desenhos.mjs [id ...]      # simula a cópia para o repo de cada projeto
+node scripts/publicar-desenhos.mjs --commit      # grava docs/arquitetura/ (.excalidraw + .svg + README) em cada
+                                                 # pasta de `pastas:`, commita só esse caminho e dá push
 ```
+
+O layout é automático: colunas do BPMN pelo caminho mais longo (laços detectados), cada seta escolhe
+o primeiro caminho em ângulo reto que não atravessa forma nenhuma; o UML arruma os casos por busca
+local (menos linhas cortando elipses e menos cruzamentos); o C4 ordena fileiras por baricentro e
+põe os externos ao lado quando nada fica no caminho. Em 29/10/2026: 56 desenhos, 1.702 setas,
+nenhuma atravessando forma e nenhum texto sobreposto.
 
 O gerador grava uma assinatura (`gerado`) no arquivo. Salvar pelo app tira essa assinatura: daí
 em diante o desenho é do Pedro e o gerador o mantém. O pacote do Excalidraw (~2 MB) só carrega
-quando a aba abre; as fontes vêm do `node_modules` (funciona offline).
+quando a aba abre; as fontes vêm do `node_modules` (funciona offline). `exportar.html` (só no dev
+server) exporta o SVG com o próprio Excalidraw, para o `publicar-desenhos.mjs`.
 
 **Panorama.** *Quadro*: uma coluna por status, cartões pelo movimento mais recente (concluídos e
 arquivados recolhidos). *Linha do ano*: uma linha por projeto com ponto por dia de commit (maior =

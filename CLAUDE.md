@@ -71,7 +71,9 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
 - Desenhos: `scripts/gerar-desenhos.mjs` lê `../sinapse/09-DESENHOS/specs/*.json` e escreve
   `09-DESENHOS/<id>.excalidraw`. Desenho sem o campo `gerado` (ou com `gerado` diferente da
   assinatura) foi editado à mão: o gerador pula. **Não usar `--forcar` sem o Pedro pedir.**
-  Spec nova segue o formato de `specs/hermes.json` (caixa ≤ 45 caracteres, 3–5 camadas).
+  Spec nova: formato 2 em `docs/desenhos-formato.md` (UML + BPMN + C4), conferida por
+  `scripts/validar-specs.mjs`. Projeto novo = spec + gerar + `publicar-desenhos.mjs --commit`.
+  O Pedro rejeitou o visual de rascunho (Virgil, roughness 1) em 29/10: manter traço reto e notação padrão.
 - Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de
   `window.EXCALIDRAW_ASSET_PATH` apontando para o `node_modules` (`DesenhoView.tsx`).
 - "Invalid hook call" / `reading 'useState'` em toda tela = duas cópias do React por cache de

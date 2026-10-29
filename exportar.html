@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Exportar desenho</title>
+  </head>
+  <body>
+    <!--
+      Ferramenta do dev server (não entra no build): exporta um desenho do vault para SVG com o
+      próprio Excalidraw, igual ao que aparece no app. Usada por scripts/publicar-desenhos.mjs:
+        window.exportarSvg('<id da nota>') → string SVG
+    -->
+    <script type="module">
+      window.EXCALIDRAW_ASSET_PATH = '/node_modules/@excalidraw/excalidraw/dist/';
+      const { exportToSvg } = await import('@excalidraw/excalidraw');
+      window.exportarSvg = async (nota) => {
+        const c = await (await fetch('/api/desenho?nota=' + encodeURIComponent(nota))).json();
+        const svg = await exportToSvg({
+          elements: c.elements,
+          appState: { ...c.appState, exportBackground: true, viewBackgroundColor: '#ffffff', exportWithDarkMode: false },
+          files: c.files || {},
+          exportPadding: 40,
+        });
+        return svg.outerHTML;
+      };
+      window.pronto = true;
+    </script>
+  </body>
+</html>
