@@ -74,6 +74,11 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
   Spec nova: formato 2 em `docs/desenhos-formato.md` (UML + BPMN + C4), conferida por
   `scripts/validar-specs.mjs`. Projeto novo = spec + gerar + `publicar-desenhos.mjs --commit`.
   O Pedro rejeitou o visual de rascunho (Virgil, roughness 1) em 29/10: manter traço reto e notação padrão.
+  Mudou o gerador: `node scripts/qa-desenhos.mjs` (atravessa, colada, raspa, trilho…) **e** revisão por
+  imagem (exportar com `exportar.html` → `exportarPartes`); só o instrumento não basta, a revisão de
+  29/10 achou ~270 defeitos com o instrumento zerado. Armadilhas achadas: o ELK lê espaçamento do nó
+  pai (repetir dentro de `__sistema`); a caixa do pool de destino não pode ser obstáculo da mensagem;
+  origem/destino só se ignoram no primeiro/último trecho da rota.
 - Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de
   `window.EXCALIDRAW_ASSET_PATH` apontando para o `node_modules` (`DesenhoView.tsx`).
 - "Invalid hook call" / `reading 'useState'` em toda tela = duas cópias do React por cache de
