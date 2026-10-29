@@ -147,8 +147,26 @@ function rotular(els, desde) {
     }
     return false;
   };
+  const distSeg = (px, py, a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / l2)) : 0;
+    return Math.hypot(px - a[0] - t * dx, py - a[1] - t * dy);
+  };
+  const distCaixa = (c, a, b) => {
+    // distância da caixa do rótulo até o segmento: menor entre centro e os quatro cantos
+    const pts = [[(c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2], [c.x0, c.y0], [c.x1, c.y0], [c.x0, c.y1], [c.x1, c.y1]];
+    return Math.min(...pts.map(([x, y]) => distSeg(x, y, a, b)));
+  };
   const custo = (c, ancora, dono) => {
     let v = 0;
+    if (dono) {
+      let dOwn = Infinity, dOutra = Infinity;
+      for (const s2 of segs) {
+        const d = distCaixa(c, s2.a, s2.b);
+        if (s2.dono === dono) dOwn = Math.min(dOwn, d); else if (s2.dono) dOutra = Math.min(dOutra, d);
+      }
+      if (dOutra < dOwn + 8) v += 80;
+    }
     for (const o of obst) if (sobre(c, o)) v += 1000;
     for (const t of textos) if (sobre(c, t)) v += 1000;
     for (const s of segs) if (cortaCaixa(s, c)) v += s.dono === dono ? 25 : 60;
@@ -191,6 +209,16 @@ function rotular(els, desde) {
         });
       }
     });
+    if (p.sugestao) {
+      const { x, y, w, h } = p.sugestao;
+      const cx = x + w / 2, cy = y + h / 2;
+      let anc = p.pts[0], dmin = Infinity;
+      for (let i = 0; i < p.pts.length - 1; i++) {
+        const d = distSeg(cx, cy, p.pts[i], p.pts[i + 1]);
+        if (d < dmin) { dmin = d; anc = [cx, cy]; }
+      }
+      cands.push({ txt: p.texto, w, h, c: { x0: x, y0: y, x1: x + w, y1: y + h }, extra: 0.03 * dmin, ancora: anc });
+    }
     const ancora = p.tipo === "forma" ? [(p.caixa.x0 + p.caixa.x1) / 2, (p.caixa.y0 + p.caixa.y1) / 2] : null;
     let melhor = null, vMelhor = Infinity;
     for (const k of cands) { const v = custo(k.c, k.ancora || ancora, p.seta?.id) + k.extra; if (v < vMelhor) { vMelhor = v; melhor = k; } }
@@ -207,7 +235,7 @@ function rotular(els, desde) {
 }
 
 // seta (polilinha) presa às formas de origem e destino; o rótulo vai para o posicionador
-function seta(els, pontos, { de, para, rotulo, cor = LINHA, tracejado = false, ponta = "arrow", inicio = null, tam = 13, espessura = 1, perto = "meio", corRotulo = SUAVE } = {}) {
+function seta(els, pontos, { de, para, rotulo, cor = LINHA, tracejado = false, ponta = "arrow", inicio = null, tam = 13, espessura = 1, perto = "meio", corRotulo = SUAVE, sugestao = null } = {}) {
   const id = novoId();
   const [x0, y0] = pontos[0];
   const xs = pontos.map((p) => p[0]), ys = pontos.map((p) => p[1]);
@@ -217,7 +245,7 @@ function seta(els, pontos, { de, para, rotulo, cor = LINHA, tracejado = false, p
     startBinding: de ? { elementId: de, focus: 0, gap: 4 } : null, endBinding: para ? { elementId: para, focus: 0, gap: 4 } : null });
   els.push(el);
   for (const c of els) if (c.id === de || c.id === para) c.boundElements.push({ id, type: "arrow" });
-  if (rotulo) pendentes.push({ tipo: "seta", texto: quebrar(rotulo, 170, tam), tam, cor: corRotulo, pts: pontos, seta: el, perto });
+  if (rotulo) pendentes.push({ tipo: "seta", texto: quebrar(rotulo, 170, tam), tam, cor: corRotulo, pts: pontos, seta: el, perto, sugestao });
   return el;
 }
 
@@ -379,7 +407,7 @@ function casosDeUso(els, u, X, Y) {
     // elipses da coluna; dois atores do mesmo lado no mesmo caso chegam em pontos separados da borda
     const esq = a.cx < c.x;
     const mesmos = assoc.filter((t) => t.caso === s.caso && posAtor[t.ator] && (posAtor[t.ator].cx < c.x) === esq).sort((p, q) => posAtor[p.ator].cy - posAtor[q.ator].cy);
-    const j = mesmos.indexOf(s), dy = (j - (mesmos.length - 1) / 2) * 18;
+    const j = mesmos.indexOf(s), dy = (j - (mesmos.length - 1) / 2) * 28;
     const bx2 = c.x + W / 2 + (esq ? -1 : 1) * (W / 2) * Math.sqrt(1 - (dy / (H / 2)) ** 2);
     seta(els, [p0, [bx2, c.y + H / 2 + dy]], { para: formas[s.caso].id, ponta: null, cor: LINHA });
   }
@@ -951,7 +979,8 @@ async function c4(els, c, X, Y) {
     // rótulo pelo `rotular` (ao lado da própria linha, longe das outras); o do ELK ficava no meio do
     // vão entre camadas, muitas vezes entre duas linhas (revisões 3 a 6). O ELK ainda reserva o espaço.
     const l = e.labels?.[0];
-    const seta1 = seta(els, pts, { de: pos[r.de].id, para: pos[r.para].id, cor: C4.seta, ponta: "triangle", rotulo: l?.text, tam: 12 });
+    const seta1 = seta(els, pts, { de: pos[r.de].id, para: pos[r.para].id, cor: C4.seta, ponta: "triangle", rotulo: l?.text, tam: 12,
+      sugestao: l ? { x: ox + l.x, y: oy + l.y, w: l.width, h: l.height } : null });
     for (let i = 0; i < pts.length - 1; i++) segsC4.push([pts[i], pts[i + 1]]);
     if (l && process.env.ROTULO_ELK) {
       const gid = novoId();
