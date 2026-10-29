@@ -21,7 +21,10 @@ export function DesenhoView({ nota }: Props) {
   const [salvando, setSalvando] = useState(false);
   const api = useRef<any>(null);
   const inicial = useRef<string>('');
-  const assentaAte = useRef(0);
+  // Até o Pedro tocar no desenho, mudança é o Excalidraw assentando (normaliza elementos, remede
+  // texto quando a fonte chega) e vira a linha de base. Depois do 1º clique ou tecla, é edição.
+  // (A versão anterior usava uma janela de 2,5 s e engolia edição feita logo ao abrir.)
+  const mexeu = useRef(false);
 
   useEffect(() => {
     let vivo = true;
@@ -31,11 +34,8 @@ export function DesenhoView({ nota }: Props) {
     lerDesenho(nota)
       .then((c) => {
         if (!vivo) return;
-        // a linha de base é a cena depois de assentar: ao carregar, o Excalidraw normaliza os
-        // elementos e remede os textos quando a fonte chega (sobe `version`), e comparar com
-        // o arquivo marcaria "sujo" sem edição nenhuma
         inicial.current = '';
-        assentaAte.current = Date.now() + 2500;
+        mexeu.current = false;
         setCena(c);
       })
       .catch((e) => vivo && setErro((e as Error).message));
@@ -76,29 +76,25 @@ export function DesenhoView({ nota }: Props) {
           {salvando ? 'Salvando…' : sujo ? 'Salvar' : 'Salvo'}
         </button>
       </div>
-      <div className="desenho-tela">
+      <div
+        className="desenho-tela"
+        onPointerDownCapture={() => (mexeu.current = true)}
+        onKeyDownCapture={() => (mexeu.current = true)}
+      >
         <Suspense fallback={<p className="muted pad">Carregando o editor…</p>}>
           <Excalidraw
             excalidrawAPI={(a: any) => {
               if (!a || api.current === a) return;
               api.current = a;
-              assentaAte.current = Date.now() + 2500;
               // abre com o desenho inteiro enquadrado, não em 100% cortado
               setTimeout(() => a.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.85 }), 150);
-              // fonte fria remede os textos depois: a cena após as fontes é a linha de base
-              document.fonts.ready.then(() =>
-                setTimeout(() => {
-                  inicial.current = assinatura(a.getSceneElements());
-                  setSujo(false);
-                }, 600),
-              );
             }}
             initialData={{ elements: cena.elements, appState: { ...cena.appState, theme: 'dark' }, files: cena.files }}
             theme="dark"
             langCode="pt-BR"
             onChange={(els: readonly any[]) => {
               const a = assinatura(els);
-              if (!inicial.current || Date.now() < assentaAte.current) inicial.current = a;
+              if (!inicial.current || !mexeu.current) inicial.current = a;
               setSujo(a !== inicial.current);
             }}
           />
