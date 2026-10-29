@@ -32,7 +32,9 @@
         if (topos.some((y) => y == null)) return [];
         const partes = [];
         for (let i = 0; i < 3; i++) {
-          const y0 = i === 0 ? -Infinity : topos[i] - 10, y1 = i < 2 ? topos[i + 1] - 10 : Infinity;
+          // a parte 1 começa no próprio cabeçalho: título e resumo do projeto ficam de fora (o
+          // cabeçalho de cada parte já leva o nome, e o resumo largo deixava meia imagem em branco)
+          const y0 = topos[i] - 10, y1 = i < 2 ? topos[i + 1] - 10 : Infinity;
           const parte = els.filter((e) => e.y >= y0 && e.y < y1);
           // texto preso numa forma acompanha a forma
           const ids = new Set(parte.map((e) => e.id));

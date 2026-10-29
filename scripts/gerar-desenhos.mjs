@@ -125,6 +125,19 @@ function rotular(els, desde) {
     const p = e.points.map(([x, y]) => [e.x + x, e.y + y]);
     for (let i = 0; i < p.length - 1; i++) segs.push({ dono: e.id, a: p[i], b: p[i + 1] });
   }
+  // borda de raia, pool e fronteira também é linha: rótulo em cima dela parecia escrito na moldura
+  const areas = fatia.filter((e) => e.type === "rectangle" && !e.customData?.halo && area(e));
+  for (const e of areas) {
+    const [x0, y0, x1, y1] = [e.x, e.y, e.x + e.width, e.y + e.height];
+    segs.push({ dono: null, a: [x0, y0], b: [x1, y0] }, { dono: null, a: [x1, y0], b: [x1, y1] },
+      { dono: null, a: [x1, y1], b: [x0, y1] }, { dono: null, a: [x0, y1], b: [x0, y0] });
+  }
+  // halo da cor do fundo onde o rótulo cai (branco numa raia cinza virava um remendo)
+  const fundo = (c) => {
+    const cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2;
+    const dentro = areas.filter((e) => e.backgroundColor && e.backgroundColor !== "transparent" && cx > e.x && cx < e.x + e.width && cy > e.y && cy < e.y + e.height);
+    return dentro.sort((a, b) => a.width * a.height - b.width * b.height)[0]?.backgroundColor || "#FFFFFF";
+  };
   const sobre = (a, b) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0;
   const cortaCaixa = (s, c) => {
     const n = Math.max(2, Math.ceil(Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) / 4));
@@ -184,7 +197,7 @@ function rotular(els, desde) {
     let grupo = p.grupo;
     if (!grupo && p.seta) { grupo = novoId(); p.seta.groupIds = [grupo]; }
     els.push(base({ id: novoId(), type: "rectangle", x: melhor.c.x0 - 2, y: melhor.c.y0 - 1, width: melhor.w + 4, height: melhor.h + 2,
-      backgroundColor: "#FFFFFF", strokeColor: "transparent", strokeWidth: 0, roundness: null, groupIds: grupo ? [grupo] : [], customData: { halo: true } }));
+      backgroundColor: fundo(melhor.c), strokeColor: "transparent", strokeWidth: 0, roundness: null, groupIds: grupo ? [grupo] : [], customData: { halo: true } }));
     els.push(base({ id: novoId(), type: "text", x: melhor.c.x0, y: melhor.c.y0, width: melhor.w, height: melhor.h, text: melhor.txt, originalText: melhor.txt,
       fontSize: p.tam, fontFamily: 2, textAlign: "center", verticalAlign: "top", containerId: null, lineHeight: 1.25,
       strokeColor: p.cor, autoResize: true, groupIds: grupo ? [grupo] : [] }));
@@ -245,7 +258,14 @@ function ator(els, a, cx, topo) {
     linha(els, [[cx, topo + 56], [cx + 16, topo + 80]], { espessura: 2, grupo: g });
   }
   const est = a.tipo === "sistema" ? "«sistema»\n" : a.tipo === "tempo" ? "«tempo»\n" : "";
-  const r = texto(els, { x: cx, y: topo + (a.tipo === "tempo" ? 56 : 88), t: est + a.nome, tam: 14, alinhar: "center", maxPx: 150, grupo: g, cor: TINTA });
+  // nome com halo; casosDeUso leva os dois para cima das associações (linha passa por trás do nome)
+  const yNome = topo + (a.tipo === "tempo" ? 56 : 88);
+  const halo = base({ id: novoId(), type: "rectangle", x: cx, y: yNome - 1, width: 0, height: 0, backgroundColor: "#FFFFFF",
+    strokeColor: "transparent", strokeWidth: 0, roundness: null, groupIds: [g], customData: { halo: true, nomeAtor: true } });
+  els.push(halo);
+  const r = texto(els, { x: cx, y: yNome, t: est + a.nome, tam: 14, alinhar: "center", maxPx: 150, grupo: g, cor: TINTA });
+  els[els.length - 1].customData = { nomeAtor: true };
+  Object.assign(halo, { x: cx - r.w / 2 - 3, width: r.w + 6, height: r.h + 2 });
   return { x: cx - 24, y: topo, w: 48, h: 84, cx, cy: topo + 36, alto: 88 + r.h };
 }
 
@@ -266,9 +286,17 @@ function casosDeUso(els, u, X, Y) {
 
   function planejar(ordem) {
     const pos = {};
-    ordem.forEach((c, i) => (pos[c.id] = { x: cx0, y: by + PAD + 30 + i * (H + VG), w: W, h: H }));
-    const altura = ordem.length * (H + VG) - VG;
-    const bw = W + PAD * 2 + 60, bh = altura + PAD * 2 + 30;
+    // vão maior entre vizinhos ligados por «extend» com condição: o rótulo de três linhas não cabe em 34 px
+    const vao = (a, b) => (rels.some((r) => r.condicao && ((r.de === a.id && r.para === b.id) || (r.de === b.id && r.para === a.id))) ? VG + 40 : VG);
+    // cada contorno além do primeiro anda 22 px para fora: a fronteira cresce junto (senão o terceiro
+    // contorno saía do sistema)
+    const idx = Object.fromEntries(ordem.map((c, i) => [c.id, i]));
+    const nContornos = rels.filter((r) => idx[r.de] != null && idx[r.para] != null && Math.abs(idx[r.de] - idx[r.para]) !== 1).length;
+    const extra = Math.max(0, nContornos - 1) * 22;
+    let yy = by + PAD + 30;
+    ordem.forEach((c, i) => { if (i) yy += H + vao(ordem[i - 1], c); pos[c.id] = { x: cx0 + extra, y: yy, w: W, h: H, i }; });
+    const altura = yy + H - (by + PAD + 30);
+    const bw = W + PAD * 2 + 60 + 2 * extra, bh = altura + PAD * 2 + 30;
     const posAtor = {};
     for (const ladoA of ["esq", "dir"]) {
       const lista = atores.filter((a) => lado(a) === ladoA).map((a) => {
@@ -288,7 +316,7 @@ function casosDeUso(els, u, X, Y) {
   function pontuar(pl) {
     let nota = 0;
     const idx = Object.fromEntries(pl.ordem.map((c, i) => [c.id, i]));
-    for (const r of rels) if (Math.abs(idx[r.de] - idx[r.para]) !== 1) nota += 40; // ligação não vizinha contorna
+    for (const r of rels) if (Math.abs(idx[r.de] - idx[r.para]) !== 1) nota += 150; // ligação não vizinha contorna (e cruza associação): pesa mais que linha de ator inclinada
     // linhas de ator que atravessam outra elipse
     for (const s of assoc) {
       const a = pl.posAtor[s.ator], c = pl.pos[s.caso];
@@ -302,6 +330,18 @@ function casosDeUso(els, u, X, Y) {
           if (((x - e.x - e.w / 2) / (e.w / 2 + 6)) ** 2 + ((y - e.y - e.h / 2) / (e.h / 2 + 6)) ** 2 < 1) { nota += 100; break; }
         }
       }
+    }
+    // associações que se cruzam (diagonal longa de um ator passando sobre as de outro)
+    const segA = assoc.map((s) => {
+      const a = pl.posAtor[s.ator], c = pl.pos[s.caso];
+      if (!a || !c) return null;
+      return a.cx < c.x ? [[a.cx + 24, a.cy], [c.x, c.y + c.h / 2]] : [[a.cx - 24, a.cy], [c.x + c.w, c.y + c.h / 2]];
+    });
+    const lado2 = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+    for (let i = 0; i < segA.length; i++) for (let j = i + 1; j < segA.length; j++) {
+      const u = segA[i], v = segA[j];
+      if (!u || !v || assoc[i].ator === assoc[j].ator || assoc[i].caso === assoc[j].caso) continue;
+      if (lado2(u[0], u[1], v[0]) * lado2(u[0], u[1], v[1]) < 0 && lado2(v[0], v[1], u[0]) * lado2(v[0], v[1], u[1]) < 0) nota += 60;
     }
     // atores longe dos seus casos (linhas compridas e inclinadas)
     for (const s of assoc) { const a = pl.posAtor[s.ator], c = pl.pos[s.caso]; if (a && c) nota += Math.abs(a.cy - (c.y + H / 2)) / 100; }
@@ -341,25 +381,35 @@ function casosDeUso(els, u, X, Y) {
   // include/extend: vizinhos em reta; os demais contornam pelo lado com menos associações
   const nEsq = assoc.filter((s) => ladoDe[s.ator] === "esq").length, nDir = assoc.length - nEsq;
   const ladoContorno = nDir <= nEsq ? "dir" : "esq";
-  let k = 0;
+  let k = 0, kc = 0; // k: retas entre vizinhos; kc: contornos
   for (const r of rels) {
     const a = pos[r.de], b = pos[r.para];
     if (!a || !b) continue;
     const rot = r.tipo === "extend" ? `«extend»${r.condicao ? `\n[${r.condicao}]` : ""}` : "«include»";
     const desce = b.y > a.y;
     let pts;
-    if (Math.abs(a.y - b.y) <= H + VG + 1) {
+    if (Math.abs(a.i - b.i) === 1) {
       // vizinhos: reta vertical entre as elipses, um pouco deslocada se houver mais de uma no mesmo vão
       const x = a.x + W / 2 + (k % 2 ? 40 : -40) * Math.ceil(k / 2);
       pts = [[x, desce ? a.y + H : a.y], [x, desce ? b.y : b.y + H]];
     } else {
-      const x = ladoContorno === "dir" ? a.x + W + 16 + k * 14 : a.x - 16 - k * 14;
-      const xa = ladoContorno === "dir" ? a.x + W : a.x, ya = a.y + H / 2, yb = b.y + H / 2;
-      pts = [[xa - (ladoContorno === "dir" ? 4 : -4), ya], [x, ya], [x, yb], [xa - (ladoContorno === "dir" ? 4 : -4), yb]];
+      // contorno a 34 px das pontas das elipses (a 16 parecia colado) e saindo/chegando 14 px fora do
+      // meio, para não nascer no mesmo ponto onde chega a associação do ator
+      const sinal = ladoContorno === "dir" ? 1 : -1;
+      const x = ladoContorno === "dir" ? a.x + W + 34 + kc * 22 : a.x - 34 - kc * 22;
+      kc++;
+      const dy = desce ? 14 : -14;
+      const borda = (c, yy) => c.x + W / 2 + sinal * (W / 2) * Math.sqrt(1 - ((yy - c.y - H / 2) / (H / 2)) ** 2);
+      const ya = a.y + H / 2 + dy, yb = b.y + H / 2 - dy;
+      pts = [[borda(a, ya), ya], [x, ya], [x, yb], [borda(b, yb), yb]];
     }
     k++;
     seta(els, pts, { de: formas[r.de].id, para: formas[r.para].id, rotulo: rot, tracejado: true, cor: SUAVE, ponta: "arrow" });
   }
+  // nomes dos atores (com halo) por cima das linhas
+  const nomes = els.filter((e) => e.customData?.nomeAtor);
+  for (const e of nomes) els.splice(els.indexOf(e), 1);
+  els.push(...nomes);
 }
 
 /* ---------- 2. BPMN: processo ---------- */
@@ -381,10 +431,17 @@ function processo(els, p, nomePool, X, Y) {
   const raias = p.raias || [];
   const linhaDe = {};
   const ocupado = {};
+  // fileira: a de quem chega no elemento pela mesma raia, se estiver livre (o fluxo segue reto; com a
+  // primeira livre, "Avisar a falha" na fileira 1 levava ao fim posto na fileira 0, ao lado do Deploy,
+  // e a leitura trocava os dois fins); senão a primeira livre
   for (const e of [...elementos].sort((a, b) => col[a.id] - col[b.id])) {
     const k = `${e.raia}|${col[e.id]}`;
-    linhaDe[e.id] = ocupado[k] || 0;
-    ocupado[k] = (ocupado[k] || 0) + 1;
+    const usadas = (ocupado[k] ||= new Set());
+    const preferidas = fluxos.filter((f) => f.para === e.id && !volta.has(f) && porId[f.de]?.raia === e.raia && linhaDe[f.de] != null).map((f) => linhaDe[f.de]);
+    let linha = preferidas.find((l) => !usadas.has(l));
+    if (linha == null) { linha = 0; while (usadas.has(linha)) linha++; }
+    linhaDe[e.id] = linha;
+    usadas.add(linha);
   }
   const linhasDaRaia = Object.fromEntries(raias.map((r) => [r.id, Math.max(1, ...elementos.filter((e) => e.raia === r.id).map((e) => linhaDe[e.id] + 1))]));
   const COLW = 200, ROWH = 110, POOLBAND = 34, LANEBAND = 36, X0 = X + POOLBAND + LANEBAND + 40;
@@ -416,7 +473,8 @@ function processo(els, p, nomePool, X, Y) {
   let yr = topoLanes;
   const topoRaia = {}, alturaRaia = {};
   // folga em cima e embaixo de cada raia: os contornos de fluxo passam dentro da própria raia
-  raias.forEach((r) => { topoRaia[r.id] = yr; alturaRaia[r.id] = linhasDaRaia[r.id] * ROWH + 80; yr += alturaRaia[r.id]; });
+  const lacosDaRaia = (id) => [...volta].filter((f) => porId[f.de]?.raia === id).length;
+  raias.forEach((r) => { topoRaia[r.id] = yr; alturaRaia[r.id] = linhasDaRaia[r.id] * ROWH + 80 + Math.min(3, lacosDaRaia(r.id)) * 18; yr += alturaRaia[r.id]; });
   const alturaPool = yr - topoLanes;
   const extPos = {};
   for (const f of faixaExt) {
@@ -492,14 +550,15 @@ function processo(els, p, nomePool, X, Y) {
   const ladosGw = {}; // lados por onde cada gateway já soltou um ramo
   // trechos já traçados: rota que corre colada a outra por 20px ou mais fica para depois
   const usados = [];
+  const pontas = []; // começo e ponta de cada seta já traçada (mensagem não sai colada a uma ponta)
   const trilho = (pts) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [a, b] = [pts[i], pts[i + 1]];
       for (const [c, d] of usados) {
         let comum = 0;
-        if (Math.abs(a[1] - b[1]) < 1 && Math.abs(c[1] - d[1]) < 1 && Math.abs(a[1] - c[1]) < 4)
+        if (Math.abs(a[1] - b[1]) < 1 && Math.abs(c[1] - d[1]) < 1 && Math.abs(a[1] - c[1]) < 18)
           comum = Math.min(Math.max(a[0], b[0]), Math.max(c[0], d[0])) - Math.max(Math.min(a[0], b[0]), Math.min(c[0], d[0]));
-        if (Math.abs(a[0] - b[0]) < 1 && Math.abs(c[0] - d[0]) < 1 && Math.abs(a[0] - c[0]) < 4)
+        if (Math.abs(a[0] - b[0]) < 1 && Math.abs(c[0] - d[0]) < 1 && Math.abs(a[0] - c[0]) < 18)
           comum = Math.min(Math.max(a[1], b[1]), Math.max(c[1], d[1])) - Math.max(Math.min(a[1], b[1]), Math.min(c[1], d[1]));
         if (comum >= 20) return true;
       }
@@ -509,10 +568,10 @@ function processo(els, p, nomePool, X, Y) {
   // quantos contornos já saem/chegam por cima/baixo de cada elemento: o próximo sai deslocado,
   // senão dois laços sobem pela mesma linha vertical
   const portas = {};
-  const desloca = [0, 14, -14, 28, -28];
+  const desloca = [0, 24, -24, 48, -48];
   const contorno = (a, b, lado) => {
     const k = (desvio[lado] || 0) + 1; // conta só contornos traçados (ver a escolha abaixo), não candidatos
-    const y = lado === "baixo" ? Math.max(a.cy + a.meiaA, b.cy + b.meiaA) + 20 + k * 12 : Math.min(a.cy - a.meiaA, b.cy - b.meiaA) - 20 - k * 12;
+    const y = lado === "baixo" ? Math.max(a.cy + a.meiaA, b.cy + b.meiaA) + 16 + k * 18 : Math.min(a.cy - a.meiaA, b.cy - b.meiaA) - 16 - k * 18;
     const sa = lado === "baixo" ? a.cy + a.meiaA : a.cy - a.meiaA, sb = lado === "baixo" ? b.cy + b.meiaA : b.cy - b.meiaA;
     const ka = `${a.id}|${lado}`, kb = `${b.id}|${lado}`;
     const xa = a.cx + Math.max(-a.meiaL + 6, Math.min(a.meiaL - 6, desloca[(portas[ka] || 0) % 5]));
@@ -558,6 +617,7 @@ function processo(els, p, nomePool, X, Y) {
     if (escolhida.lado) desvio[escolhida.lado] = (desvio[escolhida.lado] || 0) + 1;
     seta(els, escolhida.pts, { de: a.id, para: b.id, cor: LINHA, espessura: 1, rotulo: f.rotulo, tam: 12, perto: "inicio", corRotulo: TINTA, ponta: "triangle" });
     usados.push(...escolhida.pts.slice(1).map((pt, i) => [escolhida.pts[i], pt]));
+    pontas.push(escolhida.pts[0], escolhida.pts[escolhida.pts.length - 1]);
   }
 
   // fluxos de mensagem: tracejados, verticais, entre o elemento e o pool externo
@@ -579,29 +639,67 @@ function processo(els, p, nomePool, X, Y) {
       const [x1, y1] = p, [x2, y2] = pts[i + 1];
       return Math.min(x1, x2) <= q.x + q.w && Math.max(x1, x2) >= q.x && Math.min(y1, y2) <= q.y + q.h && Math.max(y1, y2) >= q.y;
     }));
-    // posição livre na borda de cima do elemento (começa um pouco ao lado do centro, onde chegam
-    // os laços); depois desvio pelo vão ou pela margem da raia. Sempre evitando trecho já traçado
-    // e sem recuar até a faixa do nome da raia
-    const livre = (p) => !corta(p, [idEl]) && !trilho(p) && p.every(([px]) => px > X0 - 30);
-    const x0 = el.cx + 10 + (n - 1) * 14;
-    let ida = null;
-    for (const d of [0, -20, 14, -34, 28, -48, 42].filter((d) => Math.abs(x0 + d - el.cx) < el.meiaL - 4)) {
-      const p = [[x0 + d, yEl], [x0 + d, yEx]];
-      if (livre(p)) { ida = p; break; }
+    // rota por custo entre todos os candidatos (a primeira "livre" saía ao lado da ponta de um laço,
+    // raspava a lateral de tarefas e cruzava fluxos; revisões 3 e 4): atravessar forma ou pool é
+    // proibido; colar em outra linha ou em borda de raia, raspar caixa e sair perto de ponta de seta
+    // custam caro; cada cruzamento custa; depois comprimento e dobras
+    const raiaEl = porId[deExt ? m.para : m.de].raia;
+    const bordas = [];
+    for (const r of raias) {
+      const t = topoRaia[r.id], b = t + alturaRaia[r.id], X1 = X + larguraTotal;
+      bordas.push([[X, t], [X1, t]], [[X, b], [X1, b]]);
     }
-    if (!ida) {
-      // desvio: sai pela borda, anda de lado pelo vão logo acima/abaixo do elemento (ou pela margem
-      // da raia) até um x livre e segue até o pool
-      const raiaEl = porId[deExt ? m.para : m.de].raia;
-      const vao = baixo ? yEl + 20 : yEl - 20;
-      const margem = baixo ? topoRaia[raiaEl] + alturaRaia[raiaEl] - 10 : topoRaia[raiaEl] + 10;
-      fora: for (const yy of [vao, margem]) {
-        for (const d of [100, -100, 120, -120, 160, -160, 200, -200, 300, -300]) {
-          const p = [[x0, yEl], [x0, yy], [x0 + d, yy], [x0 + d, yEx]];
-          if (livre(p)) { ida = p; break fora; }
+    bordas.push([[X + larguraTotal, topoRaia[raias[0].id]], [X + larguraTotal, yr]]);
+    const paralelo = (a, b, c, d) => {
+      // distância e trecho comum entre dois segmentos paralelos (ou null)
+      const h = (p, q) => Math.abs(p[1] - q[1]) < 1, v = (p, q) => Math.abs(p[0] - q[0]) < 1;
+      if (h(a, b) && h(c, d)) return [Math.abs(a[1] - c[1]), Math.min(Math.max(a[0], b[0]), Math.max(c[0], d[0])) - Math.max(Math.min(a[0], b[0]), Math.min(c[0], d[0]))];
+      if (v(a, b) && v(c, d)) return [Math.abs(a[0] - c[0]), Math.min(Math.max(a[1], b[1]), Math.max(c[1], d[1])) - Math.max(Math.min(a[1], b[1]), Math.min(c[1], d[1]))];
+      return null;
+    };
+    const cruza = (a, b, c, d) => {
+      const hv = (p, q, r, s2) => Math.abs(p[1] - q[1]) < 1 && Math.abs(r[0] - s2[0]) < 1 &&
+        r[0] > Math.min(p[0], q[0]) + 1 && r[0] < Math.max(p[0], q[0]) - 1 && p[1] > Math.min(r[1], s2[1]) + 1 && p[1] < Math.max(r[1], s2[1]) - 1;
+      return hv(a, b, c, d) || hv(c, d, a, b);
+    };
+    const caixasReais = Object.entries(pos).filter(([id]) => id !== idEl).map(([, q]) => ({ x0: q.cx - q.meiaL, x1: q.cx + q.meiaL, y0: q.cy - q.meiaA, y1: q.cy + q.meiaA }));
+    const preferido = el.cx + (n % 2 ? 1 : -1) * Math.min(22, Math.max(0, el.meiaL - 10));
+    const custo = (p) => {
+      if (corta(p, [idEl, "pool:" + (deExt ? m.de : m.para)]) || p.some(([px]) => px < X0 - 30)) return Infinity;
+      let v = 0;
+      for (let i = 0; i < p.length - 1; i++) {
+        const [a, b] = [p[i], p[i + 1]];
+        for (const [c, d] of usados) {
+          const par = paralelo(a, b, c, d);
+          if (par && par[0] < 20 && par[1] > 10) v += 300 + par[1];
+          else if (par && par[0] < 3 && par[1] > -40) v += 150; // na mesma reta com vão curto: lê como uma linha só
+          if (cruza(a, b, c, d)) v += 60;
         }
+        for (const [c, d] of bordas) { const par = paralelo(a, b, c, d); if (par && par[0] < 16 && par[1] > 20) v += 200 + par[1]; }
+        for (const q of caixasReais) {
+          const vert = Math.abs(a[0] - b[0]) < 1;
+          const dist = vert ? Math.min(Math.abs(a[0] - q.x0), Math.abs(a[0] - q.x1)) : Math.min(Math.abs(a[1] - q.y0), Math.abs(a[1] - q.y1));
+          const comum = vert ? Math.min(Math.max(a[1], b[1]), q.y1) - Math.max(Math.min(a[1], b[1]), q.y0) : Math.min(Math.max(a[0], b[0]), q.x1) - Math.max(Math.min(a[0], b[0]), q.x0);
+          if (dist < 18 && comum > 10) v += 250;
+        }
+        v += 0.02 * Math.hypot(b[0] - a[0], b[1] - a[1]);
       }
+      for (const [px, py] of pontas) if (Math.hypot(px - p[0][0], py - p[0][1]) < 26) v += 250;
+      for (const [px, py] of pontas) if (p.slice(1).some(([qx, qy]) => Math.hypot(px - qx, py - qy) < 20)) v += 200;
+      return v + (p.length - 2) * 12 + 0.3 * Math.abs(p[0][0] - preferido);
+    };
+    const cands = [];
+    const xs = [];
+    for (let dx = -el.meiaL + 8; dx <= el.meiaL - 8; dx += 8) xs.push(el.cx + dx);
+    for (const x0 of xs) cands.push([[x0, yEl], [x0, yEx]]);
+    const vao = baixo ? yEl + 22 : yEl - 22;
+    const margem = baixo ? topoRaia[raiaEl] + alturaRaia[raiaEl] - 22 : topoRaia[raiaEl] + 22;
+    for (const x0 of xs.filter((_, i) => i % 2 === 0)) for (const yy of [vao, (yEl + margem) / 2, margem]) {
+      for (let d = 60; d <= 420; d += 30) for (const sgn of [1, -1]) cands.push([[x0, yEl], [x0, yy], [x0 + sgn * d, yy], [x0 + sgn * d, yEx]]);
     }
+    let ida = null, melhor = Infinity;
+    for (const p of cands) { const v = custo(p); if (v < melhor) { melhor = v; ida = p; } }
+    const x0 = preferido;
     ida ||= [[x0, yEl], [x0, yEx]];
     usados.push(...ida.slice(1).map((pt, i) => [ida[i], pt]));
     {
@@ -658,25 +756,31 @@ async function c4(els, c, X, Y) {
     rel.some((r) => (r.de === id && grupo.has(r.para)) || (r.para === id && grupo.has(r.de))) ? {} : { "elk.layered.layering.layerConstraint": camada };
   const rotuloDe = (r) => quebrar(r.tecnologia ? `${r.rotulo}\n[${r.tecnologia}]` : r.rotulo, 150, 12);
   const medida = (t) => ({ width: Math.ceil(largura(t, 12)) + 10, height: t.split("\n").length * 15 + 4 });
+  // o ELK lê o espaçamento do nó pai de cada grafo: sem repetir dentro da fronteira, as linhas lá
+  // dentro saíam no padrão (~10 px, feixes ilegíveis e linha raspando a lateral das caixas)
+  const espacos = {
+    "elk.spacing.nodeNode": "80", "elk.layered.spacing.nodeNodeBetweenLayers": "110",
+    "elk.spacing.edgeNode": "40", "elk.spacing.edgeEdge": "28", "elk.layered.spacing.edgeNodeBetweenLayers": "36",
+    "elk.layered.spacing.edgeEdgeBetweenLayers": "26", "elk.spacing.edgeLabel": "6",
+    "elk.layered.unnecessaryBendpoints": "false",
+  };
   const grafo = {
     id: "raiz",
     layoutOptions: {
       "elk.algorithm": "layered", "elk.direction": "DOWN", "elk.edgeRouting": "ORTHOGONAL",
-      "elk.hierarchyHandling": "INCLUDE_CHILDREN", "elk.edgeLabels.placement": "CENTER",
-      "elk.spacing.nodeNode": "70", "elk.layered.spacing.nodeNodeBetweenLayers": "100",
-      "elk.spacing.edgeNode": "26", "elk.spacing.edgeEdge": "16", "elk.layered.spacing.edgeNodeBetweenLayers": "26",
-      "elk.layered.spacing.edgeEdgeBetweenLayers": "14", "elk.spacing.edgeLabel": "4",
+      "elk.hierarchyHandling": "INCLUDE_CHILDREN", "elk.edgeLabels.placement": "CENTER", ...espacos,
       "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP", "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
-      "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES", "elk.layered.unnecessaryBendpoints": "true",
+      "elk.layered.considerModelOrder.strategy": "NONE",
     },
     children: [
       ...pessoas.map((p) => ({ id: p.id, width: CW, height: PH, layoutOptions: travaCamada(p.id, idsPessoas, "FIRST") })),
-      { id: "__sistema", layoutOptions: { "elk.padding": "[top=56,left=36,bottom=70,right=36]" }, children: conts.map((k) => ({ id: k.id, width: CW, height: CH })) },
-      ...exts.map((e) => ({ id: e.id, width: CW, height: EH, layoutOptions: travaCamada(e.id, idsExts, "LAST") })),
+      { id: "__sistema", layoutOptions: { ...espacos, "elk.padding": "[top=56,left=36,bottom=70,right=36]" }, children: conts.map((k) => ({ id: k.id, width: CW, height: CH })) },
+      ...exts.map((e) => ({ id: e.id, width: CW, height: EH })),
     ],
     edges: rel.map((r, i) => {
       const t = rotuloDe(r);
-      return { id: "r" + i, sources: [r.de], targets: [r.para], labels: [{ text: t, ...medida(t) }] };
+      const sobe = idsExts.has(r.de) || idsPessoas.has(r.para);
+      return { id: "r" + i, sources: [sobe ? r.para : r.de], targets: [sobe ? r.de : r.para], labels: [{ text: t, ...medida(t) }] };
     }),
   };
   const g = await elk.layout(grafo);
@@ -750,7 +854,9 @@ async function c4(els, c, X, Y) {
     const sec = e.sections?.[0];
     if (!r || !sec || !pos[r.de] || !pos[r.para]) continue;
     const [ox, oy] = origem(e.container);
-    const pts = [sec.startPoint, ...(sec.bendPoints || []), sec.endPoint].map((p) => [ox + p.x, oy + p.y]);
+    const sobe = idsExts.has(r.de) || idsPessoas.has(r.para);
+    const ptsLayout = [sec.startPoint, ...(sec.bendPoints || []), sec.endPoint].map((p) => [ox + p.x, oy + p.y]);
+    const pts = sobe ? ptsLayout.reverse() : ptsLayout;
     const seta1 = seta(els, pts, { de: pos[r.de].id, para: pos[r.para].id, cor: C4.seta, ponta: "triangle" });
     for (let i = 0; i < pts.length - 1; i++) segsC4.push([pts[i], pts[i + 1]]);
     const l = e.labels?.[0];

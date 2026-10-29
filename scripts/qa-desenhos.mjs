@@ -6,6 +6,8 @@
 //   texto×texto  dois textos se sobrepondo
 //   linha×texto  linha de seta cortando um texto que não é o rótulo dela
 //   trilho       duas setas diferentes correndo juntas (mesmo trecho, mesma direção) por 24px ou mais
+//   colada       duas setas paralelas a 3-16 px por 100 px ou mais
+//   raspa        seta a 2-14 px da lateral de uma forma por 80 px ou mais
 //   vaza         texto preso numa caixa maior que a caixa
 //   escapa       seta que liga dois pontos de dentro de um pool/fronteira e sai dele no caminho
 // Sai 1 se algum desenho tiver problema.
@@ -132,6 +134,34 @@ export function medir(cena) {
     if (ver(u) && ver(v) && Math.abs(u.a[0] - v.a[0]) < 3) comum = Math.min(Math.max(u.a[1], u.b[1]), Math.max(v.a[1], v.b[1])) - Math.max(Math.min(u.a[1], u.b[1]), Math.min(v.a[1], v.b[1]));
     const k = [u.s, v.s].sort().join();
     if (comum >= 24 && !vistos.has(k)) { vistos.add(k); acha("trilho", `duas setas juntas por ${Math.round(comum)}px perto de (${Math.round(u.a[0])},${Math.round(u.a[1])})`); }
+  }
+  // colada: duas setas paralelas a 3-16 px por 100 px ou mais (lidas como uma só; achado da revisão 3)
+  // raspa: seta correndo a 2-14 px da lateral de uma forma por 80 px ou mais
+  const sobreposicao = (a0, a1, b0, b1) => Math.min(Math.max(a0, a1), Math.max(b0, b1)) - Math.max(Math.min(a0, a1), Math.min(b0, b1));
+  const hor = (g) => Math.abs(g.a[1] - g.b[1]) < 1, ver = (g) => Math.abs(g.a[0] - g.b[0]) < 1;
+  const coladas = new Set();
+  for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
+    const u = segs[i], v = segs[j];
+    if (u.s === v.s) continue;
+    let d = null, comum = 0;
+    if (hor(u) && hor(v)) { d = Math.abs(u.a[1] - v.a[1]); comum = sobreposicao(u.a[0], u.b[0], v.a[0], v.b[0]); }
+    if (ver(u) && ver(v)) { d = Math.abs(u.a[0] - v.a[0]); comum = sobreposicao(u.a[1], u.b[1], v.a[1], v.b[1]); }
+    const k = [u.s, v.s].sort().join();
+    if (d != null && d >= 3 && d <= 16 && comum >= 100 && !coladas.has(k)) {
+      coladas.add(k);
+      acha("colada", `setas a ${Math.round(d)}px por ${Math.round(comum)}px perto de (${Math.round(u.a[0])},${Math.round(u.a[1])})`);
+    }
+  }
+  const raspadas = new Set();
+  for (const g of segs) for (const f of formas.filter((f) => f.type === "rectangle")) {
+    let d = null, comum = 0;
+    if (ver(g)) { d = Math.min(Math.abs(g.a[0] - f.x), Math.abs(g.a[0] - f.x - f.width)); comum = sobreposicao(g.a[1], g.b[1], f.y, f.y + f.height); }
+    if (hor(g)) { d = Math.min(Math.abs(g.a[1] - f.y), Math.abs(g.a[1] - f.y - f.height)); comum = sobreposicao(g.a[0], g.b[0], f.x, f.x + f.width); }
+    const k = g.s + f.id;
+    if (d != null && d >= 2 && d <= 14 && comum >= 80 && !raspadas.has(k)) {
+      raspadas.add(k);
+      acha("raspa", `seta a ${Math.round(d)}px da lateral de uma forma por ${Math.round(comum)}px em (${Math.round(f.x)},${Math.round(f.y)})`);
+    }
   }
   return achados;
 }
