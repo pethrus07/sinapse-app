@@ -1,6 +1,7 @@
 // Leva o desenho de cada projeto para o repositório do próprio projeto:
 //   <pasta do projeto>/docs/arquitetura/<id>.excalidraw   (editável: excalidraw.com ou extensão do VS Code)
-//   <pasta do projeto>/docs/arquitetura/<id>.svg          (o GitHub mostra direto)
+//   <pasta do projeto>/docs/arquitetura/<id>-1-casos-de-uso.svg, -2-processo.svg, -3-arquitetura.svg
+//                                                          (um por diagrama, cortado no conteúdo; o GitHub mostra direto)
 //   <pasta do projeto>/docs/arquitetura/README.md         (o que é cada diagrama)
 // A pasta vem do frontmatter `pastas:` da nota. A fonte da verdade continua no vault (09-DESENHOS);
 // rodar de novo atualiza as cópias. Precisa do dev server no ar (o SVG sai do próprio Excalidraw).
@@ -63,7 +64,17 @@ const readme = (itens) => [
     "",
     spec.resumo,
     "",
-    `![${spec.titulo}](./${id}.svg)`,
+    "### Quem usa e para quê (UML)",
+    "",
+    `![Casos de uso · ${spec.titulo}](./${id}-1-casos-de-uso.svg)`,
+    "",
+    `### ${spec.processo?.nome || "Processo principal"} (BPMN 2.0)`,
+    "",
+    `![Processo · ${spec.titulo}](./${id}-2-processo.svg)`,
+    "",
+    "### Arquitetura (C4, containers)",
+    "",
+    `![Arquitetura · ${spec.titulo}](./${id}-3-arquitetura.svg)`,
     "",
     `Editável: [\`${id}.excalidraw\`](./${id}.excalidraw), abre em [excalidraw.com](https://excalidraw.com) ou no VS Code com a extensão Excalidraw.`,
     "",
@@ -81,7 +92,7 @@ async function svgDe(id) {
     await pagina.goto(URL_APP + "/exportar.html");
     await pagina.waitForFunction(() => window.pronto === true, null, { timeout: 120000 });
   }
-  return pagina.evaluate((n) => window.exportarSvg(n), id);
+  return pagina.evaluate((n) => window.exportarPartes(n), id);
 }
 
 const relatorio = [];
@@ -93,7 +104,11 @@ for (const [dir, itens] of destinos) {
   fs.mkdirSync(alvo, { recursive: true });
   for (const { id } of itens) {
     fs.copyFileSync(path.join(VAULT, "09-DESENHOS", id + ".excalidraw"), path.join(alvo, id + ".excalidraw"));
-    fs.writeFileSync(path.join(alvo, id + ".svg"), await svgDe(id));
+    const partes = await svgDe(id);
+    if (partes.length !== 3) throw new Error(`${id}: esperava 3 diagramas, veio ${partes.length}`);
+    ["1-casos-de-uso", "2-processo", "3-arquitetura"].forEach((nome, i) => fs.writeFileSync(path.join(alvo, `${id}-${nome}.svg`), partes[i]));
+    // o SVG único da versão anterior sai (o README não aponta mais para ele)
+    if (fs.existsSync(path.join(alvo, id + ".svg"))) fs.rmSync(path.join(alvo, id + ".svg"));
   }
   fs.writeFileSync(path.join(alvo, "README.md"), readme(itens));
   let estado = "gravado";

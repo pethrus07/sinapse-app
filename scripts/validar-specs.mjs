@@ -10,7 +10,7 @@ const DIR = join(VAULT, '09-DESENHOS', 'specs');
 
 const TIPO_ATOR = new Set(['humano', 'sistema', 'tempo']);
 const TIPO_EL = new Set(['inicio', 'inicio-timer', 'inicio-mensagem', 'tarefa', 'gateway', 'fim']);
-const TIPO_CONT = new Set(['app', 'api', 'job', 'banco', 'mobile']);
+const TIPO_CONT = new Set(['app', 'api', 'job', 'banco', 'arquivos', 'mobile']);
 const SENSIVEL = /\b\d{1,3}(\.\d{1,3}){3}\b|\b\d{3}\.\d{3}\.\d{3}-\d{2}\b|senha\s*[:=]|token\s*[:=]|sk-[a-z0-9]{8}/i;
 
 export function validar(spec) {

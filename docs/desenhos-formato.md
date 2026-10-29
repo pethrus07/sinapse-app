@@ -77,7 +77,10 @@ ligam um elemento do processo a um externo (ou o contrário).
 
 **Arquitetura (C4, nível 2).** `containers` são as peças que rodam ou guardam dados *dentro* do
 sistema: app web, API, worker, job agendado, app mobile, banco, fila, arquivo. `tipo` ∈ `app` ·
-`api` · `job` · `banco` · `mobile`. Sempre com `tecnologia` real (lida do código). 2 a 7 containers,
+`api` · `job` · `banco` (banco de dados de verdade: SQL, D1, Postgres…) · `arquivos` (pasta, JSON,
+Markdown, CSV, imagens que o sistema lê/grava) · `mobile`. Biblioteca, thread, API do navegador,
+arquivo de configuração e chave **não** são container: entram na `tecnologia` de quem os usa.
+Sempre com `tecnologia` real (lida do código). 2 a 7 containers,
 0 a 3 pessoas, 0 a 5 externos. Toda relação tem `rotulo` (verbo curto) e, quando houver,
 `tecnologia` (HTTPS, SQL, arquivo, Modbus…). Sem container órfão.
 
