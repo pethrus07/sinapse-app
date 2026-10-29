@@ -11,7 +11,17 @@ cada uma numa notação padrão:
 
 App web local (Vite, React, TypeScript) que indexa o vault do Sinapse e mostra grafo, Frentes, Skill Tree, Agenda, o Panorama e a página de cada projeto com História, Tarefas e Desenho. O Markdown segue sendo a fonte da verdade.
 
-![Sinapse App · a lente sobre o vault](./sinapse-app.svg)
+### Quem usa e para quê (UML)
+
+![Casos de uso · Sinapse App · a lente sobre o vault](./sinapse-app-1-casos-de-uso.svg)
+
+### Abrir um projeto e mover uma tarefa (BPMN 2.0)
+
+![Processo · Sinapse App · a lente sobre o vault](./sinapse-app-2-processo.svg)
+
+### Arquitetura (C4, containers)
+
+![Arquitetura · Sinapse App · a lente sobre o vault](./sinapse-app-3-arquitetura.svg)
 
 Editável: [`sinapse-app.excalidraw`](./sinapse-app.excalidraw), abre em [excalidraw.com](https://excalidraw.com) ou no VS Code com a extensão Excalidraw.
 
