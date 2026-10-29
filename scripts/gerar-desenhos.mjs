@@ -617,13 +617,24 @@ function processo(els, p, nomePool, X, Y) {
     // último recurso antes de cruzar: correr pela margem de baixo/cima da raia de origem ou de destino
     for (const raiaId of new Set([porId[f.de].raia, porId[f.para].raia])) {
       const t = topoRaia[raiaId], h = alturaRaia[raiaId];
-      for (const [yy, sa, sb] of [[t + h - 10, a.cy + a.meiaA, b.cy + b.meiaA], [t + 10, a.cy - a.meiaA, b.cy - b.meiaA]]) {
+      for (const yy of [t + h - 10, t + 10]) {
+        // sai e chega pela borda virada para a margem (com origem e destino em raias diferentes, a borda
+        // fixa de baixo fazia a linha atravessar o destino e a ponta parar dentro da caixa; visto no cnbb)
+        const sa = yy > a.cy ? a.cy + a.meiaA : a.cy - a.meiaA, sb = yy > b.cy ? b.cy + b.meiaA : b.cy - b.meiaA;
         opcoes.push({ pts: [[a.cx, sa], [a.cx, yy], [b.cx, yy], [b.cx, sb]], lx: (a.cx + b.cx) / 2, ly: yy - 16 });
       }
     }
     const lado = (o) => { const [p, q] = o.pts; return Math.abs(p[1] - q[1]) < 1 ? "dir" : q[1] > p[1] ? "baixo" : "cima"; };
     const ladoLivre = (o) => !gw || !(ladosGw[f.de] || new Set()).has(lado(o));
-    const custoSeq = (o, i) => (corta(o.pts, ign) ? 1e6 : 0) + (trilho(o.pts) ? 400 : 0) + (ladoLivre(o) ? 0 : 150)
+    // origem e destino só são ignorados no trecho que sai/chega neles: no meio do caminho também são
+    // obstáculo (senão a linha cruzava a própria tarefa de destino; vistos no cnbb e no sinapse-app)
+    const furaPontas = (p) => {
+      const n = p.length;
+      if (n > 3 && corta(p.slice(1, -1), [])) return true;
+      if (n > 2 && (corta(p.slice(0, 2), [f.de]) || corta(p.slice(-2), [f.para]))) return true;
+      return false;
+    };
+    const custoSeq = (o, i) => (corta(o.pts, ign) || furaPontas(o.pts) ? 1e6 : 0) + (trilho(o.pts) ? 400 : 0) + (ladoLivre(o) ? 0 : 150)
       + cruzamentos(o.pts) * 70 + i * 8;
     const escolhida = opcoes.map((o, i) => [o, custoSeq(o, i)]).reduce((m, x) => (x[1] < m[1] ? x : m))[0];
     if (gw) (ladosGw[f.de] ||= new Set()).add(lado(escolhida));
