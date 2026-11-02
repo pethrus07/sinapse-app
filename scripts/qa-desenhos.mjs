@@ -10,7 +10,15 @@
 //   raspa        seta a 2-14 px da lateral de uma forma por 80 px ou mais
 //   vaza         texto preso numa caixa maior que a caixa
 //   escapa       seta que liga dois pontos de dentro de um pool/fronteira e sai dele no caminho
-// Sai 1 se algum desenho tiver problema.
+//   ponta×texto  ponta ou origem de seta em cima do texto da forma onde ela chega/sai
+//   aperta       texto preso que encosta na borda de cima/baixo da caixa (sobra < 10 px)
+//   longe        rótulo de seta a mais de LIMIAR.rotuloSeta px da própria seta, medido do texto que o olho
+//                vê (largura média medida da fonte), não da caixa estimada
+//   ambíguo      rótulo mais perto de outra seta do que da dele (por LIMIAR.ambiguo px ou mais)
+//   morto        parte do desenho com área útil abaixo de LIMIAR.areaUtil[vista]: fração do retângulo da
+//                parte que fica a até LIMIAR.raio px de forma ou texto (seta não conta: linha longa
+//                atravessando o vazio não ocupa o espaço; raia, pool e fronteira contam só pela moldura)
+// Sai 1 se algum desenho tiver problema. --medidas imprime os números por desenho (calibração).
 import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +28,19 @@ const VAULT = process.env.VAULT_PATH ? resolve(process.env.VAULT_PATH) : resolve
 const DIR = join(VAULT, "09-DESENHOS");
 const args = process.argv.slice(2);
 const detalhe = args.includes("--detalhe");
+const medidas = args.includes("--medidas");
 const pedidos = args.filter((a) => !a.startsWith("--"));
+
+// Limiares calibrados em 01/11/2026 nos 56 desenhos (números no relatório da revisão geral e em
+// docs/desenhos-formato.md, seção "Medidas"). Mudar só com nova calibração.
+// largura média medida da fonte ÷ largura estimada pelo gerador (LARG em gerar-desenhos.mjs)
+// largura média de caractere medida em cada fonte, em fração do corpo (a mono é exata)
+const MEDIA = { 1: 0.495, 2: 0.48, 3: 0.62 };
+// Calibração (56 desenhos, 01/11/2026), pior caso por desenho:
+//   rótulo↔seta: antes 18 a 25 px em TODOS (a folga de LARG virava vão), depois do aperto 8 a 13 px → 16
+//   área útil: UML 0,72 a 0,98 · BPMN 0,59 a 0,86 · C4 em pé 0,39 a 0,80 (8 abaixo de 0,50), C4 deitado
+//   0,44 a 0,90 → 0,60 / 0,50 / 0,50
+export const LIMIAR = { rotuloSeta: 16, ambiguo: 6, areaUtil: { uml: 0.6, bpmn: 0.5, c4: 0.5 }, raio: 48, celula: 8 };
 
 const caixa = (e) => ({ x0: e.x, y0: e.y, x1: e.x + e.width, y1: e.y + e.height });
 const sobrepoe = (a, b, folga = 1) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > folga && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > folga;
@@ -82,6 +102,24 @@ export function medir(cena) {
     const r = areas.filter((a) => dentroArea(a, p[0]) && dentroArea(a, p[p.length - 1])).sort((a, b) => a.width * a.height - b.width * b.height)[0];
     if (r && amostra(p).some((q) => !dentroArea(r, q))) acha("escapa", `seta sai da área em (${Math.round(r.x)},${Math.round(r.y)})`);
   }
+  // ponta×texto: a ponta (ou a bolinha de origem) de uma seta em cima do texto da forma onde ela
+  // chega: o ponto da mensagem cobria "PyMuPDF" no nome do pool (esteira-qa, 01/11)
+  for (const s of setas) {
+    const p = pts.get(s.id);
+    for (const [ponto, idForma] of [[p[0], s.startBinding?.elementId], [p[p.length - 1], s.endBinding?.elementId]]) {
+      if (!idForma) continue;
+      const t = textos.find((x) => x.containerId === idForma);
+      if (!t) continue;
+      const b = caixaTexto(t);
+      if (ponto[0] > b.x0 - 4 && ponto[0] < b.x1 + 4 && ponto[1] > b.y0 - 4 && ponto[1] < b.y1 + 4) acha("ponta×texto", `ponta de seta sobre ${rot(t)}`);
+    }
+  }
+  // aperta: texto preso que ocupa a caixa quase inteira na altura (nome de pool em duas linhas
+  // encostando na borda; bailado e esteira-qa, 01/11)
+  for (const t of textos) if (t.containerId) {
+    const c = porId.get(t.containerId);
+    if (c && c.type === "rectangle" && t.height <= c.height + 2 && t.height > c.height - 10) acha("aperta", `${rot(t)} encosta na borda da caixa`);
+  }
   // vaza
   for (const t of textos) if (t.containerId) {
     const c = porId.get(t.containerId);
@@ -115,7 +153,10 @@ export function medir(cena) {
       // rótulo da própria seta: preso nela (containerId) ou no mesmo grupo (posicionador de rótulos)
       if (t.containerId === s.id || ponta.has(t.containerId) || mesmoGrupo(t, s)) continue;
       const pontaFormas = [...ponta].map((id) => porId.get(id)).filter(Boolean);
-      if (pontaFormas.some((f) => mesmoGrupo(t, f))) continue;
+      // texto de forma da ponta no mesmo grupo: só o preso à forma é dela. O rótulo SOLTO de um evento
+      // ou gateway (nome embaixo do círculo) conta: a linha que sai do evento não pode cortar o nome
+      // dele (revisão por imagem de 01/11: estudo-tv-aoc, "TV chega com launcher estranho")
+      if (t.containerId && pontaFormas.some((f) => mesmoGrupo(t, f))) continue;
       const b = caixaTexto(t);
       const dentro = p.filter(([x, y]) => x > b.x0 + 2 && x < b.x1 - 2 && y > b.y0 + 2 && y < b.y1 - 2).length;
       if (dentro >= 3) { acha("linha×texto", `linha cortando ${rot(t)}`); }
@@ -163,7 +204,98 @@ export function medir(cena) {
       acha("raspa", `seta a ${Math.round(d)}px da lateral de uma forma por ${Math.round(comum)}px em (${Math.round(f.x)},${Math.round(f.y)})`);
     }
   }
+  // longe / ambíguo: rótulo solto preso à seta pelo grupo (o posicionador põe rótulo e seta no mesmo grupo)
+  const distPontoCaixa = (x, y, b) => Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1));
+  const distSetaCaixa = (s, b) => {
+    const p = pts.get(s.id);
+    let d = Infinity;
+    for (const [x, y] of [...p, ...amostra(p, 3)]) d = Math.min(d, distPontoCaixa(x, y, b));
+    return d;
+  };
+  // a caixa do texto sai da largura ESTIMADA do gerador (LARG, com ~21% de folga sobre a média medida
+  // da fonte); rótulo é centrado, então a folga vira vão dos dois lados. Aqui vale o que o olho vê.
+  const caixaVisivel = (t) => {
+    const b = caixaTexto(t), cx = (b.x0 + b.x1) / 2;
+    const linhas = String(t.text).split("\n");
+    const meia = Math.min(b.x1 - b.x0, Math.max(...linhas.map((l) => l.length)) * t.fontSize * (MEDIA[t.fontFamily] || 0.5)) / 2;
+    return { x0: cx - meia, y0: b.y0, x1: cx + meia, y1: b.y1 };
+  };
+  const rotulos = [];
+  for (const s of setas) {
+    for (const t of textos) {
+      if (t.containerId || !mesmoGrupo(t, s)) continue;
+      const b = caixaVisivel(t);
+      const dono = distSetaCaixa(s, b);
+      let outra = Infinity;
+      for (const o of setas) if (o !== s && !mesmoGrupo(t, o)) outra = Math.min(outra, distSetaCaixa(o, b));
+      rotulos.push({ t, dono, outra });
+      if (dono > LIMIAR.rotuloSeta) acha("longe", `${rot(t)} a ${Math.round(dono)}px da própria seta`);
+      else if (outra + LIMIAR.ambiguo <= dono) acha("ambíguo", `${rot(t)} a ${Math.round(dono)}px da dela e ${Math.round(outra)}px de outra`);
+    }
+  }
+  // morto: área útil de cada parte (as partes começam nos títulos "1 · ", "2 · ", "3 · ", como no SVG)
+  const util = areaUtil(els);
+  // qual vista é cada parte: o gerador grava `vistas` no desenho (sem o campo, são as três)
+  const vistas = cena.vistas || ["uml", "bpmn", "c4"];
+  util.forEach((u, i) => {
+    const v = vistas[i] || "c4";
+    if (u.fracao < LIMIAR.areaUtil[v]) acha("morto", `${v.toUpperCase()} com ${Math.round(u.fracao * 100)}% de área útil (${u.w}×${u.h})`);
+  });
+  achados.medidas = { rotulos, util };
   return achados;
+}
+
+// fração do retângulo de cada parte que fica a até LIMIAR.raio px de tinta. Área (raia, pool interno,
+// fronteira) conta só pela moldura: pool vazio é espaço morto mesmo pintado de cinza.
+export function areaUtil(els) {
+  const topos = [];
+  for (let n = 1; n <= 3; n++) {
+    const y = els.find((e) => e.type === "text" && e.text?.startsWith(`${n} · `))?.y;
+    if (y == null) break;
+    topos.push(y);
+  }
+  const { raio: R, celula: C } = LIMIAR;
+  const out = [];
+  for (let i = 0; i < topos.length; i++) {
+    const y0p = topos[i] - 10, y1p = i < topos.length - 1 ? topos[i + 1] - 10 : Infinity;
+    const parte = els.filter((e) => e.y >= y0p && e.y < y1p && !e.customData?.halo);
+    const xs = [], ys = [];
+    for (const e of parte) {
+      // seta e linha: o x/y é o primeiro ponto, não o canto; a caixa sai dos pontos
+      if (e.points) for (const [x, y] of e.points) { xs.push(e.x + x); ys.push(e.y + y); }
+      else { xs.push(e.x, e.x + (e.width || 0)); ys.push(e.y, e.y + (e.height || 0)); }
+    }
+    const bx0 = Math.min(...xs), by0 = Math.min(...ys), bx1 = Math.max(...xs), by1 = Math.max(...ys);
+    const W = Math.ceil((bx1 - bx0) / C) + 1, H = Math.ceil((by1 - by0) / C) + 1;
+    const grade = new Uint8Array(W * H);
+    const marca = (x0, y0, x1, y1) => {
+      const i0 = Math.max(0, Math.floor((x0 - R - bx0) / C)), i1 = Math.min(W - 1, Math.floor((x1 + R - bx0) / C));
+      const j0 = Math.max(0, Math.floor((y0 - R - by0) / C)), j1 = Math.min(H - 1, Math.floor((y1 + R - by0) / C));
+      for (let j = j0; j <= j1; j++) for (let k = i0; k <= i1; k++) grade[j * W + k] = 1;
+    };
+    const ehArea = (e) => e.type === "rectangle" && (e.backgroundColor === "transparent" || ((e.width > 600 || e.height > 200) && e.height > 60));
+    const traco = (a, b) => {
+      const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / C));
+      for (let k = 0; k <= n; k++) { const x = a[0] + ((b[0] - a[0]) * k) / n, y = a[1] + ((b[1] - a[1]) * k) / n; marca(x, y, x, y); }
+    };
+    for (const e of parte) {
+      if (e.type === "arrow" || e.type === "line") {
+        if (e.type === "arrow") continue;
+        const p = e.points.map(([x, y]) => [e.x + x, e.y + y]);
+        for (let k = 0; k < p.length - 1; k++) traco(p[k], p[k + 1]);
+      } else if (ehArea(e)) {
+        const [x0, y0, x1, y1] = [e.x, e.y, e.x + e.width, e.y + e.height];
+        traco([x0, y0], [x1, y0]); traco([x1, y0], [x1, y1]); traco([x1, y1], [x0, y1]); traco([x0, y1], [x0, y0]);
+      } else if (e.type === "text" && !e.containerId) {
+        const b = caixaTexto(e);
+        marca(b.x0, b.y0, b.x1, b.y1);
+      } else if (e.type !== "text") marca(e.x, e.y, e.x + e.width, e.y + e.height);
+    }
+    let n = 0;
+    for (const v of grade) n += v;
+    out.push({ fracao: n / grade.length, w: Math.round(bx1 - bx0), h: Math.round(by1 - by0) });
+  }
+  return out;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
@@ -177,6 +309,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     for (const x of achados) { conta[x.tipo] = (conta[x.tipo] || 0) + 1; total[x.tipo] = (total[x.tipo] || 0) + 1; }
     if (achados.length) ruins++;
     linhas.push({ id: a.replace(".excalidraw", ""), n: achados.length, conta, achados });
+    if (medidas) {
+      const m = achados.medidas, ds = m.rotulos.map((r) => r.dono).sort((p, q) => q - p);
+      console.log(`M ${a.replace(".excalidraw", "").padEnd(28)} util ${m.util.map((u) => u.fracao.toFixed(2)).join(" ")}  tam ${m.util.map((u) => u.w + "x" + u.h).join(" ")}  rotulo-max ${Math.round(ds[0] || 0)} p90 ${Math.round(ds[Math.floor(ds.length * 0.1)] || 0)} n ${ds.length} amb ${m.rotulos.filter((r) => r.outra < r.dono).length}`);
+    }
   }
   linhas.sort((p, q) => q.n - p.n);
   for (const l of linhas.filter((l) => l.n)) {

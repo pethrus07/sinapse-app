@@ -19,10 +19,24 @@ export function validar(spec) {
   const faixa = (lista, min, max, onde) => { if (!Array.isArray(lista) || lista.length < min || lista.length > max) e.push(`${onde}: ${Array.isArray(lista) ? lista.length : 0} (esperado ${min}–${max})`); };
   if (spec.versao !== 2) e.push('versao precisa ser 2');
   curto(spec.titulo, 70, 'titulo');
+  // pastas: destinos que a spec aceita além do próprio nome (trava de identidade do publicador)
+  if (spec.pastas !== undefined && (!Array.isArray(spec.pastas) || spec.pastas.some((p) => typeof p !== 'string' || !p.trim())))
+    e.push('pastas: lista de nomes de pasta');
+  // "sistema": false = projeto sem sistema (arte, documento, repositório vazio): não gera nem publica
+  // desenho; a spec fica só como registro do porquê
+  if (spec.sistema !== undefined && spec.sistema !== false) e.push('sistema: só aceita false (omitir quando há sistema)');
+  if (spec.sistema === false) { curto(spec.motivo, 200, 'motivo'); return e; }
+  // vistas: só parte das três (projeto pequeno: papel de parede, estudo de caso). Vista fora da lista
+  // não é conferida nem desenhada.
+  const VISTAS = ['uml', 'bpmn', 'c4'];
+  if (spec.vistas !== undefined && (!Array.isArray(spec.vistas) || !spec.vistas.length || spec.vistas.some((v) => !VISTAS.includes(v))))
+    e.push('vistas: lista com uml, bpmn e/ou c4');
+  const tem = (v) => !Array.isArray(spec.vistas) || spec.vistas.includes(v);
   curto(spec.resumo, 260, 'resumo');
   if (SENSIVEL.test(JSON.stringify(spec))) e.push('parece ter dado sensível (IP, CPF, senha, token)');
 
   // UML casos de uso
+  if (tem('uml')) {
   const u = spec.casosDeUso || {};
   curto(u.sistema, 40, 'casosDeUso.sistema');
   faixa(u.atores, 1, 6, 'casosDeUso.atores');
@@ -45,7 +59,10 @@ export function validar(spec) {
   for (const c of casos) if (!usados.has(c)) e.push(`caso "${c}" solto (sem ator nem relação)`);
   for (const a of atores) if (!usados.has('ator:' + a)) e.push(`ator "${a}" sem associação`);
 
+  }
+
   // BPMN
+  if (tem('bpmn')) {
   const p = spec.processo || {};
   curto(p.nome, 60, 'processo.nome');
   faixa(p.raias, 1, 4, 'processo.raias');
@@ -57,6 +74,7 @@ export function validar(spec) {
   for (const x of p.externos || []) curto(x.nome, 40, `externo ${x.id}`);
   for (const x of p.elementos || []) {
     if (!TIPO_EL.has(x.tipo)) e.push(`elemento ${x.id}: tipo "${x.tipo}"`);
+    if (x.multiplo !== undefined && (x.tipo !== 'tarefa' || x.multiplo !== 'paralelo')) e.push(`elemento ${x.id}: "multiplo" só vale "paralelo" e só em tarefa`);
     if (!raias.has(x.raia)) e.push(`elemento ${x.id}: raia "${x.raia}" não existe`);
     curto(x.nome, 40, `elemento ${x.id}`);
     if (x.tipo === 'gateway' && !/\?$/.test(x.nome || '')) e.push(`gateway ${x.id}: nome deve ser pergunta terminada em "?"`);
@@ -81,11 +99,14 @@ export function validar(spec) {
     if (!ok) e.push(`mensagem ${m.de}→${m.para}: precisa ligar elemento ↔ externo`);
   }
 
+  }
+
   // C4 containers
+  if (tem('c4')) {
   const c = spec.arquitetura || {};
   curto(c.sistema, 40, 'arquitetura.sistema');
   faixa(c.containers, 2, 7, 'arquitetura.containers');
-  faixa(c.pessoas || [], 0, 3, 'arquitetura.pessoas');
+  faixa(c.pessoas || [], 0, 4, 'arquitetura.pessoas');
   faixa(c.externos || [], 0, 5, 'arquitetura.externos');
   const nos = new Set([...(c.pessoas || []), ...(c.containers || []), ...(c.externos || [])].map((x) => x.id));
   for (const x of c.containers || []) {
@@ -100,6 +121,7 @@ export function validar(spec) {
     ligados.add(r.de); ligados.add(r.para);
   }
   for (const id of nos) if (!ligados.has(id)) e.push(`C4: "${id}" sem relação`);
+  }
   return e;
 }
 

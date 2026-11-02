@@ -6,6 +6,7 @@
 // da RYZE (cores e fontes, ver a paleta abaixo).
 // Nunca sobrescreve desenho editado à mão: só escreve se o arquivo não existe, ou se ainda é o que o
 // gerador escreveu da última vez (campo "gerado" bate com o conteúdo). --forcar ignora isso.
+// Spec com "sistema": false não gera (e o desenho gerado antes sai do vault).
 // Uso: node scripts/gerar-desenhos.mjs [nota ...] [--forcar]
 import fs from "node:fs";
 import path from "node:path";
@@ -57,6 +58,8 @@ const base = (extra) => ({
 // largura média de caractere em fração do corpo, por fonte: média medida no texto das 56 specs
 // (Space Grotesk 0,495, Plus Jakarta 0,480) com a folga de 21% que a Helvetica já tinha; a mono é exata
 const LARG = { 1: 0.6, 2: 0.58, 3: 0.62 };
+// rótulo solto (seta, gateway, evento): 0,88 de LARG = média medida da fonte + ~6% de folga
+const ROTULO_APERTO = 0.88;
 const largura = (t, tam, fam = 2) => Math.max(...String(t).split("\n").map((l) => l.length)) * tam * LARG[fam];
 
 function quebrar(texto, maxPx, tam, fam = 2) {
@@ -192,7 +195,9 @@ function rotular(els, desde) {
     const variantes = [...new Set([p.texto, quebrar(corrido, p.tipo === "forma" ? 88 : 100, p.tam)])];
     const cands = [];
     variantes.forEach((txt, iv) => {
-      const w = Math.ceil(largura(txt, p.tam)) + 6, h = txt.split("\n").length * p.tam * 1.25;
+      // rótulo solto usa a largura quase real (ROTULO_APERTO): com a folga inteira de LARG, o texto
+      // centrado ficava a ~20 px da linha que descreve e parecia de outra (auditoria de 01/11)
+      const w = Math.ceil(largura(txt, p.tam) * ROTULO_APERTO) + 6, h = txt.split("\n").length * p.tam * 1.25;
       const extraV = iv * 3;
       if (p.tipo === "forma") {
         const { x0, y0, x1, y1 } = p.caixa, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
@@ -215,7 +220,14 @@ function rotular(els, desde) {
           const t = comp[i] ? alvo / comp[i] : 0;
           const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
           const horizontal = Math.abs(by - ay) < Math.abs(bx - ax);
-          const opcoes = horizontal ? [[x - w / 2, y - h - 4], [x - w / 2, y + 4]] : [[x + 6, y - h / 2], [x - w - 6, y - h / 2]];
+          let opcoes = horizontal ? [[x - w / 2, y - h - 4], [x - w / 2, y + 4]] : [[x + 6, y - h / 2], [x - w - 6, y - h / 2]];
+          // linha inclinada (include/extend no UML): o rótulo encosta pela normal, a 6 px do canto mais
+          // próximo; com o deslocamento de reta, a caixa de 3 linhas ficava a ~19 px da própria seta
+          const L = Math.hypot(bx - ax, by - ay);
+          if (L && Math.abs(bx - ax) > 2 && Math.abs(by - ay) > 2) {
+            const nx = -(by - ay) / L, ny = (bx - ax) / L, d = 6 + Math.abs(nx) * w / 2 + Math.abs(ny) * h / 2;
+            opcoes = [1, -1].map((sg) => [x + sg * nx * d - w / 2, y + sg * ny * d - h / 2]).concat(opcoes);
+          }
           opcoes.push([x - w / 2, y - h / 2]); // em cima da linha: último recurso
           opcoes.forEach(([cx, cy], k) => cands.push({ txt, w, h, c: { x0: cx, y0: cy, x1: cx + w, y1: cy + h }, extra: ordemF * 3 + k * 2 + extraV, ancora: [x, y] }));
         });
@@ -501,7 +513,10 @@ function processo(els, p, nomePool, X, Y) {
   const faixaExt = (p.externos || []).map((x) => {
     const xs = msgs.filter((m) => m.de === x.id || m.para === x.id).map((m) => xMsg(m.de === x.id ? m.para : m.de));
     const a = xs.length ? Math.min(...xs) - 110 : X0, b = xs.length ? Math.max(...xs) + 110 : X0 + 260;
-    return { x, a: Math.max(X + POOLBAND + LANEBAND, Math.min(a, b - 240)), b: Math.max(b, a + 240) };
+    // largura mínima = o nome numa linha só (em duas linhas o nome encostava na borda e a bolinha da
+    // mensagem caía em cima dele; bailado e esteira-qa, revisão de 01/11)
+    const minimo = Math.max(240, Math.ceil(largura(x.nome, 15)) + 48);
+    return { x, a: Math.max(X + POOLBAND + LANEBAND, Math.min(a, b - minimo)), b: Math.max(b, a + minimo) };
   });
   const filas = [];
   for (const f of faixaExt.sort((p1, p2) => p1.a - p2.a)) {
@@ -552,7 +567,11 @@ function processo(els, p, nomePool, X, Y) {
     const cy = topoRaia[e.raia] + 40 + linhaDe[e.id] * ROWH + ROWH / 2;
     const g = novoId();
     if (e.tipo === "tarefa") {
-      const f = forma(els, { x: cx - 75, y: cy - 32, w: 150, h: 64, t: e.nome, tam: 13, fundo: "#FFFFFF", traco: cor[e.raia].traco, espessura: 2 });
+      // "multiplo": "paralelo" = tarefa multi-instância (BPMN 2.0): várias cópias correndo ao mesmo
+      // tempo, uma por item (na Retífica, uma frente por setor). Marca: três barras em pé no pé da tarefa
+      const multi = e.multiplo === "paralelo";
+      const f = forma(els, { x: cx - 75, y: cy - 32, w: 150, h: 64, t: e.nome, tam: 13, fundo: "#FFFFFF", traco: cor[e.raia].traco, espessura: 2, grupo: multi ? g : undefined });
+      if (multi) for (const dx of [-6, 0, 6]) linha(els, [[cx + dx, cy + 19], [cx + dx, cy + 29]], { cor: TINTA, espessura: 2, grupo: g });
       pos[e.id] = { ...f, cx, cy, meiaL: 75, meiaA: 32 };
     } else if (e.tipo === "gateway") {
       const f = forma(els, { tipo: "diamond", x: cx - 24, y: cy - 24, w: 48, h: 48, fundo: BPMN.gateway.fundo, traco: BPMN.gateway.traco, espessura: 2, grupo: g });
@@ -735,7 +754,30 @@ function processo(els, p, nomePool, X, Y) {
     };
     // rota sempre dentro do pool, com folga da borda (contorno fundo saía dele)
     const foraDoPool = (p) => p.some(([, y]) => y < topoRaia[raias[0].id] + 10 || y > yr - 10);
-    const custoSeq = (o, i) => (corta(o.pts, ign) || furaPontas(o.pts) || foraDoPool(o.pts) ? 1e6 : 0) + (trilho(o.pts) ? 400 : 0) + (ladoLivre(o) ? 0 : 150)
+    // raspa: trecho correndo a 2-14 px da lateral de outra caixa por 80 px ou mais (a mesma régua do
+    // qa-desenhos; a folga de 6 px de `caixas` deixava passar o laço rente ao topo de uma tarefa,
+    // visto no atas-ao-vivo)
+    const raspa = (pts) => {
+      let n = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [a1, b1] = [pts[i], pts[i + 1]];
+        for (const c of caixas) {
+          if (ign.includes(c.id) || String(c.id).startsWith("pool:")) continue;
+          const x0 = c.x0 + 6, x1 = c.x1 - 6, y0 = c.y0 + 6, y1 = c.y1 - 6;
+          if (Math.abs(a1[1] - b1[1]) < 1) {
+            const d = Math.min(Math.abs(a1[1] - y0), Math.abs(a1[1] - y1));
+            const comum = Math.min(Math.max(a1[0], b1[0]), x1) - Math.max(Math.min(a1[0], b1[0]), x0);
+            if (d >= 2 && d <= 14 && comum >= 80) n++;
+          } else if (Math.abs(a1[0] - b1[0]) < 1) {
+            const d = Math.min(Math.abs(a1[0] - x0), Math.abs(a1[0] - x1));
+            const comum = Math.min(Math.max(a1[1], b1[1]), y1) - Math.max(Math.min(a1[1], b1[1]), y0);
+            if (d >= 2 && d <= 14 && comum >= 80) n++;
+          }
+        }
+      }
+      return n;
+    };
+    const custoSeq = (o, i) => (corta(o.pts, ign) || furaPontas(o.pts) || foraDoPool(o.pts) ? 1e6 : 0) + (trilho(o.pts) ? 400 : 0) + (ladoLivre(o) ? 0 : 150) + raspa(o.pts) * 300
       + cruzamentos(o.pts) * 70 + cruzamentos(o.pts, reservas) * 55 + rente(o.pts) * 150 + feixe(o.pts) * 120 + (o.k || 0) * 6 + i * 8;
     const escolhida = opcoes.map((o, i) => [o, custoSeq(o, i)]).reduce((m, x) => (x[1] < m[1] ? x : m))[0];
     if (gw) (ladosGw[f.de] ||= new Set()).add(lado(escolhida));
@@ -875,39 +917,51 @@ function pilha(els, cx, topo, alto, linhas, grupo) {
 // externos na última, containers dentro da fronteira do sistema (nó composto). O ELK faz a ordem que
 // minimiza cruzamentos, as rotas ortogonais com portas distribuídas e a posição dos rótulos.
 const elk = new ELK();
+const DIRECAO_C4 = process.env.DIRECAO_C4 || "RIGHT";
+// a caixa cresce na altura quando as setas de um lado não cabem a 34 px uma da outra
+const TAM_C4 = (w, h) => ({ "elk.nodeSize.constraints": "PORTS MINIMUM_SIZE", "elk.nodeSize.minimum": `(${w},${h})` });
+
 const ehArquivo = (t) => /\b(json|jsonl|markdown|md|csv|png|svg|css|html|arquivo|arquivos|pasta|yaml|txt|pdf)\b/i.test(t || "");
 
 async function c4(els, c, X, Y) {
   const pessoas = c.pessoas || [], conts = c.containers || [], exts = c.externos || [];
   const rel = (c.relacoes || []).filter((r) => r.de !== r.para);
-  const CW = 230, CH = 130, PH = 156, EH = 110;
+  const CW = 230, CH = 130, PH = 156, EH = 110, CABECA = 46;
+  // a cabeça da pessoa fica na margem de cima do nó, e o ELK não conta margem no topo do grafo: sem
+  // descer o desenho, a cabeça da primeira pessoa cobria o subtítulo (revisão por imagem, rodada 2)
+  Y += CABECA;
   // pessoas presas na primeira camada e externos na última; quem se liga a outro do mesmo grupo fica
   // livre (o ELK não liga dois nós presos na mesma camada: IndexOutOfBounds, visto em ryze-identidade)
   const idsPessoas = new Set(pessoas.map((p) => p.id)), idsExts = new Set(exts.map((e) => e.id));
   const travaCamada = (id, grupo, camada) =>
     rel.some((r) => (r.de === id && grupo.has(r.para)) || (r.para === id && grupo.has(r.de))) ? {} : { "elk.layered.layering.layerConstraint": camada };
-  const rotuloDe = (r) => quebrar(r.tecnologia ? `${r.rotulo}\n[${r.tecnologia}]` : r.rotulo, 150, 12);
+  const rotuloDe = (r) => quebrar(r.tecnologia ? `${r.rotulo}\n[${r.tecnologia}]` : r.rotulo, DIRECAO_C4 === "RIGHT" ? Number(process.env.ROT_C4 || 120) : 150, 12);
   const medida = (t) => ({ width: Math.ceil(largura(t, 12)) + 10, height: t.split("\n").length * 15 + 4 });
   // o ELK lê o espaçamento do nó pai de cada grafo: sem repetir dentro da fronteira, as linhas lá
   // dentro saíam no padrão (~10 px, feixes ilegíveis e linha raspando a lateral das caixas)
   const espacos = {
-    "elk.spacing.nodeNode": "80", "elk.layered.spacing.nodeNodeBetweenLayers": "110",
+    "elk.spacing.nodeNode": DIRECAO_C4 === "RIGHT" ? "60" : "80", "elk.layered.spacing.nodeNodeBetweenLayers": DIRECAO_C4 === "RIGHT" ? (process.env.CAMADA_C4 || "60") : "110",
     "elk.spacing.edgeNode": "40", "elk.spacing.edgeEdge": "40", "elk.layered.spacing.edgeNodeBetweenLayers": "36",
     "elk.layered.spacing.edgeEdgeBetweenLayers": "40", "elk.spacing.edgeLabel": "6",
+    "elk.spacing.portPort": "34",
     "elk.layered.unnecessaryBendpoints": "false",
   };
   const grafo = {
     id: "raiz",
     layoutOptions: {
-      "elk.algorithm": "layered", "elk.direction": "DOWN", "elk.edgeRouting": process.env.ROTA_C4 || "ORTHOGONAL",
+      // camadas lado a lado (01/11): pessoas à esquerda, sistema no meio, externos à direita, cada grupo
+      // numa partição. Em pé (DOWN) o C4 saía esticado (sinapse-app 1006×2522) com metade em branco.
+      "elk.algorithm": "layered", "elk.direction": DIRECAO_C4, "elk.edgeRouting": process.env.ROTA_C4 || "ORTHOGONAL",
+      "elk.partitioning.activate": "true",
       "elk.hierarchyHandling": "INCLUDE_CHILDREN", "elk.edgeLabels.placement": "CENTER", ...espacos,
       "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP", "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
       "elk.layered.considerModelOrder.strategy": "NONE", "elk.layered.thoroughness": "50", // 7 → 50: cruzamentos no C4 de 14 para 9 (56 desenhos)
     },
     children: [
-      ...pessoas.map((p) => ({ id: p.id, width: CW, height: PH, layoutOptions: travaCamada(p.id, idsPessoas, "FIRST") })),
-      { id: "__sistema", layoutOptions: { ...espacos, "elk.padding": "[top=56,left=36,bottom=70,right=36]" }, children: conts.map((k) => ({ id: k.id, width: CW, height: CH })) },
-      ...exts.map((e) => ({ id: e.id, width: CW, height: EH })),
+      ...pessoas.map((p) => ({ id: p.id, width: CW, height: PH - CABECA, layoutOptions: { ...travaCamada(p.id, idsPessoas, "FIRST"), "elk.partitioning.partition": "0", "elk.margins": `[top=${CABECA},left=0,bottom=0,right=0]`, ...TAM_C4(CW, PH - CABECA), "elk.spacing.portPort": "24" } })),
+      { id: "__sistema", layoutOptions: { ...espacos, "elk.direction": DIRECAO_C4, "elk.padding": "[top=56,left=36,bottom=70,right=36]", "elk.partitioning.partition": "1" },
+        children: conts.map((k) => ({ id: k.id, width: CW, height: CH, layoutOptions: TAM_C4(CW, CH) })) },
+      ...exts.map((e) => ({ id: e.id, width: CW, height: EH, layoutOptions: { ...travaCamada(e.id, idsExts, "LAST"), "elk.partitioning.partition": "2", ...TAM_C4(CW, EH) } })),
     ],
     edges: rel.map((r, i) => {
       const t = rotuloDe(r);
@@ -930,10 +984,10 @@ async function c4(els, c, X, Y) {
   const segsC4 = [];
   // pessoas
   for (const p of pessoas) {
-    const { x, y } = abs[p.id], g2 = novoId();
-    forma(els, { tipo: "ellipse", x: x + CW / 2 - 28, y, w: 56, h: 56, fundo: C4.pessoa, traco: C4.pessoa, grupo: g2 });
-    const f = forma(els, { x, y: y + 46, w: CW, h: 110, fundo: C4.pessoa, traco: C4.pessoa, grupo: g2 });
-    pilha(els, x + CW / 2, y + 46, 110, [
+    const { x, y, h: ph } = abs[p.id], g2 = novoId();
+    forma(els, { tipo: "ellipse", x: x + CW / 2 - 28, y: y - CABECA, w: 56, h: 56, fundo: C4.pessoa, traco: C4.pessoa, grupo: g2 });
+    const f = forma(els, { x, y, w: CW, h: ph, fundo: C4.pessoa, traco: C4.pessoa, grupo: g2 });
+    pilha(els, x + CW / 2, y, ph, [
       { t: p.nome, tam: 17, cor: "#FFFFFF", maxPx: CW - 20, fam: 1 },
       { t: "[Pessoa]", tam: 11, cor: C4.subPessoa, maxPx: CW - 16, fam: 3 },
       { t: p.descricao, tam: 12, cor: "#FFFFFF", maxPx: CW - 24 },
@@ -943,23 +997,23 @@ async function c4(els, c, X, Y) {
   // containers
   const tiposUsados = new Set();
   for (const k of conts) {
-    const { x, y } = abs[k.id], g2 = novoId();
+    const { x, y, h: KH } = abs[k.id], g2 = novoId();
     const banco = k.tipo === "banco" && !ehArquivo(k.tecnologia), arquivos = k.tipo === "arquivos" || (k.tipo === "banco" && ehArquivo(k.tecnologia));
     let f;
     if (banco && !arquivos) {
       // cilindro: fundo curvo embaixo, corpo, tampa em cima
-      forma(els, { tipo: "ellipse", x, y: y + CH - 24, w: CW, h: 24, fundo: C4.banco, traco: C4.bordaDados, grupo: g2 });
-      f = forma(els, { x, y: y + 12, w: CW, h: CH - 24, fundo: C4.banco, traco: C4.banco, grupo: g2, redondo: false });
-      linha(els, [[x, y + 12], [x, y + CH - 12]], { cor: C4.bordaDados, grupo: g2 });
-      linha(els, [[x + CW, y + 12], [x + CW, y + CH - 12]], { cor: C4.bordaDados, grupo: g2 });
+      forma(els, { tipo: "ellipse", x, y: y + KH - 24, w: CW, h: 24, fundo: C4.banco, traco: C4.bordaDados, grupo: g2 });
+      f = forma(els, { x, y: y + 12, w: CW, h: KH - 24, fundo: C4.banco, traco: C4.banco, grupo: g2, redondo: false });
+      linha(els, [[x, y + 12], [x, y + KH - 12]], { cor: C4.bordaDados, grupo: g2 });
+      linha(els, [[x + CW, y + 12], [x + CW, y + KH - 12]], { cor: C4.bordaDados, grupo: g2 });
       forma(els, { tipo: "ellipse", x, y, w: CW, h: 24, fundo: C4.tampaBanco, traco: C4.bordaDados, grupo: g2 });
       tiposUsados.add("banco");
     } else {
-      f = forma(els, { x, y, w: CW, h: CH, fundo: arquivos ? C4.banco : C4.container, traco: arquivos ? C4.bordaDados : C4.bordaRoxo, grupo: g2, redondo: !arquivos });
+      f = forma(els, { x, y, w: CW, h: KH, fundo: arquivos ? C4.banco : C4.container, traco: arquivos ? C4.bordaDados : C4.bordaRoxo, grupo: g2, redondo: !arquivos });
       tiposUsados.add(arquivos ? "arquivos" : "container");
     }
     const tipo = arquivos ? "Arquivos" : banco ? "Banco" : k.tipo === "job" ? "Job" : k.tipo === "mobile" ? "App mobile" : k.tipo === "api" ? "API" : "Container";
-    pilha(els, x + CW / 2, banco && !arquivos ? y + 14 : y, banco && !arquivos ? CH - 28 : CH, [
+    pilha(els, x + CW / 2, banco && !arquivos ? y + 14 : y, banco && !arquivos ? KH - 28 : KH, [
       { t: k.nome, tam: 16, cor: "#FFFFFF", maxPx: CW - 20, fam: 1 },
       { t: `[${tipo}: ${k.tecnologia}]`, tam: 11, cor: C4.subContainer, maxPx: CW - 16, fam: 3 },
       { t: k.descricao, tam: 12, cor: "#FFFFFF", maxPx: CW - 24 },
@@ -968,9 +1022,9 @@ async function c4(els, c, X, Y) {
   }
   // externos
   for (const e of exts) {
-    const { x, y } = abs[e.id], g2 = novoId();
-    const f = forma(els, { x, y, w: CW, h: EH, fundo: C4.externo, traco: C4.bordaExterno, grupo: g2 });
-    pilha(els, x + CW / 2, y, EH, [
+    const { x, y, h: XH } = abs[e.id], g2 = novoId();
+    const f = forma(els, { x, y, w: CW, h: XH, fundo: C4.externo, traco: C4.bordaExterno, grupo: g2 });
+    pilha(els, x + CW / 2, y, XH, [
       { t: e.nome, tam: 16, cor: "#FFFFFF", maxPx: CW - 20, fam: 1 },
       { t: "[Sistema externo]", tam: 11, cor: C4.subExterno, maxPx: CW - 16, fam: 3 },
       { t: e.descricao, tam: 12, cor: "#FFFFFF", maxPx: CW - 24 },
@@ -1034,6 +1088,7 @@ async function c4(els, c, X, Y) {
   leg.forEach(([nome, cor], i) => forma(els, { x: X + i * 150, y: yLeg, w: 136, h: 30, t: nome, tam: 12, cor: "#FFFFFF", fundo: cor, traco: cor }));
 }
 
+export const VISTAS_TODAS = ["uml", "bpmn", "c4"];
 export async function desenhar(spec) {
   semente = 1;
   const els = [];
@@ -1044,23 +1099,31 @@ export async function desenhar(spec) {
   if (spec.resumo) y += texto(els, { x: X, y, t: spec.resumo, tam: 16, cor: SUAVE, maxPx: 1300 }).h + 50;
 
   pendentes = [];
-  y = cabecalho(els, X, y, 1, "Quem usa e para quê", "UML · diagrama de casos de uso", spec.titulo);
-  let antes = els.length;
-  casosDeUso(els, spec.casosDeUso || {}, X, y);
-  rotular(els, antes);
-  y = caixaDe(els, antes).y1 + 90;
-
-  y = cabecalho(els, X, y, 2, spec.processo?.nome || "Processo principal", "BPMN 2.0 · processo com raias", spec.titulo);
-  antes = els.length;
-  processo(els, spec.processo || {}, spec.casosDeUso?.sistema || spec.arquitetura?.sistema || "Sistema", X, y);
-  rotular(els, antes);
-  y = caixaDe(els, antes).y1 + 90;
-
-  y = cabecalho(els, X, y, 3, "Arquitetura", "Modelo C4 · nível 2, containers", spec.titulo);
-  antes = els.length;
-  await c4(els, spec.arquitetura || {}, X, y);
-  rotular(els, antes);
-  return { type: "excalidraw", version: 2, source: "sinapse", elements: els, appState: { viewBackgroundColor: "#ffffff", gridSize: null }, files: {} };
+  // "vistas" (01/11/2026): projeto pequeno pode ter só parte das três (cosmos e galeria: só o C4).
+  // O número do cabeçalho é a ordem no desenho (1..n), que é o que o corte em SVG procura.
+  const vistas = spec.vistas || VISTAS_TODAS;
+  let numero = 0, antes;
+  if (vistas.includes("uml")) {
+    y = cabecalho(els, X, y, ++numero, "Quem usa e para quê", "UML · diagrama de casos de uso", spec.titulo);
+    antes = els.length;
+    casosDeUso(els, spec.casosDeUso || {}, X, y);
+    rotular(els, antes);
+    y = caixaDe(els, antes).y1 + 90;
+  }
+  if (vistas.includes("bpmn")) {
+    y = cabecalho(els, X, y, ++numero, spec.processo?.nome || "Processo principal", "BPMN 2.0 · processo com raias", spec.titulo);
+    antes = els.length;
+    processo(els, spec.processo || {}, spec.casosDeUso?.sistema || spec.arquitetura?.sistema || "Sistema", X, y);
+    rotular(els, antes);
+    y = caixaDe(els, antes).y1 + 90;
+  }
+  if (vistas.includes("c4")) {
+    y = cabecalho(els, X, y, ++numero, "Arquitetura", "Modelo C4 · nível 2, containers", spec.titulo);
+    antes = els.length;
+    await c4(els, spec.arquitetura || {}, X, y);
+    rotular(els, antes);
+  }
+  return { type: "excalidraw", version: 2, source: "sinapse", vistas, elements: els, appState: { viewBackgroundColor: "#ffffff", gridSize: null }, files: {} };
 }
 
 const assinatura = (obj) => crypto.createHash("sha1").update(JSON.stringify(obj.elements)).digest("hex");
@@ -1072,12 +1135,22 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   fs.mkdirSync(SPECS, { recursive: true });
   const specs = fs.readdirSync(SPECS).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""))
     .filter((n) => !pedidas.length || pedidas.includes(n));
-  let feitos = 0, pulados = 0, invalidos = 0;
+  let feitos = 0, pulados = 0, invalidos = 0, semSistema = 0;
   for (const nome of specs) {
     const spec = JSON.parse(fs.readFileSync(path.join(SPECS, `${nome}.json`), "utf8"));
     const erros = validar(spec);
     if (erros.length) { invalidos++; console.log(`  ${nome}: especificação inválida (${erros[0]}${erros.length > 1 ? ` e mais ${erros.length - 1}` : ""})`); continue; }
     const destino = path.join(DIR, `${nome}.excalidraw`);
+    // "sistema": false: não gera; o desenho gerado antes sai (o editado à mão fica, e avisa)
+    if (spec.sistema === false) {
+      semSistema++;
+      if (fs.existsSync(destino)) {
+        const atual = JSON.parse(fs.readFileSync(destino, "utf8"));
+        if (atual.gerado && atual.gerado === assinatura(atual)) fs.rmSync(destino);
+        else console.log(`  ${nome}: marcado sem sistema, mas o desenho foi editado à mão: mantido`);
+      }
+      continue;
+    }
     if (fs.existsSync(destino) && !forcar) {
       const atual = JSON.parse(fs.readFileSync(destino, "utf8"));
       if (!atual.gerado || atual.gerado !== assinatura(atual)) { pulados++; console.log(`  ${nome}: editado à mão, mantido`); continue; }
@@ -1095,5 +1168,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     fs.writeFileSync(destino, JSON.stringify(d, null, 1));
     feitos++;
   }
-  console.log(`${feitos} desenho(s) gerado(s), ${pulados} mantido(s) por terem sido editados, ${invalidos} com especificação inválida`);
+  console.log(`${feitos} desenho(s) gerado(s), ${pulados} mantido(s) por terem sido editados, ${invalidos} com especificação inválida, ${semSistema} sem sistema (não gera)`);
 }
