@@ -79,7 +79,8 @@ export function planejar({ vault = VAULT, projetos = PROJETOS, pedidas = [] } = 
     // spec sem nota própria no vault (frota-wp-padrao, 01/11) vai para as pastas que ela declara
     const pastas = notas.has(id) ? notas.get(id) : spec.pastas || [];
     if (spec.sistema === false) { semSistema.push({ id, spec, nome: nomeDe(id, spec), pastas }); continue; }
-    if (!pastas.length) { semPasta.push(id); continue; }
+    // "pastas": [] explícito = o desenho fica só no Sinapse (guarda-chuva "Desbravando UTV", 01/11)
+    if (!pastas.length || (Array.isArray(spec.pastas) && !spec.pastas.length)) { semPasta.push(id); continue; }
     const aceitas = [];
     for (const p of pastas) {
       const dir = path.join(projetos, p);

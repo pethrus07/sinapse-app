@@ -10,6 +10,8 @@
 //   raspa        seta a 2-14 px da lateral de uma forma por 80 px ou mais
 //   vaza         texto preso numa caixa maior que a caixa
 //   escapa       seta que liga dois pontos de dentro de um pool/fronteira e sai dele no caminho
+//   ponta×texto  ponta ou origem de seta em cima do texto da forma onde ela chega/sai
+//   aperta       texto preso que encosta na borda de cima/baixo da caixa (sobra < 10 px)
 //   longe        rótulo de seta a mais de LIMIAR.rotuloSeta px da própria seta, medido do texto que o olho
 //                vê (largura média medida da fonte), não da caixa estimada
 //   ambíguo      rótulo mais perto de outra seta do que da dele (por LIMIAR.ambiguo px ou mais)
@@ -100,6 +102,24 @@ export function medir(cena) {
     const r = areas.filter((a) => dentroArea(a, p[0]) && dentroArea(a, p[p.length - 1])).sort((a, b) => a.width * a.height - b.width * b.height)[0];
     if (r && amostra(p).some((q) => !dentroArea(r, q))) acha("escapa", `seta sai da área em (${Math.round(r.x)},${Math.round(r.y)})`);
   }
+  // ponta×texto: a ponta (ou a bolinha de origem) de uma seta em cima do texto da forma onde ela
+  // chega: o ponto da mensagem cobria "PyMuPDF" no nome do pool (esteira-qa, 01/11)
+  for (const s of setas) {
+    const p = pts.get(s.id);
+    for (const [ponto, idForma] of [[p[0], s.startBinding?.elementId], [p[p.length - 1], s.endBinding?.elementId]]) {
+      if (!idForma) continue;
+      const t = textos.find((x) => x.containerId === idForma);
+      if (!t) continue;
+      const b = caixaTexto(t);
+      if (ponto[0] > b.x0 - 4 && ponto[0] < b.x1 + 4 && ponto[1] > b.y0 - 4 && ponto[1] < b.y1 + 4) acha("ponta×texto", `ponta de seta sobre ${rot(t)}`);
+    }
+  }
+  // aperta: texto preso que ocupa a caixa quase inteira na altura (nome de pool em duas linhas
+  // encostando na borda; bailado e esteira-qa, 01/11)
+  for (const t of textos) if (t.containerId) {
+    const c = porId.get(t.containerId);
+    if (c && c.type === "rectangle" && t.height <= c.height + 2 && t.height > c.height - 10) acha("aperta", `${rot(t)} encosta na borda da caixa`);
+  }
   // vaza
   for (const t of textos) if (t.containerId) {
     const c = porId.get(t.containerId);
@@ -133,7 +153,10 @@ export function medir(cena) {
       // rótulo da própria seta: preso nela (containerId) ou no mesmo grupo (posicionador de rótulos)
       if (t.containerId === s.id || ponta.has(t.containerId) || mesmoGrupo(t, s)) continue;
       const pontaFormas = [...ponta].map((id) => porId.get(id)).filter(Boolean);
-      if (pontaFormas.some((f) => mesmoGrupo(t, f))) continue;
+      // texto de forma da ponta no mesmo grupo: só o preso à forma é dela. O rótulo SOLTO de um evento
+      // ou gateway (nome embaixo do círculo) conta: a linha que sai do evento não pode cortar o nome
+      // dele (revisão por imagem de 01/11: estudo-tv-aoc, "TV chega com launcher estranho")
+      if (t.containerId && pontaFormas.some((f) => mesmoGrupo(t, f))) continue;
       const b = caixaTexto(t);
       const dentro = p.filter(([x, y]) => x > b.x0 + 2 && x < b.x1 - 2 && y > b.y0 + 2 && y < b.y1 - 2).length;
       if (dentro >= 3) { acha("linha×texto", `linha cortando ${rot(t)}`); }

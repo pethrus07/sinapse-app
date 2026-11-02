@@ -44,6 +44,8 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   teste. Screenshots do "o que prometi" em `e2e/shots/16…18-promessa*.png`.
 - `e2e/tests/indice-vivo.spec.ts` e `financeiro.spec.ts` escrevem só na cópia (`SINAPSE_E2E_VAULT`).
   Data em teste é relativa a hoje: data fixa no passado quebrou o financeiro quando o calendário andou.
+- `frentes.spec.ts` fixa na cópia o frontmatter das duas frentes que usa (atas → título "Atas", vaga;
+  renatinho-motores → pastas [retifica-os]): o teste não depende mais do título real das notas.
 - Importar NotebookLM para o INBOX do vault:
   `node scripts/importar-notebooklm.mjs <pasta> [--dry] [--vault CAMINHO]`
   (scripts/importar-notebooklm.mjs:3). Usar `--dry` primeiro. Extrator local em `scripts/nlm/`
@@ -102,12 +104,14 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   `"pastas"` da spec; não há `--forcar` para isso; (3) spec com `"sistema": false` não gera nem
   publica e o publicador tira o docs/arquitetura gerado dela. Também tira desenho de OUTRO projeto
   deixado por `pastas:` errado (só arquivos com nome de desenho gerado). Spec sem nota própria usa o
-  `"pastas"` dela. `node scripts/destinos-desenhos.mjs` mostra o plano sem gravar nada.
+  `"pastas"` dela; `"pastas": []` deixa o desenho só no Sinapse. `node scripts/destinos-desenhos.mjs`
+  mostra o plano sem gravar nada.
 - `qa-desenhos.mjs` mede também `longe` (rótulo a mais de 16 px visíveis da própria seta),
-  `ambíguo` e `morto` (área útil por vista: UML 0,60, BPMN 0,50, C4 0,50). Limiares calibrados em
+  `ambíguo`, `ponta×texto`, `aperta` e `morto` (área útil por vista: UML 0,60, BPMN 0,50, C4 0,50). Limiares calibrados em
   01/11/2026 (números no topo do script); `--medidas` imprime os números por desenho.
 - C4 deitado (ELK `RIGHT`, pessoas/sistema/externos em partições, portas a 34 px e caixa que cresce
-  para caber as setas). `DIRECAO_C4=DOWN` volta ao em pé, só para comparar.
+  para caber as setas). `DIRECAO_C4=DOWN` volta ao em pé, só para comparar; `ROT_C4` (largura do
+  rótulo, 120) e `CAMADA_C4` (vão entre camadas, 60) são botões de teste: 96/40 estreitam o C4 só ~6%.
 - Spec com `"vistas": ["c4"]` desenha só parte das três; os cabeçalhos ficam 1..n e o SVG sai com o
   nome da vista (`-3-arquitetura.svg`).
 - Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de

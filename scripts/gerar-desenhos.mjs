@@ -513,7 +513,10 @@ function processo(els, p, nomePool, X, Y) {
   const faixaExt = (p.externos || []).map((x) => {
     const xs = msgs.filter((m) => m.de === x.id || m.para === x.id).map((m) => xMsg(m.de === x.id ? m.para : m.de));
     const a = xs.length ? Math.min(...xs) - 110 : X0, b = xs.length ? Math.max(...xs) + 110 : X0 + 260;
-    return { x, a: Math.max(X + POOLBAND + LANEBAND, Math.min(a, b - 240)), b: Math.max(b, a + 240) };
+    // largura mínima = o nome numa linha só (em duas linhas o nome encostava na borda e a bolinha da
+    // mensagem caía em cima dele; bailado e esteira-qa, revisão de 01/11)
+    const minimo = Math.max(240, Math.ceil(largura(x.nome, 15)) + 48);
+    return { x, a: Math.max(X + POOLBAND + LANEBAND, Math.min(a, b - minimo)), b: Math.max(b, a + minimo) };
   });
   const filas = [];
   for (const f of faixaExt.sort((p1, p2) => p1.a - p2.a)) {
@@ -932,12 +935,12 @@ async function c4(els, c, X, Y) {
   const idsPessoas = new Set(pessoas.map((p) => p.id)), idsExts = new Set(exts.map((e) => e.id));
   const travaCamada = (id, grupo, camada) =>
     rel.some((r) => (r.de === id && grupo.has(r.para)) || (r.para === id && grupo.has(r.de))) ? {} : { "elk.layered.layering.layerConstraint": camada };
-  const rotuloDe = (r) => quebrar(r.tecnologia ? `${r.rotulo}\n[${r.tecnologia}]` : r.rotulo, DIRECAO_C4 === "RIGHT" ? 120 : 150, 12);
+  const rotuloDe = (r) => quebrar(r.tecnologia ? `${r.rotulo}\n[${r.tecnologia}]` : r.rotulo, DIRECAO_C4 === "RIGHT" ? Number(process.env.ROT_C4 || 120) : 150, 12);
   const medida = (t) => ({ width: Math.ceil(largura(t, 12)) + 10, height: t.split("\n").length * 15 + 4 });
   // o ELK lê o espaçamento do nó pai de cada grafo: sem repetir dentro da fronteira, as linhas lá
   // dentro saíam no padrão (~10 px, feixes ilegíveis e linha raspando a lateral das caixas)
   const espacos = {
-    "elk.spacing.nodeNode": DIRECAO_C4 === "RIGHT" ? "60" : "80", "elk.layered.spacing.nodeNodeBetweenLayers": DIRECAO_C4 === "RIGHT" ? "60" : "110",
+    "elk.spacing.nodeNode": DIRECAO_C4 === "RIGHT" ? "60" : "80", "elk.layered.spacing.nodeNodeBetweenLayers": DIRECAO_C4 === "RIGHT" ? (process.env.CAMADA_C4 || "60") : "110",
     "elk.spacing.edgeNode": "40", "elk.spacing.edgeEdge": "40", "elk.layered.spacing.edgeNodeBetweenLayers": "36",
     "elk.layered.spacing.edgeEdgeBetweenLayers": "40", "elk.spacing.edgeLabel": "6",
     "elk.spacing.portPort": "34",

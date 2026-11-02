@@ -106,7 +106,22 @@ function montarAtas() {
   reuniao(R_PARRESIA, 'parresia', 'atas', ymd(-1), [enc('E1', 'PROMESSA-PARRESIA nunca aparece', 'Pedro', ymd(2))], true)
   reuniao(R_PESSOAL, 'pessoal', 'atas', ymd(-1), [enc('E1', 'PROMESSA-PESSOAL nunca aparece', 'Pedro', ymd(2))])
   // "retifica" casa com a frente Renatinho Motores pelo nome da pasta (pastas: retifica-os, retifica)
-  reuniao(R_RETIFICA, 'cliente', 'retifica', ymd(-3), [enc('E1', 'PROMESSA-RETIFICA subir a versão nova', 'Pedro', ymd(0))])
+  reuniao(R_RETIFICA, 'cliente', 'retifica-os', ymd(-3), [enc('E1', 'PROMESSA-RETIFICA subir a versão nova', 'Pedro', ymd(0))])
+}
+
+// As duas frentes que o teste usa ficam fixas NA CÓPIA, para o teste não depender do dado real do
+// vault: em 01/11/2026 a nota atas virou "Ágora (ex-Atas)" e o card /^Atas$/ sumiu; a Retífica perdeu
+// a pasta `retifica` na mesma revisão.
+function fixarFrontmatter(rel: string, campos: Record<string, string>) {
+  const arq = join(vault, rel)
+  const [, fm, corpo] = readFileSync(arq, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)!
+  const linhas = fm.split(/\r?\n/).filter((l) => !Object.keys(campos).some((k) => l.startsWith(k + ':')))
+  for (const [k, v] of Object.entries(campos)) linhas.push(`${k}: ${v}`)
+  writeFileSync(arq, `---\n${linhas.join('\n')}\n---\n${corpo}`, 'utf8')
+}
+function fixarNotas() {
+  fixarFrontmatter('03-PROJETOS/atas.md', { title: 'Atas', vaga: 'true', pastas: '[atas]' })
+  fixarFrontmatter('03-PROJETOS/renatinho-motores.md', { title: 'Renatinho Motores', status: 'em-producao', pastas: '[retifica-os]' })
 }
 
 // o app só lê o Atas: o conteúdo das reuniões falsas tem que sair igual
@@ -120,6 +135,7 @@ test.beforeAll(async () => {
   tmp = mkdtempSync(join(tmpdir(), 'sinapse-frentes-'))
   vault = join(tmp, 'sinapse')
   cpSync(VAULT_REAL, vault, { recursive: true })
+  fixarNotas()
   montarAtas()
   fotoInicial = fotoDoAtas()
   estado = join(tmp, 'estado')
