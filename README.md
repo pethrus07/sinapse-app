@@ -88,4 +88,4 @@ See [docs/arquitetura/](docs/arquitetura/).
 
 ## License
 
-All rights reserved.
+MIT. See [LICENSE](LICENSE).
