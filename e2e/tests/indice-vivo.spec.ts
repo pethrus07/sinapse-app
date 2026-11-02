@@ -6,7 +6,10 @@ import { join } from 'node:path'
 // Vite servia do cache e QUALQUER reindex fora da sessao (CLI, edicao do .md na mao,
 // outra aba) ficava invisivel no navegador. O app tem que ler o indice vivo.
 
-const VAULT = process.env.VAULT_PATH || join(process.cwd(), '..', '..', 'sinapse')
+// Grava na CÓPIA temporária do vault que o playwright.config monta (SINAPSE_E2E_VAULT),
+// nunca no vault real.
+const VAULT = process.env.SINAPSE_E2E_VAULT
+if (!VAULT) throw new Error('SINAPSE_E2E_VAULT ausente: rode pelo playwright.config (npm test em e2e/)')
 const ARQUIVO = join(VAULT, '00-INBOX', '_teste-e2e-evento.md')
 
 function coletarErros(page: Page): string[] {

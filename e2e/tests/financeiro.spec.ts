@@ -68,7 +68,11 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
   await page.locator('.fin-tbtn.entrada').click()
   await page.locator('.fin-campo', { hasText: 'O que é' }).locator('input').fill(DESC)
   await page.locator('.fin-campo', { hasText: 'Valor' }).locator('input').fill('123,45')
-  await page.locator('input[type="date"]').fill('2026-08-28')
+  // vencimento daqui a 15 dias: o Painel da agenda só mostra o que vem pela frente (data fixa no
+  // passado fazia o teste quebrar sozinho quando o calendário andava)
+  const venc = new Date()
+  venc.setDate(venc.getDate() + 15)
+  await page.locator('input[type="date"]').fill(venc.toISOString().slice(0, 10))
   await page.locator('.fin-campo', { hasText: 'Cliente' }).locator('input').fill('Cliente ' + MARCA)
   await page.locator('.fin-salvar').click()
 
