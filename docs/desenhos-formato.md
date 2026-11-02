@@ -63,7 +63,7 @@ Gerador: `sinapse-app/scripts/gerar-desenhos.mjs` (só gera desenho que não foi
 
 ## Regras de cada notação
 
-**Casos de uso (UML).** 2 a 6 atores; 3 a 9 casos, nome começando por verbo no infinitivo
+**Casos de uso (UML).** 2 a 6 atores; 3 a 10 casos, nome começando por verbo no infinitivo
 ("Emitir certificado", não "Certificado"). `tipo` do ator: `humano`, `sistema` (aparece com
 «sistema») ou `tempo` (gatilho agendado). Toda associação liga ator a caso. `include` = o caso
 sempre usa o outro; `extend` = acontece só na `condicao`. Caso sem ator nem relação não entra.
