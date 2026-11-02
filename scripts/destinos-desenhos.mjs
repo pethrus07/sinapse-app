@@ -108,6 +108,24 @@ export function planejar({ vault = VAULT, projetos = PROJETOS, pedidas = [] } = 
   return { destinos, barrados, semPasta, semSistema, duplos, inexistentes, intrusos };
 }
 
+// --exceto=a,b ou --exceto a,b → ["a","b"] (nome da pasta relativo a PROJETOS, com / ou \)
+export function lerExceto(args) {
+  const i = args.findIndex((a) => a === "--exceto" || a.startsWith("--exceto="));
+  if (i < 0) return [];
+  const v = args[i].includes("=") ? args[i].split("=")[1] : args[i + 1] || "";
+  return v.split(",").map((x) => x.trim().replace(/\\/g, "/").replace(/\/$/, "")).filter(Boolean);
+}
+// tira do plano as pastas da lista: não grava nem limpa nada nelas
+export function aplicarExceto(plano, exceto, projetos = PROJETOS) {
+  const fora = new Set(exceto.map((x) => x.toLowerCase()));
+  const rel = (dir) => path.relative(projetos, dir).replace(/\\/g, "/").toLowerCase();
+  for (const dir of [...plano.destinos.keys()]) if (fora.has(rel(dir))) plano.destinos.delete(dir);
+  plano.intrusos = plano.intrusos.filter((i) => !fora.has(i.pasta.replace(/\\/g, "/").toLowerCase()));
+  plano.semSistema = plano.semSistema.map((s) => ({ ...s, pastas: s.pastas.filter((p) => !fora.has(p.replace(/\\/g, "/").toLowerCase())) }));
+  plano.foraDaRodada = new Set([...fora]);
+  return plano;
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const p = planejar({ pedidas: process.argv.slice(2).filter((a) => !a.startsWith("--")) });
   for (const [dir, itens] of p.destinos) console.log(`${path.relative(PROJETOS, dir).padEnd(42)} ← ${itens.map((i) => `${i.id} (${i.nome})`).join(", ")}`);

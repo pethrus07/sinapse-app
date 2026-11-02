@@ -28,7 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { planejar, arquivosDe, VISTAS, VAULT, PROJETOS } from "./destinos-desenhos.mjs";
+import { planejar, arquivosDe, VISTAS, VAULT, PROJETOS, lerExceto, aplicarExceto } from "./destinos-desenhos.mjs";
 import { medir } from "./qa-desenhos.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
@@ -37,13 +37,16 @@ const args = process.argv.slice(2);
 const gravar = args.includes("--gravar") || args.includes("--commit");
 const commitar = args.includes("--commit");
 const forcar = args.includes("--forcar");
-const pedidas = args.filter((a) => !a.startsWith("--"));
+// --exceto=a,b,c (ou --exceto a,b,c): pastas que ficam de fora desta publicação (repo em revisão ou
+// sendo limpo por outra pessoa). Vale para gravar e para limpar.
+const exceto = lerExceto(args);
+const pedidas = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--exceto");
 
 const git = (dir, a) => execFileSync("git", ["-C", dir, ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const raizGit = (dir) => { try { return git(dir, ["rev-parse", "--show-toplevel"]); } catch { return null; } };
 const MARCA_README = "Os diagramas são gerados a partir do Sinapse";
 
-const plano = planejar({ vault: VAULT, projetos: PROJETOS, pedidas });
+const plano = aplicarExceto(planejar({ vault: VAULT, projetos: PROJETOS, pedidas }), exceto, PROJETOS);
 
 // portão 1: o QA zerado
 const reprovados = new Map();
@@ -201,6 +204,7 @@ for (const s of plano.semSistema) for (const p of s.pastas) {
   if (!saidas.has(dir)) saidas.set(dir, []);
   saidas.get(dir).push(s.nome);
 }
+for (const dir of [...saidas.keys()]) if (plano.foraDaRodada.has(path.relative(PROJETOS, dir).replace(/\\/g, "/").toLowerCase())) saidas.delete(dir);
 for (const [dir, nomes] of saidas) {
   const alvo = path.join(dir, "docs", "arquitetura");
   const existentes = nomes.filter((n) => arquivosDe(n).some((f) => fs.existsSync(path.join(alvo, f))));
@@ -223,4 +227,5 @@ if (barradosQa.length) {
 if (plano.barrados.length) { console.log("\nBARRADOS pela trava de identidade (o nome da pasta não bate com o desenho):"); for (const b of plano.barrados) console.log(`  ${b.id} → ${b.pasta}`); }
 if (plano.semSistema.length) console.log(`\nsem sistema (não publica): ${plano.semSistema.map((s) => s.id).join(", ")}`);
 if (plano.semPasta.length) console.log(`\nsem pasta de projeto (ficam só no Sinapse): ${plano.semPasta.join(", ")}`);
+if (exceto.length) console.log(`\nfora desta rodada (--exceto): ${exceto.join(", ")}`);
 console.log(`\n${plano.destinos.size} pasta(s)${gravar ? "" : " · simulação; use --gravar ou --commit"}`);

@@ -34,7 +34,7 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   `PROJETOS_PATH` (pastas reais, só leitura do git) e `SINAPSE_ESTADO`; `e2e/global-setup.ts` guarda o
   `git status` do vault real e `e2e/global-teardown.ts` confere que não mudou e apaga a cópia. Se
   outra sessão mexer no vault real durante a suíte, o teardown acusa (falso alarme: rodar de novo).
-  Não há teste unitário nem CI.
+  Teste unitário só do plano de publicação: `node --test scripts/destinos-desenhos.test.mjs` (--exceto e trava de identidade). Não há CI.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.
@@ -104,7 +104,7 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   `"pastas"` da spec; não há `--forcar` para isso; (3) spec com `"sistema": false` não gera nem
   publica e o publicador tira o docs/arquitetura gerado dela. Também tira desenho de OUTRO projeto
   deixado por `pastas:` errado (só arquivos com nome de desenho gerado). Spec sem nota própria usa o
-  `"pastas"` dela; `"pastas": []` deixa o desenho só no Sinapse. `node scripts/destinos-desenhos.mjs`
+  `"pastas"` dela; `"pastas": []` deixa o desenho só no Sinapse. `--exceto=a,b` tira pastas da rodada (não grava nem limpa nelas). `node scripts/destinos-desenhos.mjs`
   mostra o plano sem gravar nada.
 - `qa-desenhos.mjs` mede também `longe` (rótulo a mais de 16 px visíveis da própria seta),
   `ambíguo`, `ponta×texto`, `aperta` e `morto` (área útil por vista: UML 0,60, BPMN 0,50, C4 0,50). Limiares calibrados em
