@@ -1,144 +1,91 @@
-# Sinapse — app
+# Sinapse App
 
-App web que **lê o vault markdown do Sinapse** (`../sinapse`), indexa em grafo e mostra:
+[Português](README.pt-BR.md)
 
-- 🕸️ **grafo interativo gamificado** — nós dimensionados por nº de conexões, cores por área, hover destaca vizinhos, clique abre a nota
-- 📄 leitura de notas com **wikilinks clicáveis** e **backlinks automáticos** (`[[x]]` dentro de código é exemplo, não vira link)
-- ✏️ **edição de notas** pelo app (salva direto no vault e reindexa) — precisa do `npm run dev`
-- 🔎 busca full-text nas notas
-- 🎮 painel de XP/estatísticas (notas, conexões, "sementes" a criar, progresso da regra dos 3 links)
-- 🌳 **Skill Tree** por domínio de competência (Produto, Negócio, Desenvolvimento, Dados, Segurança, Infra, Engenharia, Comunicação)
-- 🗺️ **Roadmap de estudo** (trilhas por `trilha`/`ordem`/`progresso`) e **Projetos** agrupados por `status`
-- 🎯 **Frentes** (`#/frentes`) — no máximo 3 frentes em andamento, o resto em estados que não ocupam vaga (abaixo)
-- 📅 **Agenda** (rotina, prazos e o diário em `01-DIARIO/`) e 💰 **Financeiro** (um arquivo por mês)
-- 🧭 canvas do roadmap de sistema (notas `tipo: roadmap`)
-- 🚀 **Página do projeto** com abas: Visão geral · História · Tarefas · Desenho (abaixo)
-- 🧭 **Panorama** (`#/panorama`) — quadro de todos os projetos por status e a linha do ano
+A local web app that reads the Sinapse vault (Pedro's second brain, a folder of Markdown notes) and shows a graph, notes with links and backlinks, Fronts, Agenda, Finance, Overview and a page for each project. It also generates and publishes the architecture diagrams (UML, BPMN and C4) of every project.
 
-O markdown continua sendo a fonte da verdade — este app é uma **lente** por cima. Quem escreve no
-vault é o Claude; o Pedro lê (pelo app, pelo Obsidian ou pelo VS Code).
+## Status
 
-## Vocabulário que o app entende
+In daily use, local (November 2026). There is no production deployment: it runs only on the dev server on Pedro's machine.
 
-O vault usa **status em dois eixos** (desde 14/10/2026), e a régua do vault
-(`../sinapse/scripts/saude-vault.py`, no pre-commit) trava qualquer valor fora disto:
+## The problem
 
-- `status` (ciclo de vida): `ideia` · `ativo` · `aguardando` · `pausado` · `em-producao` · `concluido` · `arquivado`
-- `progresso` (só estudo): `a-fazer` · `estudando` · `revisar` · `dominado`
-- diário: `tipo: diario` (o antigo `tipo: daily` continua aceito)
+The vault holds hundreds of notes, dozens of projects and deadlines spread across them. Markdown stays the source of truth; the app is a lens on top of it, to find, connect and decide without opening file after file. Claude writes to the vault; Pedro reads it through the app, Obsidian or VS Code.
 
-## Tela Frentes
+## What it does
 
-O gargalo é ter frente aberta demais. A tela mostra **no máximo 3 em andamento** (as vagas) e o
-resto em estados que não ocupam vaga — tudo lido do frontmatter das notas de projeto:
+- Graph of the notes (size by number of connections, color by area) and note reading with wikilinks and backlinks. `[[x]]` inside code is an example and does not become a link.
+- Search, a Skill Tree by domain, a study Roadmap and Projects by status.
+- Fronts (`#/frentes`): at most 3 fronts in progress; the rest sit in states that take no slot. Shows each front's last commit, its hours this week, and "what I promised", read from meeting minutes (read only).
+- Agenda (routine, deadlines and journal) and Finance (one file per month).
+- Project page with tabs Overview, History (commits of the project folders), Tasks (the `- [ ]` boxes of the note) and Diagram.
+- Overview (`#/panorama`): a board by status and the year line.
+- Diagrams: a JSON spec in the vault becomes three diagrams in standard notation, measured by a QA step before going to each project's repository.
 
-| estado | de onde vem |
-|---|---|
-| em andamento (máx. 3) | `vaga: true` |
-| esperando alguém | `status: aguardando` + opcionais `esperando: quem` e `cutucar: AAAA-MM-DD` |
-| sob demanda | `status: em-producao` |
-| na fila | `status: ativo` sem vaga |
-| parado (recolhido em "Mais") | `status: pausado` + `motivo:` |
+## Stack
 
-- A **Parresia** (tag `parresia` ou `cliente` com Parresia) é a faixa fixa do dia: não ocupa vaga e
-  aparece só numa linha no pé da tela.
-- **Último movimento** = último commit nas `pastas:` da nota (relativas a `~/Projetos`, ou
-  `PROJETOS_PATH`); sem pasta, o último commit da própria nota no vault. Vaga sem commit há 7 dias
-  ou mais vira "parada há N dias".
-- **Horas** dos últimos 7 dias pelo método de sessões: commits a até 120 min formam uma sessão,
-  que vale (último − primeiro) + 40 min. É piso: reunião e conversa não viram commit.
-- `proximo:` (opcional) aparece no cartão da vaga.
-- **Trocar** é um clique ("Pôr na vaga" / "Tirar da vaga" → `POST /api/vaga`, que só mexe na linha
-  `vaga:` do frontmatter e reindexa). Com as 3 ocupadas, a 4ª aparece em vermelho perguntando qual
-  sai — a única cor de alerta da tela. O servidor também recusa a 4ª sem dizer qual sai.
-- A régua do vault mede as vagas (alvo ≤ 3, aviso) em `99-MOCS/SAUDE.md`.
+Vite, React and TypeScript; d3-force (canvas graph); marked (Markdown); gray-matter (frontmatter); Excalidraw (Diagram tab); ELK (C4 layout); Playwright (tests and SVG export).
 
-### O que prometi
-
-Dentro de cada vaga e de cada linha aparece "Prometi: <ação> · até 15/10" — os compromissos
-que o Pedro fez em reunião, lidos do **Atas** (`../atas`, ou `ATAS_PATH`). No máximo 2 à vista
-por frente; o resto em "Mais N". Vencido vira "venceu há N dias" com o mesmo realce sem cor do
-"parada há N dias". O clique abre a **citação literal**, a reunião de origem (título, data,
-momento da fala) e "Abrir a ata" (o `ata.html` local, servido por `GET /api/ata/<id>`).
-
-- **O que entra** (`scripts/compromissos.mjs`): encaminhamentos do `ata.json` cujo dono é
-  "Você" ou o nome do rótulo "Você" — só com esse rótulo **confirmado** —, com a citação achada
-  (`verificado` ≠ false), prazo nos últimos 30 dias ou futuro (sem prazo: reunião dos últimos
-  30 dias). Só reunião de tipo `cliente` ou `carreira`.
-- **O que fica fora**: tipo `parresia` (a operação da Parresia não entra no Sinapse), `pessoal`,
-  `pendente` e qualquer tipo novo; reunião sem `ata.json` (as legadas); frente da Parresia.
-- **Reunião → frente**: o `projeto` do `sessao.json` (slug) contra, nesta ordem, `atas_projeto:`
-  da nota (opcional, string ou lista), o id da nota, o título, e o nome da última pasta de cada
-  `pastas:`. O primeiro que casar ganha. Sem `projeto`, ou sem casamento: vai para
-  "Mais · N promessas sem frente". Para casar, dê o projeto à reunião no Atas
-  (`atas.py tipo <id> <tipo> --projeto <slug>`) ou ponha `atas_projeto:` na nota da frente.
-- **Feito** (dentro do detalhe, com "Desfazer"): estado LOCAL do app, fora do vault e do git —
-  `~/.sinapse/compromissos-feitos.json` (ou `SINAPSE_ESTADO=<pasta>`). O Atas nunca é alterado.
-- **Onde o dado mora**: `src/data/compromissos.json` (gitignored) e o `/api/indice`. O app não
-  importa esse JSON no bundle: sem o dev server (build estático), o bloco não aparece. Nada de
-  reunião vai para o vault. Ata nova é lida sozinha (o servidor vigia os `ata.json`).
-
-## Página do projeto e Panorama
-
-Toda nota `tipo: projeto` (e qualquer nota com desenho) abre em abas. Tudo continua saindo da nota:
-
-| aba | de onde vem |
-|---|---|
-| Visão geral | o markdown da nota |
-| História | commits das `pastas:` agrupados por dia (assuntos de até 4) + notas com data no nome que citam o projeto + `criado:` |
-| Tarefas | linhas `- [ ]` (a fazer), `- [/]` (fazendo), `- [x]` (feito) do corpo. Mover (arrastar ou clicar) chama `POST /api/tarefa`, que troca só o marcador daquela linha; "Adicionar" acrescenta `- [ ] texto` na seção `## Tarefas` (criada antes de `## Conexões` se faltar). Linha que mudou no disco desde o índice → 409 |
-| Desenho | `09-DESENHOS/<id>.excalidraw` no vault, editável no Excalidraw (`GET/POST /api/desenho?nota=<id>`) |
-
-**Desenhos.** Cada projeto tem três diagramas, cada um numa notação padrão de mercado:
-**UML de casos de uso** (quem usa e para quê), **BPMN 2.0** (o processo principal, com raias) e
-**C4 nível 2** (containers, tecnologia e sistemas externos). Visual de diagrama técnico: traço
-reto, fonte sem serifa, fundo branco, cores da convenção de cada notação. Tudo nasce de uma
-especificação em `09-DESENHOS/specs/<id>.json` (formato em [`docs/desenhos-formato.md`](docs/desenhos-formato.md),
-exemplo em [`docs/desenhos-exemplo-hermes.json`](docs/desenhos-exemplo-hermes.json)):
-
-```bash
-node scripts/validar-specs.mjs [id ...]          # confere as especificações (regras de cada notação)
-node scripts/gerar-desenhos.mjs [id ...]         # gera; pula os editados à mão e os inválidos
-node scripts/gerar-desenhos.mjs --forcar         # regera até os editados (perde a edição)
-node scripts/publicar-desenhos.mjs [id ...]      # simula a cópia para o repo de cada projeto
-node scripts/publicar-desenhos.mjs --commit      # grava docs/arquitetura/ (.excalidraw + .svg + README) em cada
-                                                 # pasta de `pastas:`, commita só esse caminho e dá push
-```
-
-O layout é automático: colunas do BPMN pelo caminho mais longo (laços detectados), cada seta escolhe
-o primeiro caminho em ângulo reto que não atravessa forma nenhuma; o UML arruma os casos por busca
-local (menos linhas cortando elipses e menos cruzamentos); o C4 ordena fileiras por baricentro e
-põe os externos ao lado quando nada fica no caminho. Em 29/10/2026: 56 desenhos, 1.702 setas,
-nenhuma atravessando forma e nenhum texto sobreposto.
-
-O gerador grava uma assinatura (`gerado`) no arquivo. Salvar pelo app tira essa assinatura: daí
-em diante o desenho é do Pedro e o gerador o mantém. O pacote do Excalidraw (~2 MB) só carrega
-quando a aba abre; as fontes vêm do `node_modules` (funciona offline). `exportar.html` (só no dev
-server) exporta o SVG com o próprio Excalidraw, para o `publicar-desenhos.mjs`.
-
-**Panorama.** *Quadro*: uma coluna por status, cartões pelo movimento mais recente (concluídos e
-arquivados recolhidos). *Linha do ano*: uma linha por projeto com ponto por dia de commit (maior =
-mais commits), losango para nota datada ou criação, e a marca de hoje.
-
-## Rodar
+## Run locally
 
 ```bash
 npm install
-npm run dev
+npm run dev          # indexes the vault and starts Vite at http://localhost:5173
+npm run reindex      # rebuilds the index when a note changed outside the app
+VAULT_PATH=/path/to/vault npm run dev   # vault somewhere else (default: ../sinapse)
 ```
 
-Abre em http://localhost:5173
+The index goes to `src/data/*.json` (not in git). Writes to the vault (note, task, slot, journal, finance, diagram) exist only while the dev server is running.
 
-## Como funciona
-- `npm run dev` roda `scripts/index-vault.mjs` (gera `src/data/*.json` a partir do vault) e sobe o Vite.
-- Mudou as notas? `npm run reindex` (ou é só reiniciar o dev).
-- Vault em outro lugar? `VAULT_PATH=/caminho/do/vault npm run dev`.
+## Tests
 
-## Stack
-Vite + React + TypeScript · d3-force (grafo em canvas) · marked (markdown) · gray-matter (frontmatter).
+End to end tests with Playwright, in a separate package under `e2e/`:
 
-## Próximas fases
-- Mostrar o diário e a saúde do vault (`99-MOCS/SAUDE.md`) numa aba própria — hoje abrem como nota
-- Busca semântica + "pergunte ao Sinapse" — embeddings locais (Ollama) em estudo
-- Revisão espaçada (FSRS, `ts-fsrs`) — adiada
-- Deploy em Cloudflare Pages
+```bash
+cd e2e
+npm install
+npm test
+```
+
+The whole suite runs against a copy of the vault in a temporary folder, with its own Vite on port 5175. At the end it checks that `git status` of the real vault did not change, and deletes the copy. The Fronts test starts another Vite (port 5174) with a fake minutes folder.
+
+## Diagrams (UML, BPMN and C4)
+
+Each project has a spec at `09-DESENHOS/specs/<id>.json` in the vault (format in [docs/desenhos-formato.md](docs/desenhos-formato.md), in Portuguese).
+
+```bash
+node scripts/validar-specs.mjs [id ...]        # checks the rules of each notation
+node scripts/gerar-desenhos.mjs [id ...]       # generates 09-DESENHOS/<id>.excalidraw; skips hand-edited ones
+node scripts/qa-desenhos.mjs [id ...]          # measures: arrow crossing a shape, overlapping text,
+                                               # label far from its arrow, dead area and more
+node scripts/destinos-desenhos.mjs             # read only: where each diagram would go and what would be refused
+node scripts/publicar-desenhos.mjs [id ...]    # simulates publishing
+node scripts/publicar-desenhos.mjs --commit    # writes docs/arquitetura/ in each repository and pushes
+```
+
+The publisher has three gates: a diagram with any QA finding is not published (`--forcar` only when Pedro asks); a folder whose name does not match the diagram is refused (identity lock); a spec with `"sistema": false` is not published and the diagram generated before is removed from the repository. A change to the generator only counts after QA on every diagram and an image review by two independent reviewers.
+
+## Folders
+
+| Folder | What |
+|---|---|
+| `src/` | the app (screens in `components/`, logic in `lib/`, index format in `types.ts`) |
+| `scripts/` | indexer, local API of the dev server, promises, NotebookLM importer and the diagram scripts |
+| `e2e/` | Playwright tests (own package) |
+| `docs/` | diagram spec format and this app's architecture (`docs/arquitetura/`) |
+| `public/` | the subset fonts of the diagrams |
+
+## Architecture
+
+See [docs/arquitetura/](docs/arquitetura/).
+
+## Decisions and known limits
+
+- Markdown is the source of truth. The app never rewrites the whole frontmatter: each endpoint changes only the line it needs (slot, task).
+- Meeting data (the promises) does not go into the vault or the bundle: it comes only from the local server, and "done" is stored in `~/.sinapse/`.
+- No production and no login: the app assumes the owner's machine. Publishing it anywhere would need authentication first.
+- The `status` and `progresso` vocabulary comes from the vault's rules (`../sinapse/scripts/saude-vault.py`); a new value changes on both sides.
+
+## License
+
+All rights reserved.

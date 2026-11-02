@@ -28,8 +28,13 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
 ```
 
 - Testes: só e2e com Playwright, em `e2e/` (pacote próprio). Em `e2e/`: `npm test`
-  (e2e/package.json:6 → `playwright test`). O config sobe `npm run dev` na raiz e **reusa** um
-  servidor já aberto em :5173 (e2e/playwright.config.ts:30-35). Não há teste unitário nem CI.
+  (e2e/package.json:6 → `playwright test`). Desde 01/11/2026 a suíte inteira roda numa **cópia
+  temporária do vault**: o `e2e/playwright.config.ts` copia o vault para `SINAPSE_E2E_TMP`, sobe um
+  Vite próprio na porta **5175** (não reusa o :5173 do dia a dia) com `VAULT_PATH`, `INDEX_OUT`,
+  `PROJETOS_PATH` (pastas reais, só leitura do git) e `SINAPSE_ESTADO`; `e2e/global-setup.ts` guarda o
+  `git status` do vault real e `e2e/global-teardown.ts` confere que não mudou e apaga a cópia. Se
+  outra sessão mexer no vault real durante a suíte, o teardown acusa (falso alarme: rodar de novo).
+  Não há teste unitário nem CI.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.
@@ -37,8 +42,8 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   falso** (5 reuniões, uma `parresia` e uma `pessoal` que não podem aparecer) e passa
   `ATAS_PATH` + `SINAPSE_ESTADO` para a pasta temporária: nunca ler o `atas-salvas` real em
   teste. Screenshots do "o que prometi" em `e2e/shots/16…18-promessa*.png`.
-- `e2e/tests/indice-vivo.spec.ts` grava e apaga `00-INBOX/_teste-e2e-evento.md` **no vault real**
-  (linhas 9-10 e 22): rodar com o vault limpo e conferir `git status` do vault depois.
+- `e2e/tests/indice-vivo.spec.ts` e `financeiro.spec.ts` escrevem só na cópia (`SINAPSE_E2E_VAULT`).
+  Data em teste é relativa a hoje: data fixa no passado quebrou o financeiro quando o calendário andou.
 - Importar NotebookLM para o INBOX do vault:
   `node scripts/importar-notebooklm.mjs <pasta> [--dry] [--vault CAMINHO]`
   (scripts/importar-notebooklm.mjs:3). Usar `--dry` primeiro. Extrator local em `scripts/nlm/`
@@ -49,9 +54,12 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
 
 ## Onde está a arquitetura
 
-Não há `docs/`. Referências: `README.md` (funções, vocabulário, como funciona, próximas fases),
-cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/importar-notebooklm.mjs`,
-`src/types.ts` (formato do índice), `src/lib/skills.ts` (taxonomia da Skill Tree).
+- `docs/arquitetura/` (desde 29/10/2026): os três diagramas deste app (UML, BPMN, C4), gerados pelo
+  próprio gerador a partir de `../sinapse/09-DESENHOS/specs/sinapse-app.json`. Não editar à mão.
+- `docs/desenhos-formato.md`: formato das specs de desenho; `docs/desenhos-exemplo-hermes.json`.
+- `README.md` (inglês) e `README.pt-BR.md`: funções, como rodar, testes, decisões.
+- Cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/importar-notebooklm.mjs`,
+  `src/types.ts` (formato do índice), `src/lib/skills.ts` (taxonomia da Skill Tree).
 
 ## Convenções e armadilhas
 
@@ -87,16 +95,27 @@ cabeçalhos de `scripts/vault-api.mjs`, `scripts/build-index.mjs` e `scripts/imp
   FontFace). Fonte nova = medir a largura média no texto das specs e acertar `LARG` no gerador.
 - A aba Desenho abre no modo ver (os SVGs que vão para o GitHub); `#/note/<id>?aba=desenho` abre
   direto nela. O Pedro quer ver no Sinapse ANTES de publicar nos repos.
-- `publicar-desenhos.mjs` nomeia os arquivos pelo título do diagrama (`nomeDe`, com exceções em
-  `NOMES`), renomeia os do nome antigo e nunca apaga.
+- `publicar-desenhos.mjs` nomeia os arquivos pelo título do diagrama (`nomeDe` em
+  `destinos-desenhos.mjs`, com exceções em `NOMES`) e renomeia os do nome antigo. Portões (01/11):
+  (1) QA zerado ou não publica (`--forcar` só a pedido do Pedro); (2) trava de identidade
+  (`destinos-desenhos.mjs`): a pasta precisa conter o nome do desenho, o id da spec ou estar no
+  `"pastas"` da spec; não há `--forcar` para isso; (3) spec com `"sistema": false` não gera nem
+  publica e o publicador tira o docs/arquitetura gerado dela. Também tira desenho de OUTRO projeto
+  deixado por `pastas:` errado (só arquivos com nome de desenho gerado). Spec sem nota própria usa o
+  `"pastas"` dela. `node scripts/destinos-desenhos.mjs` mostra o plano sem gravar nada.
+- `qa-desenhos.mjs` mede também `longe` (rótulo a mais de 16 px visíveis da própria seta),
+  `ambíguo` e `morto` (área útil por vista: UML 0,60, BPMN 0,50, C4 0,50). Limiares calibrados em
+  01/11/2026 (números no topo do script); `--medidas` imprime os números por desenho.
+- C4 deitado (ELK `RIGHT`, pessoas/sistema/externos em partições, portas a 34 px e caixa que cresce
+  para caber as setas). `DIRECAO_C4=DOWN` volta ao em pé, só para comparar.
+- Spec com `"vistas": ["c4"]` desenha só parte das três; os cabeçalhos ficam 1..n e o SVG sai com o
+  nome da vista (`-3-arquitetura.svg`).
 - Excalidraw 0.17 precisa de `process.env.IS_PREACT` definido (`vite.config.ts`) e de
   `window.EXCALIDRAW_ASSET_PATH` apontando para o `node_modules` (`DesenhoView.tsx`).
 - "Invalid hook call" / `reading 'useState'` em toda tela = duas cópias do React por cache de
   dependências inconsistente. Conserto: parar o dev server e subir com `npx vite --force`.
 - O índice guarda o `git log` de cada pasta em `~/.sinapse/cache-git.json`, válido enquanto o
   HEAD não muda (lido direto do `.git`). Apagar o arquivo só deixa o primeiro índice lento.
-- e2e: `financeiro.spec.ts` também escreve no vault real (lança em `04-NEGOCIO/financeiro/`) e,
-  se falhar no meio, deixa o lançamento "TESTE e2e": conferir `git status` do vault depois.
 - `/api/tarefa` acha a tarefa pela **linha exata**: se a nota mudou desde o índice, devolve 409
   em vez de editar a linha errada.
 - Importador do NotebookLM escreve só em `00-INBOX/notebooklm/` + 1 MOC por notebook; nada cai

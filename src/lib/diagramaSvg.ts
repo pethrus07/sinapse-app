@@ -73,16 +73,22 @@ export async function svgInteiro(cena: { elements: readonly any[]; files?: any }
 
 // Um SVG por diagrama (UML, BPMN, C4), cortado no conteúdo: separa os elementos pela altura dos
 // cabeçalhos "1 · ", "2 · ", "3 · ". A parte 1 começa no próprio cabeçalho: título e resumo do
-// projeto ficam de fora (o cabeçalho de cada parte já leva o nome). Desenho sem os três cabeçalhos
-// (editado à mão) devolve lista vazia.
+// projeto ficam de fora (o cabeçalho de cada parte já leva o nome). Desenho com só algumas vistas
+// (spec com "vistas", 01/11/2026) tem os cabeçalhos 1..n; sem cabeçalho nenhum (editado à mão)
+// devolve lista vazia.
 export async function partesSvg(cena: { elements: readonly any[]; files?: any }) {
   const els = cena.elements.filter((e) => !e.isDeleted);
-  const topos = [1, 2, 3].map((n) => els.find((e) => e.type === 'text' && e.text.startsWith(`${n} · `))?.y as number | undefined);
-  if (topos.some((y) => y == null)) return [];
+  const topos: number[] = [];
+  for (let n = 1; n <= 3; n++) {
+    const y = els.find((e) => e.type === 'text' && e.text.startsWith(`${n} · `))?.y as number | undefined;
+    if (y == null) break;
+    topos.push(y);
+  }
+  if (!topos.length) return [];
   const partes: string[] = [];
-  for (let i = 0; i < 3; i++) {
-    const y0 = topos[i]! - 10,
-      y1 = i < 2 ? topos[i + 1]! - 10 : Infinity;
+  for (let i = 0; i < topos.length; i++) {
+    const y0 = topos[i] - 10,
+      y1 = i < topos.length - 1 ? topos[i + 1] - 10 : Infinity;
     const parte = els.filter((e) => e.y >= y0 && e.y < y1);
     // texto preso numa forma acompanha a forma
     const ids = new Set(parte.map((e) => e.id));
