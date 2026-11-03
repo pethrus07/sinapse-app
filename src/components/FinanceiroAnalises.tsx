@@ -11,7 +11,7 @@ import {
   A_CLASSIFICAR, GRUPOS, lancamentosDaCategoria,
   type ClienteResumo, type GastosPorCategoria, type Patrimonio, type RecorrenteMes, type RendaRecorrente,
 } from '../lib/financeiroAnalise';
-import { Cartao, colunaPath, COR, curto, Dica, EixoY, Legenda, LEVE, M, num, SLOTS, useDica, useLargura } from './FinanceiroGraficos';
+import { Cartao, colunaPath, COR, curto, Dica, EixoY, Legenda, LEVE, fracoCss, M, num, SLOTS, useDica, useLargura } from './FinanceiroGraficos';
 
 const br = (d: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '');
 const diaMes = (d: string) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '');
@@ -91,7 +91,7 @@ export function GastosCategoria({ g, ls }: { g: GastosPorCategoria; ls: Lancamen
                     </span>
                     <span className="mt-cat-trilho" aria-hidden>
                       <span className="mt-cat-barra" style={{ width: `${(l.atualRecorrente / max) * 100}%` }} />
-                      {pontual > 0 && <span className="mt-cat-barra pontual" style={{ width: `${(pontual / max) * 100}%` }} />}
+                      {pontual > 0 && <span className="mt-cat-barra pontual" style={{ width: `${(pontual / max) * 100}%`, ...fracoCss(COR.sai) }} />}
                       {l.media !== null && l.media > 0 && <span className="mt-cat-media" style={{ left: `${(l.media / max) * 100}%` }} />}
                     </span>
                   </button>
@@ -301,7 +301,7 @@ export function Clientes({ c, hojeMes }: { c: ClienteResumo[]; hojeMes: string }
               <span className="fg-barra-val"><b>{brl(x.recebido)}</b> <span className="muted">{x.falta > 0 ? `+ ${brl(x.falta)} ${x.semFim ? 'lançados · sem fim' : `até ${curto(x.fim || hojeMes)}`}` : 'nada aberto'} · </span><span className={x.vencido > 0 ? 'mt-vencido' : 'muted'}>{estado}</span></span>
               <span className="fg-barra-trilho mt-duplo">
                 <span className="fg-barra" style={{ width: `${(x.recebido / max) * 100}%`, background: COR.entra }} />
-                {x.falta > 0 && <span className="fg-barra" style={{ width: `${(x.falta / max) * 100}%`, background: COR.entra, opacity: LEVE }} />}
+                {x.falta > 0 && <span className="fg-barra" style={{ width: `${(x.falta / max) * 100}%`, ...fracoCss(COR.entra) }} />}
               </span>
             </li>
           );

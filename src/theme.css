@@ -852,7 +852,7 @@ button.fr-nome:hover { color: var(--accent); }
 .mt-cat-barra { display: block; height: 10px; background: var(--s2); min-width: 0; }
 .mt-cat-barra:first-child { border-radius: 0; }
 .mt-cat-barra:last-of-type { border-radius: 0 4px 4px 0; }
-.mt-cat-barra.pontual { opacity: 0.38; }
+.mt-cat-barra.pontual { /* fundo e contorno vêm de fracoCss (FinanceiroGraficos.tsx) */ }
 .mt-cat-media { position: absolute; top: -3px; width: 2px; height: 16px; background: var(--ink); border-radius: 1px; transform: translateX(-1px); }
 .mt-desvio { font-size: 12px; color: var(--soft); }
 .mt-desvio.acima { color: var(--fg-vencido); }

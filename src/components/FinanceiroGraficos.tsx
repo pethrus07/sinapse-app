@@ -45,7 +45,7 @@ export function Dica({ d, largura }: { d: Dica | null; largura: number }) {
       <div className="fg-dica-tit">{d.titulo}</div>
       {d.linhas.map((l, i) => (
         <div key={i} className="fg-dica-lin">
-          {l.cor && <span className="fg-chave-lin" style={{ background: l.cor, opacity: l.leve ? 0.45 : 1 }} />}
+          {l.cor && <span className="fg-chave-lin" style={l.leve ? fracoCss(l.cor) : { background: l.cor }} />}
           <b>{l.valor}</b>
           <span>{l.rotulo}</span>
         </div>
@@ -98,7 +98,7 @@ export function Legenda({ itens }: { itens: { cor: string; rotulo: string; leve?
           {i.linha ? (
             <svg width="18" height="8" aria-hidden><line x1="1" x2="17" y1="4" y2="4" stroke={i.cor} strokeWidth="2" strokeDasharray={i.tracejada ? '4 3' : undefined} strokeLinecap="round" /></svg>
           ) : (
-            <span className="fg-sw" style={{ background: i.cor, opacity: i.leve ?? 1 }} />
+            <span className="fg-sw" style={i.leve !== undefined && i.leve < 1 ? fracoCss(i.cor, i.leve) : { background: i.cor }} />
           )}
           {i.rotulo}
         </span>
@@ -128,6 +128,15 @@ export function Cartao({ titulo, leitura, children, mais, className = '', id }: 
 export const COR = { entra: 'var(--s1)', sai: 'var(--s2)', guarda: 'var(--s3)' } as const;
 export const SLOTS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
 export const LEVE = 0.38; // previsto / extrapolado: o mesmo tom, mais claro
+/**
+ * Marca fraca (previsto, pontual, o que falta): o preenchimento claro sozinho fica a ~1,7:1 do
+ * fundo e some (WCAG 1.4.11 pede 3:1 para o que se precisa ver). O contorno de 1,5 px no tom cheio
+ * dá a borda a ≥3:1 e o miolo claro segue dizendo "fraco".
+ */
+export const fracoSvg = (cor: string, k: number = LEVE) => ({ fill: cor, fillOpacity: k, stroke: cor, strokeWidth: 1.5 });
+export const fracoCss = (cor: string, k: number = LEVE): React.CSSProperties => ({
+  background: `color-mix(in srgb, ${cor} ${Math.round(k * 100)}%, transparent)`, boxShadow: `inset 0 0 0 1.5px ${cor}`,
+});
 
 /* ---------------------------------------------------------------- 1 · fluxo do mês */
 
@@ -166,7 +175,7 @@ function FluxoGrafico({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: stri
                       <rect x={bx - 1} y={M.top} width={bw + 2} height={H - M.top - M.bottom} fill="transparent" />
                       {/* previsto em cima do realizado; o vão de 2 px é a cor do fundo */}
                       <path d={r > 0 ? colunaPath(bx, yR, bw, y(0) - yR, p > 0 ? 0 : 4) : ''} fill={COR[t]} />
-                      <path d={p > 0 ? colunaPath(bx, yT, bw, Math.max(0, yR - yT - (r > 0 ? gap : 0))) : ''} fill={COR[t]} opacity={LEVE} />
+                      <path d={p > 0 ? colunaPath(bx, yT, bw, Math.max(0, yR - yT - (r > 0 ? gap : 0))) : ''} {...fracoSvg(COR[t])} />
                     </g>
                   );
                 })}
@@ -275,7 +284,7 @@ export function Receita({ r, hojeMes }: { r: ReturnType<typeof receitaPorCliente
                     acum += v;
                     const topo = k === visiveis.length - 1;
                     const h = Math.max(0, y0 - y1 - (k > 0 ? gap : 0));
-                    return <path key={s.cliente} d={topo ? colunaPath(bx, y1, bw, h) : `M${bx},${y1}h${bw}v${h}h${-bw}Z`} fill={SLOTS[s.slot]} opacity={i === nDepois ? 0.55 : 1} />;
+                    return <path key={s.cliente} d={topo ? colunaPath(bx, y1, bw, h) : `M${bx},${y1}h${bw}v${h}h${-bw}Z`} {...(i === nDepois ? fracoSvg(SLOTS[s.slot], 0.55) : { fill: SLOTS[s.slot] })} />;
                   })}
                   {(i === iHoje || i === nDepois) && (
                     <text className="fg-rot" x={bx + bw / 2} y={y(r.totais[i]) - 6} textAnchor="middle">{num(r.totais[i])}</text>
@@ -443,7 +452,7 @@ export function Cartao5({ c }: { c: ReturnType<typeof cartaoFuturo> }) {
                 <g key={m.mes} className="fg-hit" tabIndex={0} aria-label={`${curto(m.mes)}: ${brl(m.valor)}, ${m.confianca}`}
                   onPointerMove={(e) => mostrar(e, null, info)} onFocus={(e) => mostrar(null, e.currentTarget, info)} onBlur={esconder}>
                   <rect x={x(m.mes)} y={M.top} width={x.bandwidth()} height={H - M.top - M.bottom} fill="transparent" />
-                  <path d={colunaPath(bx, y(m.valor), bw, y(0) - y(m.valor))} fill={COR.sai} opacity={TOM[m.confianca]} />
+                  <path d={colunaPath(bx, y(m.valor), bw, y(0) - y(m.valor))} {...(m.confianca === 'medido' ? { fill: COR.sai } : fracoSvg(COR.sai, TOM[m.confianca]))} />
                   {(i === 0 || i === c.length - 1) && <text className="fg-rot" x={bx + bw / 2} y={y(m.valor) - 6} textAnchor="middle">{num(m.valor)}</text>}
                   <text className="fg-xtick" x={(x(m.mes) || 0) + x.bandwidth() / 2} y={H - 8} textAnchor="middle">{tick(m.mes, i)}</text>
                 </g>

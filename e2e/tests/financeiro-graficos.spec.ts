@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` // dia local, como o app
 
 // Métis (o módulo financeiro): Visão e Pronoia sobre o razão FALSO que o playwright.config grava
 // na cópia do vault (e2e/fixtures/financeiro-falso.ts). Nada aqui lê ou grava o vault real.
@@ -47,7 +48,7 @@ test('Visão: avisos, fluxo, gastos, recorrente, patrimônio, clientes e vencido
   await expect(page.locator('[data-aviso="conexao-renovar"]')).toContainText('vence em')
   await expect(page.locator('[data-aviso="a-classificar"]')).toContainText('1 lançamento')
 
-  // gastos: mercado fugiu da média (400 → 700); a TV é pontual e fica fraca na barra
+  // gastos: mercado fugiu da média (400 → 700); a compra grande é pontual e fica fraca na barra
   const gastos = page.locator('[data-grafico="gastos"]')
   await expect(gastos.locator('.fg-leitura')).toContainText('Mercado')
   const mercado = gastos.locator('.mt-cats li', { hasText: 'Mercado' })
@@ -59,7 +60,7 @@ test('Visão: avisos, fluxo, gastos, recorrente, patrimônio, clientes e vencido
   await mercado.locator('.mt-cat').click()
   await expect(mercado.locator('.mt-cat-itens')).toHaveCount(0)
 
-  // recorrente: a TV (pontual) fica fora do gasto recorrente
+  // recorrente: a compra grande (pontual) fica fora do gasto recorrente
   const rec = page.locator('[data-grafico="recorrente"]')
   await expect(rec.locator('.fg-numeros')).toContainText('R$ 1.500,00')
   await expect(rec.locator('.fg-leitura')).toContainText('se sustenta até')
@@ -116,7 +117,8 @@ test('Pronoia: renda futura, reserva projetada, cartão parcelado e a projeção
   const cartao = page.locator('[data-grafico="cartao"]')
   await expect(cartao.locator('.fg-legenda')).toContainText('medido')
   await expect(cartao.locator('.fg-legenda')).toContainText('extrapolado')
-  const opac = await cartao.locator('svg path').evaluateAll((ps) => [...new Set(ps.map((p) => p.getAttribute('opacity')))])
+  // medido = cheio; extrapolado/estimado = miolo claro com contorno (fill-opacity diferente)
+  const opac = await cartao.locator('svg path').evaluateAll((ps) => [...new Set(ps.map((p) => p.getAttribute('fill-opacity')))])
   expect(opac.length).toBeGreaterThan(1)
   await expect(page.locator('[data-grafico="reserva"] .fg-leitura')).toContainText('saldo de partida não está no razão')
   await expect(page.getByRole('heading', { name: /Projeção mês a mês/ })).toBeVisible()
@@ -161,9 +163,10 @@ test('Patrimônio: posições do banco e à mão, reserva líquida × piso e a e
   await page.goto('/#/financeiro')
   await expect(page.locator('[data-grafico="patrimonio"] .fg-leitura')).toContainText('Nenhuma posição')
 
-  const hoje = new Date().toISOString().slice(0, 10)
-  const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-  const anteontem = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)
+  const d = new Date()
+  const hoje = ymdLocal(d)
+  const ontem = ymdLocal(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1))
+  const anteontem = ymdLocal(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 2))
   const mes = hoje.slice(0, 7)
   const lanc = {
     lancamentos: [
