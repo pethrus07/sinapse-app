@@ -290,10 +290,11 @@ export interface Investimentos {
 
 /** Posições de investimento (`tipo: "investimento"`). Formato em docs/financeiro-formato.md. */
 export function investimentos(ls: Lancamento[]): Investimentos {
+  // aplicação do banco se identifica pelo fitid (sem o mês): duas caixinhas com o mesmo nome não se fundem
   const pos: Posicao[] = ls
     .filter((l) => l.tipo === 'investimento')
     .map((l) => ({
-      chave: `${l.instituicao || ''}·${l.descricao}`,
+      chave: l.origem && l.fitid ? l.fitid.replace(/-\d{4}-\d{2}$/, '') : `${l.instituicao || ''}·${l.descricao}`,
       instituicao: l.instituicao || '',
       descricao: l.descricao,
       liquidez: l.liquidez || '',
@@ -305,7 +306,10 @@ export function investimentos(ls: Lancamento[]): Investimentos {
     .sort((a, b) => a.data.localeCompare(b.data));
   const ultima = new Map<string, Posicao>();
   for (const p of pos) ultima.set(p.chave, p);
-  const atuais = [...ultima.values()];
+  // do banco, só vale o que veio na sincronização mais recente (resgatada some do banco)
+  const doBanco = new Set(ls.filter((l) => l.tipo === 'investimento' && l.origem && l.fitid).map((l) => l.fitid!.replace(/-\d{4}-\d{2}$/, '')));
+  const ultimaSync = pos.filter((p) => doBanco.has(p.chave)).map((p) => p.data).sort().pop() || '';
+  const atuais = [...ultima.values()].filter((p) => !doBanco.has(p.chave) || p.data === ultimaSync);
   const total = atuais.reduce((s, p) => s + p.valor, 0);
   const diaria = atuais.filter((p) => p.liquidez === 'diaria').reduce((s, p) => s + p.valor, 0);
 

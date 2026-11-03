@@ -192,3 +192,10 @@ test('avisosConexao: 30 dias antes, vencida e erro', () => {
   assert.deepEqual(avisosConexao([c('2030-02-28T00:00:00Z')], '2030-03-01').map((a) => a.motivo), ['vencida']);
   assert.deepEqual(avisosConexao([c('', { status: 'LOGIN_ERROR', erro: 'USER_AUTHORIZATION_EXPIRED' })], '2030-03-01').map((a) => a.motivo), ['erro']);
 });
+
+test('investimentos: duas aplicações do banco com o mesmo nome não se fundem; resgatada some', () => {
+  const p = (fitid: string, data: string, valor: number) => L({ tipo: 'investimento', status: 'posicao', descricao: 'CDB Banco', instituicao: 'Banco', liquidez: 'diaria', data, valor, origem: 'pluggy', fitid });
+  const inv = investimentos([p('a-2030-04', '2030-04-30', 50), p('a-2030-05', '2030-05-03', 100), p('b-2030-05', '2030-05-03', 200), p('c-2030-04', '2030-04-30', 999)]);
+  assert.equal(inv.atuais.length, 2);
+  assert.equal(inv.total, 300);
+});

@@ -225,6 +225,13 @@ export interface Lancamento {
   /** Compra no cartao: o dinheiro sai quando a FATURA e paga, entao fica fora do fluxo e das somas. */
   viaCartao?: boolean;
   fatura?: string;         // AAAA-MM da fatura em que a compra cai
+  /** Gasto que nao se repete (emprestimo, compra grande): fica fora do "gasto recorrente". */
+  pontual?: boolean;
+  /** Investimento: CDB, FII, Acao, cripto... (o grupo do patrimonio sai daqui). */
+  classe?: string;
+  /** Previsto pago em varios Pix: os fitids de todos; e o valor combinado quando o real foi outro. */
+  fitids?: string[];
+  valorPrevisto?: number;
   mes: string;             // preenchido pelo indexador
   rel: string;
 }
@@ -235,6 +242,10 @@ export interface Financeiro {
   /** Conexoes do Open Finance (estado.json do sincronizador, fora do git). Sem ids. */
   conexoes?: Conexao[];
   ultimaSync?: string;
+  /** Ultima rodada da sincronizacao que deu erro (mensagem saneada, sem dado do banco). */
+  ultimaFalha?: { em: string; mensagem: string } | null;
+  /** Retratos do patrimonio, um por dia de sincronizacao (04-NEGOCIO/financeiro/patrimonio.md). */
+  retratos?: { data: string; total: number; diaria: number; porGrupo: Record<string, number> }[];
 }
 
 export interface Conexao {

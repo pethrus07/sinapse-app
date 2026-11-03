@@ -32,7 +32,7 @@ export const estaAberto = (l: Lancamento) =>
 const vazio: Financeiro = { lancamentos: [], meses: [] };
 export function normalizarFin(f?: Partial<Financeiro> | null): Financeiro {
   if (!f) return vazio;
-  return { lancamentos: f.lancamentos ?? [], meses: f.meses ?? [], conexoes: f.conexoes ?? [], ultimaSync: f.ultimaSync ?? '' };
+  return { lancamentos: f.lancamentos ?? [], meses: f.meses ?? [], conexoes: f.conexoes ?? [], ultimaSync: f.ultimaSync ?? '', ultimaFalha: f.ultimaFalha ?? null, retratos: f.retratos ?? [] };
 }
 
 export interface Resumo {
