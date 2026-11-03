@@ -40,7 +40,7 @@ export function validar(spec) {
   const u = spec.casosDeUso || {};
   curto(u.sistema, 40, 'casosDeUso.sistema');
   faixa(u.atores, 1, 6, 'casosDeUso.atores');
-  faixa(u.casos, 3, 10, 'casosDeUso.casos');
+  faixa(u.casos, 3, 12, 'casosDeUso.casos');
   const atores = new Set((u.atores || []).map((a) => a.id));
   const casos = new Set((u.casos || []).map((c) => c.id));
   for (const a of u.atores || []) { curto(a.nome, 40, `ator ${a.id}`); if (!TIPO_ATOR.has(a.tipo)) e.push(`ator ${a.id}: tipo "${a.tipo}"`); }
