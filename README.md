@@ -1,6 +1,6 @@
 # Sinapse App
 
-[Português](README.pt-BR.md)
+English · [Português](README.pt-BR.md)
 
 A local web app that reads the Sinapse vault (Pedro's second brain, a folder of Markdown notes) and shows a graph, notes with links and backlinks, Fronts, Agenda, Métis (finance), Overview and a page for each project. It also generates and publishes the architecture diagrams (UML, BPMN and C4) of every project.
 
@@ -22,6 +22,22 @@ The vault holds hundreds of notes, dozens of projects and deadlines spread acros
 - Project page with tabs Overview, History (commits of the project folders), Tasks (the `- [ ]` boxes of the note) and Diagram.
 - Overview (`#/panorama`): a board by status and the year line.
 - Diagrams: a JSON spec in the vault becomes three diagrams in standard notation, measured by a QA step before going to each project's repository.
+
+## Diagrams (UML, BPMN and C4)
+
+Each project has a spec at `09-DESENHOS/specs/<id>.json` in the vault (format in [docs/desenhos-formato.md](docs/desenhos-formato.md), in Portuguese).
+
+```bash
+node scripts/validar-specs.mjs [id ...]        # checks the rules of each notation
+node scripts/gerar-desenhos.mjs [id ...]       # generates 09-DESENHOS/<id>.excalidraw; skips hand-edited ones
+node scripts/qa-desenhos.mjs [id ...]          # measures: arrow crossing a shape, overlapping text,
+                                               # label far from its arrow, dead area and more
+node scripts/destinos-desenhos.mjs             # read only: where each diagram would go and what would be refused
+node scripts/publicar-desenhos.mjs [id ...]    # simulates publishing
+node scripts/publicar-desenhos.mjs --commit    # writes docs/arquitetura/ in each repository and pushes
+```
+
+The publisher has three gates: a diagram with any QA finding is not published (`--forcar` only when Pedro asks); a folder whose name does not match the diagram is refused (identity lock); a spec with `"sistema": false` is not published and the diagram generated before is removed from the repository. A change to the generator only counts after QA on every diagram and an image review by two independent reviewers.
 
 ## Stack
 
@@ -49,22 +65,6 @@ npm test
 ```
 
 The whole suite runs against a copy of the vault in a temporary folder, with its own Vite on port 5175. At the end it checks that `git status` of the real vault did not change, and deletes the copy. The Fronts test starts another Vite (port 5174) with a fake minutes folder.
-
-## Diagrams (UML, BPMN and C4)
-
-Each project has a spec at `09-DESENHOS/specs/<id>.json` in the vault (format in [docs/desenhos-formato.md](docs/desenhos-formato.md), in Portuguese).
-
-```bash
-node scripts/validar-specs.mjs [id ...]        # checks the rules of each notation
-node scripts/gerar-desenhos.mjs [id ...]       # generates 09-DESENHOS/<id>.excalidraw; skips hand-edited ones
-node scripts/qa-desenhos.mjs [id ...]          # measures: arrow crossing a shape, overlapping text,
-                                               # label far from its arrow, dead area and more
-node scripts/destinos-desenhos.mjs             # read only: where each diagram would go and what would be refused
-node scripts/publicar-desenhos.mjs [id ...]    # simulates publishing
-node scripts/publicar-desenhos.mjs --commit    # writes docs/arquitetura/ in each repository and pushes
-```
-
-The publisher has three gates: a diagram with any QA finding is not published (`--forcar` only when Pedro asks); a folder whose name does not match the diagram is refused (identity lock); a spec with `"sistema": false` is not published and the diagram generated before is removed from the repository. A change to the generator only counts after QA on every diagram and an image review by two independent reviewers.
 
 ## Folders
 

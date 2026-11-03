@@ -1,6 +1,6 @@
 # Sinapse App
 
-[English](README.md)
+[English](README.md) · Português
 
 App web local que lê o vault de notas em Markdown do Sinapse (o segundo cérebro do Pedro) e mostra grafo, notas com links e backlinks, Frentes, Agenda, Métis (financeiro), Panorama e a página de cada projeto. Também gera e publica os diagramas de arquitetura (UML, BPMN e C4) de todos os projetos.
 
@@ -22,6 +22,22 @@ O vault tem centenas de notas, dezenas de projetos e prazos espalhados. O Markdo
 - Página do projeto com abas Visão geral, História (commits das pastas do projeto), Tarefas (as caixas `- [ ]` da nota) e Desenho.
 - Panorama (`#/panorama`): quadro por status e a linha do ano.
 - Desenhos: de uma especificação em JSON no vault saem três diagramas em notação padrão, medidos por um QA antes de ir para o repositório de cada projeto.
+
+## Desenhos (UML, BPMN e C4)
+
+Cada projeto tem uma especificação em `09-DESENHOS/specs/<id>.json` no vault (formato em [docs/desenhos-formato.md](docs/desenhos-formato.md)).
+
+```bash
+node scripts/validar-specs.mjs [id ...]        # confere as regras de cada notação
+node scripts/gerar-desenhos.mjs [id ...]       # gera 09-DESENHOS/<id>.excalidraw; pula o editado à mão
+node scripts/qa-desenhos.mjs [id ...]          # mede: seta atravessando forma, texto sobreposto,
+                                               # rótulo longe da seta, área morta e outros
+node scripts/destinos-desenhos.mjs             # só lê: para onde cada desenho iria e o que seria recusado
+node scripts/publicar-desenhos.mjs [id ...]    # simula a publicação
+node scripts/publicar-desenhos.mjs --commit    # grava docs/arquitetura/ em cada repositório e dá push
+```
+
+O publicador tem três portões: desenho com achado no QA não sai (`--forcar` só a pedido do Pedro); pasta cujo nome não bate com o desenho é recusada (trava de identidade); spec com `"sistema": false` não publica e o diagrama gerado antes sai do repositório. Mudança no gerador só vale depois do QA em todos os desenhos e de revisão por imagem com dois revisores independentes.
 
 ## Stack
 
@@ -49,22 +65,6 @@ npm test
 ```
 
 A suíte inteira roda contra uma cópia do vault numa pasta temporária, com um Vite próprio na porta 5175. No fim ela confere que o `git status` do vault real não mudou e apaga a cópia. O teste das Frentes sobe outro Vite (porta 5174) com um Atas falso.
-
-## Desenhos (UML, BPMN e C4)
-
-Cada projeto tem uma especificação em `09-DESENHOS/specs/<id>.json` no vault (formato em [docs/desenhos-formato.md](docs/desenhos-formato.md)).
-
-```bash
-node scripts/validar-specs.mjs [id ...]        # confere as regras de cada notação
-node scripts/gerar-desenhos.mjs [id ...]       # gera 09-DESENHOS/<id>.excalidraw; pula o editado à mão
-node scripts/qa-desenhos.mjs [id ...]          # mede: seta atravessando forma, texto sobreposto,
-                                               # rótulo longe da seta, área morta e outros
-node scripts/destinos-desenhos.mjs             # só lê: para onde cada desenho iria e o que seria recusado
-node scripts/publicar-desenhos.mjs [id ...]    # simula a publicação
-node scripts/publicar-desenhos.mjs --commit    # grava docs/arquitetura/ em cada repositório e dá push
-```
-
-O publicador tem três portões: desenho com achado no QA não sai (`--forcar` só a pedido do Pedro); pasta cujo nome não bate com o desenho é recusada (trava de identidade); spec com `"sistema": false` não publica e o diagrama gerado antes sai do repositório. Mudança no gerador só vale depois do QA em todos os desenhos e de revisão por imagem com dois revisores independentes.
 
 ## Pastas
 
