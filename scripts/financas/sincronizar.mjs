@@ -117,7 +117,7 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
   const razao = lerRazao(vault);
   const copia = Object.fromEntries(Object.entries(razao).map(([m, st]) => [m, { ...st, lista: st.lista.map((l) => ({ ...l })) }]));
   const pf = planejarFaturas(faturas, copia, hoje);
-  const pt = planejar(transacoes, copia, regras);
+  const pt = planejar(transacoes, copia, regras, { hoje });
   const pi = planejarInvestimentos(invs, pt.razao, regras);
   const acoes = [...pf.acoes, ...pt.acoes, ...pi.acoes];
   const r = pt.relatorio;
@@ -131,6 +131,7 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
     for (const i of c.itens || []) {
       const extra = [i.modo === 'conciliar' ? `já lançado à mão${i.antes && i.antes !== c.data ? ', data ' + dataBR(i.antes) + ' → ' + dataBR(c.data) : ''}` : '',
         i.valorPrevisto !== undefined ? `previsto ${brl(i.valorPrevisto)} → valor do banco` : ''].filter(Boolean).join('; ');
+      if (i.pagamentos) log(`        em ${i.pagamentos.length} Pix: ${i.pagamentos.map((p) => dataBR(p.data) + ' ' + brl(p.valor)).join(' + ')}`);
       if (varios || extra) log(`        ${varios ? brl(i.valor).padStart(12) + '  ' + i.descricao : ''}${extra ? (varios ? '  ' : '') + '(' + extra + ')' : ''}`);
     }
   }
@@ -139,6 +140,10 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
   log(`  a classificar: ${r.aClassificar.length}`);
   for (const x of r.aClassificar) log(linha(x));
   log(`  ignorados: ${r.ignorados.jaImportado} já importados · ${r.ignorados.regra} por regra · ${r.ignorados.categoria} por categoria · ${r.ignorados.pendente} pendentes no banco · ${r.ignorados.estorno || 0} compra+estorno`);
+  if (r.acumulando?.length) {
+    log(`  acumulando (previsto pago em partes, ainda não fechou; não gravados): ${r.acumulando.length}`);
+    for (const a of r.acumulando) log(`    ${a.descricao}: ${brl(a.pago)} de ${brl(a.previsto)} (${a.pagamentos.map((p) => dataBR(p.data) + ' ' + brl(p.valor)).join(' + ')})`);
+  }
   if (r.divergentes?.length) {
     log(`  divergentes (cliente reconhecido, mas o valor não fecha com o razão; não gravados): ${r.divergentes.length}`);
     for (const d of r.divergentes) log(`    ${dataBR(d.data)}  ${brl(d.valor).padStart(14)}  ${d.cliente} · no razão: ${d.razao.map((x) => x.id + ' ' + brl(x.valor) + ' ' + x.status).join(' | ')}`);

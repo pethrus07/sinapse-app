@@ -209,6 +209,35 @@ test('planejar: compra e estorno do mesmo valor, mesma conta, se anulam; estorno
   assert.deepEqual(p.relatorio.novos.map((x) => [x.descricao, x.valor]).sort(), [['Estorno', 11], ['Transporte', 15.5]]);
 });
 
+test('planejar: vários Pix pagam um previsto só (acumula); fecha na soma, ou parcial quando o mês passou', () => {
+  const prev = (mes) => L({ id: `${mes}-ajuda-em-casa`, tipo: 'saida', valor: 450, status: 'a-pagar', categoria: 'moradia' });
+  const razao = R(['2030-02', [prev('2030-02')]], ['2030-03', [prev('2030-03')]], ['2030-04', [prev('2030-04')]]);
+  const regras = { regras: [{ quando: { documento: '12345678909', direcao: 'saida' }, previsto: 'ajuda-em-casa', acumula: true, categoria: 'moradia' }] };
+  const pix = (id, data, valor) => T({ id, data, valor, direcao: 'saida', documentos: ['12345678909'] });
+  const ts = [pix('a', '2030-02-27', 70), pix('b', '2030-03-03', 150), pix('c', '2030-03-09', 300), pix('d', '2030-04-02', 100)];
+  const p = planejar(ts, razao, regras, { hoje: '2030-04-05' });
+  const l = (m) => p.razao[m].lista[0];
+  assert.deepEqual([l('2030-03').status, l('2030-03').valor, l('2030-03').liquidadoEm, l('2030-03').fitids.length], ['pago', 450, '2030-03-09', 2]);
+  assert.equal(l('2030-03').valorPrevisto, undefined);
+  assert.deepEqual([l('2030-02').status, l('2030-02').valor, l('2030-02').valorPrevisto], ['pago', 70, 450]); // mês passado: fecha com o real
+  assert.equal(l('2030-04').status, 'a-pagar'); // mês corrente sem fechar: espera
+  assert.deepEqual(p.relatorio.acumulando.map((a) => [a.id, a.pago]), [['2030-04-ajuda-em-casa', 100]]);
+  assert.equal(p.relatorio.novos.length + p.relatorio.aClassificar.length, 0);
+  // os fitids guardados contam como já importados na rodada seguinte
+  const p2 = planejar(ts, p.razao, regras, { hoje: '2030-04-05' });
+  assert.equal(p2.relatorio.ignorados.jaImportado, 3);
+});
+
+test('regraDe: contraparte pessoa física ou empresa', () => {
+  const conta = { id: 'x', type: 'BANK', marketingName: 'Nu Pagamentos' };
+  const pf = normalizarTransacao({ id: '1', date: '2030-03-01', amount: -10, type: 'DEBIT', operationType: 'PIX', paymentData: { receiver: { documentNumber: { type: 'CPF', value: '123.456.789-09' } } } }, conta);
+  const pj = normalizarTransacao({ id: '2', date: '2030-03-01', amount: 10, type: 'CREDIT', operationType: 'PIX', paymentData: { payer: { documentNumber: { value: '11.222.333/0001-81' } } } }, conta);
+  assert.deepEqual([pf.contraparte, pj.contraparte], ['pf', 'pj']);
+  const r = normalizarRegras({ regras: [{ quando: { categoriaFonte: 'Transfers', contraparte: 'pf' }, categoria: 'pix-pf' }] });
+  assert.equal(regraDe({ ...pf, categoriaFonte: 'Transfers' }, r).categoria, 'pix-pf');
+  assert.equal(regraDe({ ...pj, categoriaFonte: 'Transfers' }, r), null);
+});
+
 test('gravarMes preserva o resto do arquivo e o CRLF', () => {
   const { vault } = vaultFalso();
   const r = lerRazao(vault);

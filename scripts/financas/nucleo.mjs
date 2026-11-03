@@ -78,6 +78,7 @@ export function regraDe(t, regras) {
     if (q.texto && !texto.includes(norm(q.texto))) continue;
     if (q.documento && !(t.documentos || []).includes(String(q.documento).replace(/\D/g, ''))) continue;
     if (q.categoriaFonte && norm(q.categoriaFonte) !== norm(t.categoriaFonte)) continue;
+    if (q.contraparte && q.contraparte !== (t.contraparte || '')) continue; // 'pf' | 'pj' | '' (sem documento)
     if (!q.texto && !q.documento && !q.categoriaFonte && q.valor === undefined) continue; // regra vazia não casa tudo
     return r;
   }
@@ -245,14 +246,15 @@ function parearEstornos(ts, regras, conhecidos) {
  * valor do banco (fatura do cartão); (4) a regra diz o cliente, há lançamento dele sem banco na
  * janela, mas nada fecha: DIVERGENTE, não grava (o Pedro corrige o razão ou cria a regra).
  */
-export function planejar(transacoes, razaoOriginal, regrasBrutas = {}) {
+export function planejar(transacoes, razaoOriginal, regrasBrutas = {}, { hoje = '' } = {}) {
   const regras = normalizarRegras(regrasBrutas);
   const razao = Object.fromEntries(Object.entries(razaoOriginal).map(([m, st]) => [m, { ...st, lista: st.lista.map((l) => ({ ...l })) }]));
   const conhecidos = new Set();
-  for (const st of Object.values(razao)) for (const l of st.lista) if (l.fitid) conhecidos.add(l.fitid);
+  for (const st of Object.values(razao)) for (const l of st.lista) { if (l.fitid) conhecidos.add(l.fitid); for (const f of l.fitids || []) conhecidos.add(f); }
 
   const acoes = [];
-  const rel = { casados: [], novos: [], aClassificar: [], ignorados: { jaImportado: 0, regra: 0, categoria: 0, pendente: 0, estorno: 0 }, ambiguos: [], divergentes: [] };
+  const rel = { casados: [], novos: [], aClassificar: [], ignorados: { jaImportado: 0, regra: 0, categoria: 0, pendente: 0, estorno: 0 }, ambiguos: [], divergentes: [], acumulando: [] };
+  const acumulos = new Map(); // previsto pago em vários Pix: `${mes}|${id}` → { mes, l, pagamentos }
 
   // do mais antigo para o mais novo (a API manda o mais novo primeiro): a parcela 2 vai para o
   // primeiro pagamento, a 3 para o seguinte
@@ -284,6 +286,18 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}) {
     const regra = regraDe(t, regras);
     if (regra && regra.ignorar) { rel.ignorados.regra++; continue; }
     conhecidos.add(t.fitid);
+
+    // vários Pix pagam um previsto só (ex.: contribuição do mês em partes): junta no previsto
+    // aberto do MESMO mês da transação; quem fecha é o bloco depois do laço
+    if (regra && regra.acumula && regra.previsto && !t.viaCartao) {
+      const alvo = candidatos(t, regra, razao, Infinity).find((c) => !c.liquidado && c.mes === mesDe(t.data));
+      if (alvo) {
+        const k = `${alvo.mes}|${alvo.l.id}`;
+        if (!acumulos.has(k)) acumulos.set(k, { mes: alvo.mes, l: alvo.l, pagamentos: [] });
+        acumulos.get(k).pagamentos.push(t);
+        continue;
+      }
+    }
 
     // compra no cartão não liquida previsto: quem liquida é o pagamento da fatura na conta
     const tol = regra && Number.isFinite(regra.toleranciaDias) ? regra.toleranciaDias : regras.toleranciaDias;
@@ -349,6 +363,28 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}) {
     acoes.push({ acao: 'novo', mes, lancamento: novo });
     const linha = { data: t.data, valor: t.valor, direcao: t.direcao, descricao, categoria, conta: novo.conta, categoriaFonte: sanear(t.categoriaFonte || '') };
     if (categoria === 'a classificar') rel.aClassificar.push(linha); else rel.novos.push(linha);
+  }
+  // fecha os acumulados: soma chegou no previsto, ou o mês já passou (fecha com o valor real e
+  // guarda o previsto em valorPrevisto). Mês corrente sem fechar: não grava, volta na próxima.
+  for (const { mes, l, pagamentos } of acumulos.values()) {
+    const total = pagamentos.reduce((s, p) => s + centavo(p.valor), 0);
+    const previsto = centavo(l.valor);
+    const mesPassou = hoje && mes < mesDe(hoje);
+    if (total < previsto && !mesPassou) {
+      for (const p of pagamentos) conhecidos.delete(p.fitid);
+      rel.acumulando.push({ id: l.id, descricao: l.descricao, previsto: previsto / 100, pago: total / 100, pagamentos: pagamentos.map((p) => ({ data: p.data, valor: p.valor })) });
+      continue;
+    }
+    const ultimo = pagamentos[pagamentos.length - 1];
+    const extra = { fitids: pagamentos.map((p) => p.fitid), ...(total !== previsto ? { valor: total / 100, valorPrevisto: previsto / 100 } : {}) };
+    l.status = 'pago';
+    l.liquidadoEm = ultimo.data;
+    l.fitid = pagamentos[0].fitid;
+    l.origem = ultimo.fonte;
+    Object.assign(l, extra);
+    acoes.push({ acao: 'liquidar', mes, id: l.id, liquidadoEm: ultimo.data, fitid: l.fitid, origem: l.origem, ...extra });
+    rel.casados.push({ data: ultimo.data, valor: total / 100, id: l.id, descricao: l.descricao,
+      itens: [{ id: l.id, descricao: l.descricao, valor: total / 100, modo: 'acumulado', antes: '', pagamentos: pagamentos.map((p) => ({ data: p.data, valor: p.valor })), ...(total !== previsto ? { valorPrevisto: previsto / 100 } : {}) }] });
   }
   return { acoes, relatorio: rel, razao };
 }
@@ -457,6 +493,7 @@ export function aplicar(vault, acoes, hoje) {
       l.status = l.tipo === 'entrada' ? 'recebido' : 'pago';
       l.liquidadoEm = a.liquidadoEm; l.fitid = a.fitid; l.origem = a.origem;
       if (a.valor !== undefined) { l.valorPrevisto = a.valorPrevisto; l.valor = a.valor; }
+      if (a.fitids) l.fitids = a.fitids;
     } else if (a.acao === 'conciliar') {
       // já estava liquidado à mão: ganha a data real do banco e o fitid (não duplica depois)
       const l = ls.find((x) => x.id === a.id);

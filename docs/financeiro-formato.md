@@ -113,6 +113,10 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
    - **Estorno**: entrada com regra `estorno: true` anula uma saída de mesmo valor, mesma conta, até
      `diasEstorno` (padrão 3) dias de distância, ainda não importada. As duas saem do fluxo; estorno
      parcial segue como lançamento com a categoria da regra.
+   - **Acumula** (`acumula: true` + `previsto`): vários Pix pagam um previsto só do mesmo mês (ex.:
+     contribuição mensal em partes). Fecha quando a soma chega no previsto, ou, se o mês já passou,
+     fecha com o valor real e guarda o previsto em `valorPrevisto`. Os `fitids` de todos os Pix ficam
+     no lançamento. Mês corrente sem fechar: aparece em "acumulando" e não grava.
 4. **Não casa**: vira lançamento novo, já liquidado, com descrição **montada** (meio + cliente da
    regra: "Pix recebido · Desbravando UTV"; sem regra, "Pix recebido") e categoria da regra ou
    "a classificar". Compra no cartão nunca liquida previsto (quem liquida é o pagamento da fatura).
@@ -136,12 +140,13 @@ Ver `scripts/financas/regras.exemplo.json`. A primeira regra que casa decide.
 - `quando.texto`: procura, sem acento e sem maiúscula, na descrição do banco, no nome de quem
   pagou/recebeu e no estabelecimento (esse texto fica só na memória).
 - `quando.documento`: CPF/CNPJ de quem pagou/recebeu, só dígitos (o arquivo de regras fica fora do git).
-- `quando.direcao` (`entrada`/`saida`), `quando.viaCartao`, `quando.valor`, `quando.categoriaFonte`.
+- `quando.direcao` (`entrada`/`saida`), `quando.viaCartao`, `quando.valor`, `quando.categoriaFonte`,
+  `quando.meio` (`pix`, `debito`…) e `quando.contraparte` (`pf`, `pj` ou `''` sem documento: só o tipo).
 - Efeito: `cliente`, `categoria`, `descricao` (o que vai para o vault), `previsto` (pedaço do id
   do previsto que deve liquidar), `ignorar: true`.
 - Casamento: `clientes` (lista de clientes que o mesmo pagador pode estar pagando; `cliente` segue
   sendo o rótulo do lançamento novo), `toleranciaDias` (janela só desta regra), `valorLivre`,
-  `estorno` e `diasEstorno` (ver acima).
+  `estorno`, `diasEstorno` e `acumula` (ver acima).
 
 ### Testes
 

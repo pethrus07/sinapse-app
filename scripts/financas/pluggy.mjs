@@ -105,6 +105,14 @@ function meioDe(tx) {
   return 'outro';
 }
 
+function contraparteDe(p) {
+  const tipo = String(p?.documentNumber?.type || '').toUpperCase();
+  const d = digitos(p?.documentNumber?.value);
+  if (tipo === 'CPF' || (!tipo && d.length === 11)) return 'pf';
+  if (tipo === 'CNPJ' || (!tipo && d.length === 14)) return 'pj';
+  return '';
+}
+
 export function normalizarTransacao(tx, conta, regras = {}) {
   const pd = tx.paymentData || {};
   const m = tx.merchant || {};
@@ -124,6 +132,8 @@ export function normalizarTransacao(tx, conta, regras = {}) {
     viaCartao: conta.type === 'CREDIT',
     fatura: String(cc.billForecastDate || cc.billPostDate || '').slice(0, 7),
     categoriaFonte: tx.category || '',
+    // quem está do outro lado: pessoa física, empresa ou sem documento (só o tipo, nunca o número)
+    contraparte: contraparteDe(tx.type === 'CREDIT' ? pd.payer : pd.receiver),
     pendente: tx.status === 'PENDING',
   };
 }
