@@ -12,29 +12,52 @@
 
 export const BASE = 'https://api.pluggy.ai';
 
-export function criarCliente(cred, { fetch: f = globalThis.fetch, base = BASE } = {}) {
+export function criarCliente(cred, { fetch: f = globalThis.fetch, base = BASE, timeoutMs = 30000, esperaMs = 800 } = {}) {
   let apiKey = '';
   let obtidaEm = 0;
   async function autenticar() {
-    const r = await f(`${base}/auth`, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clientId: cred.clientId, clientSecret: cred.clientSecret }),
-    });
+    let r;
+    try {
+      r = await f(`${base}/auth`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ clientId: cred.clientId, clientSecret: cred.clientSecret }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch {
+      throw new Error('a Pluggy não respondeu à autenticação (sem rede ou tempo esgotado)');
+    }
     if (!r.ok) throw new Error(`autenticação recusada pela Pluggy (HTTP ${r.status}): confira clientId/clientSecret`);
     const j = await r.json();
     if (!j.apiKey) throw new Error('a Pluggy respondeu sem apiKey');
     apiKey = j.apiKey;
     obtidaEm = Date.now();
   }
+  // Mensagem de erro com o caminho SEM ids (itemId, accountId): ela vai para o terminal, o log e o
+  // estado.json que o app mostra. `/items/<uuid>` vira `/items/…`.
+  const semIds = (c) => c.replace(/\/[^/?]*\d[^/?]*/g, '/…');
+  const espera = (ms) => new Promise((ok) => setTimeout(ok, ms));
   async function get(caminho, params = {}) {
     if (!apiKey || Date.now() - obtidaEm > 90 * 60 * 1000) await autenticar(); // a chave dura ~2 h
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== '')).toString();
     const url = `${base}${caminho}${qs ? '?' + qs : ''}`;
     for (let tentativa = 0; ; tentativa++) {
-      const r = await f(url, { headers: { 'X-API-KEY': apiKey, accept: 'application/json' } });
+      let r;
+      try {
+        r = await f(url, { headers: { 'X-API-KEY': apiKey, accept: 'application/json' }, signal: AbortSignal.timeout(timeoutMs) });
+      } catch (e) {
+        // sem rede, DNS, conexão caída ou tempo esgotado: tenta de novo e depois desiste com mensagem limpa
+        if (tentativa < 3) { await espera(esperaMs * (tentativa + 1)); continue; }
+        const err = new Error(`GET ${semIds(caminho)} sem resposta da Pluggy (${e && e.name === 'TimeoutError' ? 'tempo esgotado' : 'sem rede'})`);
+        err.status = 0;
+        throw err;
+      }
       if (r.status === 401 && tentativa === 0) { await autenticar(); continue; }
-      if ((r.status === 429 || r.status >= 500) && tentativa < 3) { await new Promise((ok) => setTimeout(ok, 800 * (tentativa + 1))); continue; }
-      if (!r.ok) { const e = new Error(`GET ${caminho} falhou (HTTP ${r.status})`); e.status = r.status; throw e; }
+      if ((r.status === 429 || r.status >= 500) && tentativa < 3) {
+        const ra = Number(r.headers?.get?.('retry-after'));
+        await espera(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 60) * 1000 : esperaMs * (tentativa + 1));
+        continue;
+      }
+      if (!r.ok) { const e = new Error(`GET ${semIds(caminho)} falhou (HTTP ${r.status})`); e.status = r.status; throw e; }
       return r.json();
     }
   }
@@ -61,7 +84,7 @@ export function criarCliente(cred, { fetch: f = globalThis.fetch, base = BASE } 
           const j = await get('/v2/transactions', { accountId, dateFrom, dateTo, after });
           out.push(...(j.results || []));
           if (!j.next) break;
-          after = new URLSearchParams(String(j.next).replace(/^\?/, '')).get('after') || undefined;
+          after = cursorDe(j.next);
           if (!after) break;
         }
         return out;
@@ -72,6 +95,36 @@ export function criarCliente(cred, { fetch: f = globalThis.fetch, base = BASE } 
       }
     },
   };
+}
+
+/**
+ * O `next` da /v2/transactions: pode vir como query ("?accountId=…&after=X"), URL inteira ou só o
+ * cursor. Antes só a query era entendida: um cursor cru parava a paginação calado, na 1ª página.
+ */
+export function cursorDe(next) {
+  const t = String(next || '').trim();
+  if (!t) return undefined;
+  if (/[?&=]/.test(t)) {
+    const q = t.includes('?') ? t.slice(t.indexOf('?') + 1) : t;
+    return new URLSearchParams(q).get('after') || undefined;
+  }
+  return t;
+}
+
+/**
+ * Dia da transação no fuso de São Paulo. A Pluggy manda ISO em UTC: um Pix das 22h de 31/10
+ * chega como "2026-11-01T01:00:00.000Z" e o slice(0,10) jogava no mês errado. Meia-noite UTC
+ * exata é como alguns bancos mandam "só a data": fica o dia escrito.
+ */
+const DIA_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+/** Hoje em São Paulo (a tarefa das 17:00 que atrasa para depois das 21:00 não vira amanhã em UTC). */
+export const hojeSP = (agora = new Date()) => DIA_SP.format(agora);
+
+export function diaLocal(iso) {
+  const t = String(iso || '');
+  if (!/T\d{2}:\d{2}/.test(t) || /T00:00(:00(\.0+)?)?(Z|[+-]00:?00)$/.test(t)) return t.slice(0, 10);
+  const ms = Date.parse(t);
+  return Number.isFinite(ms) ? DIA_SP.format(ms) : t.slice(0, 10);
 }
 
 /* ------------------------------------------------------------------ normalização */
@@ -121,12 +174,15 @@ export function normalizarTransacao(tx, conta, regras = {}) {
   return {
     fonte: 'pluggy',
     idFonte: tx.id,
-    data: String(tx.date || '').slice(0, 10),
+    data: diaLocal(tx.date),
     valor,
     direcao: tx.type === 'CREDIT' ? 'entrada' : 'saida',
     // só em memória, para as regras: nunca é gravado nem impresso
     texto: [tx.description, tx.descriptionRaw, pd.payer?.name, pd.receiver?.name, m.name, m.businessName, pd.reason].filter(Boolean).join(' '),
     documentos: [pd.payer?.documentNumber?.value, pd.receiver?.documentNumber?.value, m.cnpj].map(digitos).filter(Boolean),
+    // nomes de PESSOA (titular, e pagador/recebedor sem CNPJ), SÓ EM MEMÓRIA: o núcleo tira cada
+    // palavra deles de tudo que grava (descrição, conta), mesmo que uma regra os tenha escrito
+    nomes: [conta.owner, ...[pd.payer, pd.receiver].filter((p) => p && contraparteDe(p) !== 'pj').map((p) => p.name)].filter(Boolean),
     meio: meioDe(tx),
     conta: bancoDe(conta, regras).rotulo,
     viaCartao: conta.type === 'CREDIT',

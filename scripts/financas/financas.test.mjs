@@ -3,14 +3,14 @@
 // %LOCALAPPDATA% real. Rodar: node --test scripts/financas/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { aplicar, gravarMes, gravarRetrato, hashId, lerRazao, lerRetratos, pareceSensivel, planejar, planejarInvestimentos, regraDe, normalizarRegras, sanear } from './nucleo.mjs';
-import { bancoDe, criarCliente, criterioDaTransacao, fetchDeFixture, final4, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
-import { avisoConsentimento, rodar } from './sincronizar.mjs';
+import { aplicar, gravarMes, gravarRetrato, hashId, lerRazao, lerRetratos, pareceSensivel, planejar, planejarFaturas, planejarInvestimentos, regraDe, normalizarRegras, sanear, temNome, tirarNomes } from './nucleo.mjs';
+import { bancoDe, criarCliente, criterioDaTransacao, cursorDe, diaLocal, fetchDeFixture, final4, hojeSP, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
+import { avisoConsentimento, commitarRazao, rodar } from './sincronizar.mjs';
 import { lerCredencial } from './credencial.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -394,7 +394,7 @@ test('--gravar --commitar: commita SÓ os arquivos do razão gravados; outro arq
   const r1 = await rodar(args, { log: () => {}, env: { SINAPSE_FINANCAS: base } });
   assert.equal(r1.commit.commit, true);
   assert.equal(r1.commit.push, false); // sem remoto: o push falha, fica registrado, não lança
-  assert.match(git('log', '-1', '--format=%s'), /^Razão: sincronização do Nubank de 10\/03/);
+  assert.match(git('log', '-1', '--format=%s'), /^Razão: sincronização do banco de 10\/03/);
   const noCommit = git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort();
   assert.deepEqual(noCommit, ['04-NEGOCIO/financeiro/2030-02.md', '04-NEGOCIO/financeiro/2030-03.md', '04-NEGOCIO/financeiro/2030-04.md', '04-NEGOCIO/financeiro/patrimonio.md']);
   const st = git('status', '--porcelain');
@@ -471,4 +471,135 @@ test('criterioDaTransacao: documento da contraparte, senão estabelecimento, sen
   assert.deepEqual(criterioDaTransacao({ type: 'DEBIT', description: 'Compra no débito|LOJA FALSA', merchant: { name: 'Loja Falsa Ltda' } }), { texto: 'loja falsa ltda', direcao: 'saida' });
   assert.deepEqual(criterioDaTransacao({ type: 'DEBIT', description: 'Compra no débito|PADARIA FALSA' }), { texto: 'padaria falsa', direcao: 'saida' });
   assert.equal(criterioDaTransacao({ type: 'DEBIT', description: 'x' }), null);
+});
+
+/* ------------------------------------------------------------------ revisão de 03/11/2026 */
+
+test('sanear: casos difíceis (CPF cru e mascarado no meio, chave Pix aleatória, e-mail, celular sem DDI)', () => {
+  const casos = [
+    'Pix recebido de 123.456.789-09 hoje', 'pix 12345678909 ok', 'CPF ***.456.789-** pagou', 'CPF 123.***.***-09',
+    'chave 3f2b8c1e-9a4d-4e7b-b1c2-0d9e8f7a6b5c ok', 'contato fulano.tal+pix@exemplo.com.br fim',
+    'tel (83) 99999-1234 e 83 9 9999 1234', 'Pix +5583999991234', 'Ag 0001 C/C 12345-6', 'CNPJ 12.345.678/0001-99',
+  ];
+  for (const c of casos) {
+    const s = sanear(c);
+    assert.ok(!pareceSensivel(s), `${c} → ${s}`);
+    assert.ok(!/\d{4}/.test(s), `sobrou número em ${s}`);
+  }
+  assert.equal(sanear('Mercado · R$ 42,50'), 'Mercado · R$ 42,50'); // valor e texto comum ficam
+});
+
+test('tirarNomes: nome de pessoa no meio, no fim, sem acento ou em maiúscula sai; empresa e texto comum ficam', () => {
+  const nomes = ['JOSÉ DA SILVA SAURO', 'Maria Conceição'];
+  assert.equal(tirarNomes('Pix enviado · José Sauro · aluguel', nomes), 'Pix enviado · aluguel');
+  assert.equal(tirarNomes('Transferência para JOSE DA SILVA SAURO', nomes), 'Transferência para');
+  assert.equal(tirarNomes('Pix recebido · maria conceicao', nomes), 'Pix recebido');
+  assert.equal(tirarNomes('Mercado Silvana', nomes), 'Mercado Silvana'); // "silva" dentro de outra palavra não conta
+  assert.equal(tirarNomes('Pix recebido · Cliente Alfa', nomes), 'Pix recebido · Cliente Alfa');
+  assert.ok(!temNome(tirarNomes('Pix · José da Silva', nomes), nomes));
+});
+
+test('planejar: regra que escreveu o nome do pagador pessoa física na descrição grava sem o nome', () => {
+  const tx = { id: 'n1', type: 'CREDIT', amount: 77, date: '2030-03-05T15:00:00.000Z', description: 'PIX RECEBIDO', operationType: 'PIX',
+    paymentData: { payer: { name: 'FULANA DE TESTE DA SILVA', documentNumber: { type: 'CPF', value: '123.456.789-09' } } } };
+  const t = normalizarTransacao(tx, { type: 'BANK', name: 'Conta', owner: 'TITULAR FALSO' });
+  assert.ok(t.nomes.includes('FULANA DE TESTE DA SILVA') && t.nomes.includes('TITULAR FALSO'));
+  const p = planejar([t], {}, { regras: [{ quando: { texto: 'fulana' }, categoria: 'familia', descricao: 'Pix da Fulana Silva' }] });
+  const novo = p.acoes.find((a) => a.acao === 'novo').lancamento;
+  assert.equal(novo.descricao, 'Pix');
+  assert.ok(!temNome(JSON.stringify(novo), t.nomes));
+});
+
+test('diaLocal: hora UTC que já é outro dia em São Paulo volta para o dia certo; meia-noite UTC é "só a data"', () => {
+  assert.equal(diaLocal('2026-11-01T01:00:00.000Z'), '2026-10-31'); // Pix das 22h de 31/10
+  assert.equal(diaLocal('2026-10-31T03:00:00.000Z'), '2026-10-31'); // meia-noite de SP
+  assert.equal(diaLocal('2026-10-31T00:00:00.000Z'), '2026-10-31'); // só a data
+  assert.equal(diaLocal('2026-10-31'), '2026-10-31');
+  assert.equal(hojeSP(new Date('2026-11-01T01:30:00Z')), '2026-10-31');
+});
+
+test('cursorDe: query, URL inteira e cursor cru (antes o cru parava a paginação na 1ª página)', () => {
+  assert.equal(cursorDe('?accountId=x&after=abc'), 'abc');
+  assert.equal(cursorDe('https://api.pluggy.ai/v2/transactions?accountId=x&after=def'), 'def');
+  assert.equal(cursorDe('eyJjdXJzb3IiOjF9'), 'eyJjdXJzb3IiOjF9');
+  assert.equal(cursorDe(null), undefined);
+});
+
+test('cliente HTTP: 429 com Retry-After, 5xx, rede caída e erro final sem id no texto', async () => {
+  const ITEM_ID = '00000000-0000-4000-8000-0000000000aa';
+  const resp = (status, corpo = {}, h = {}) => ({ ok: status < 400, status, headers: { get: (k) => h[k.toLowerCase()] ?? null }, json: async () => corpo });
+  const roteiro = [];
+  const f = async (url) => {
+    if (url.endsWith('/auth')) return resp(200, { apiKey: 'k' });
+    const passo = roteiro.shift();
+    if (passo === 'rede') throw new TypeError('fetch failed');
+    return passo;
+  };
+  const api = criarCliente({ clientId: 'a', clientSecret: 'b' }, { fetch: f, esperaMs: 1 });
+  roteiro.push(resp(429, {}, { 'retry-after': '0' }), resp(503), 'rede', resp(200, { id: 'ok' }));
+  assert.deepEqual(await api.item(ITEM_ID), { id: 'ok' });
+  roteiro.push(resp(500), resp(500), resp(500), resp(500));
+  await assert.rejects(api.item(ITEM_ID), (e) => e.status === 500 && !e.message.includes(ITEM_ID) && /HTTP 500/.test(e.message));
+  roteiro.push('rede', 'rede', 'rede', 'rede');
+  await assert.rejects(api.item(ITEM_ID), (e) => /sem rede/.test(e.message) && !e.message.includes(ITEM_ID));
+});
+
+test('planejar: dedupe. A mesma transação lida em dois dias (janela que se sobrepõe) entra uma vez só', () => {
+  const t = T({ id: 'mesma', data: '2030-03-05', valor: 61.3, direcao: 'saida' });
+  const p1 = planejar([t, { ...t }], {});
+  assert.equal(p1.acoes.filter((a) => a.acao === 'novo').length, 1);
+  assert.equal(p1.relatorio.ignorados.jaImportado, 1);
+  const p2 = planejar([{ ...t, data: '2030-03-06' }], p1.razao); // o banco reapresenta no dia seguinte
+  assert.equal(p2.acoes.length, 0);
+});
+
+test('planejar: dois previstos de mesmo valor e mesma distância, sem regra que decida: ambíguo, não grava', () => {
+  const razao = R(['2030-03', [L({ id: 'a', valor: 100, vencimento: '2030-03-04' }), L({ id: 'b', valor: 100, vencimento: '2030-03-06' })]]);
+  const p = planejar([T({ id: 'x', data: '2030-03-05' })], razao);
+  assert.equal(p.relatorio.ambiguos.length, 1);
+  assert.equal(p.acoes.length, 0);
+  const p2 = planejar([T({ id: 'x', data: '2030-03-05' })], razao, { regras: [{ quando: { valor: 100 }, previsto: 'b' }] });
+  assert.equal(p2.acoes[0].id, 'b');
+});
+
+test('planejar: centavos em ponto flutuante (0,1 + 0,2) casam pela soma em centavos', () => {
+  const razao = R(['2030-03', [L({ id: 'a', valor: 0.1, vencimento: '2030-03-05', cliente: 'Cliente Alfa' }), L({ id: 'b', valor: 0.2, vencimento: '2030-03-05', cliente: 'Cliente Alfa' })]]);
+  const p = planejar([T({ id: 'x', valor: 0.30000000000000004, texto: 'alfa' })], razao, { regras: [{ quando: { texto: 'alfa' }, cliente: 'Cliente Alfa' }] });
+  assert.deepEqual(p.acoes.map((a) => a.id).sort(), ['a', 'b']);
+});
+
+test('planejarFaturas: dois cartões vencendo no mesmo mês não brigam pelo mesmo previsto', () => {
+  const razao = R(['2030-03', [L({ id: 'prev-cartao', tipo: 'saida', valor: 300, vencimento: '2030-03-05', status: 'a-pagar', categoria: 'cartao' })]]);
+  const fat = (id, valor, conta) => ({ fonte: 'pluggy', idFonte: id, vencimento: '2030-03-10', valor, conta });
+  const r1 = planejarFaturas([fat('f1', 410.5, 'Banco A · cartão'), fat('f2', 99.9, 'Banco B · cartão')], razao, '2030-03-01');
+  assert.equal(r1.relatorio.atualizadas.length, 1);
+  assert.equal(r1.relatorio.abertas.length, 1);
+  assert.equal(razao['2030-03'].lista[0].valor, 410.5);
+  const r2 = planejarFaturas([fat('f1', 410.5, 'Banco A · cartão'), fat('f2', 99.9, 'Banco B · cartão')], razao, '2030-03-01');
+  assert.equal(r2.acoes.length, 0); // a segunda rodada não troca nada
+  assert.equal(razao['2030-03'].lista[0].valor, 410.5);
+});
+
+test('commitarRazao: vault no meio de um rebase não recebe commit; pre-commit que barra deixa o índice limpo', () => {
+  const { vault } = vaultFalso();
+  const git = (...a) => execFileSync('git', ['-C', vault, ...a], { encoding: 'utf8', windowsHide: true });
+  git('init', '-q'); git('config', 'user.email', 'teste@exemplo.invalid'); git('config', 'user.name', 'Teste');
+  const hooks = join(vault, '.hooks-teste');
+  mkdirSync(hooks, { recursive: true });
+  git('config', 'core.hooksPath', hooks);
+  git('add', '-A'); git('commit', '-q', '-m', 'inicial');
+  const arq = join(vault, '04-NEGOCIO', 'financeiro', '2030-03.md');
+  writeFileSync(arq, readFileSync(arq, 'utf8') + '\nmudou\n');
+  const gitDir = git('rev-parse', '--absolute-git-dir').trim();
+  mkdirSync(join(gitDir, 'rebase-merge'));
+  const r = commitarRazao(vault, ['2030-03'], '2030-03-10');
+  assert.equal(r.commit, false);
+  assert.match(r.motivo, /rebase-merge/);
+  assert.equal(git('rev-list', '--count', 'HEAD').trim(), '1');
+  rmSync(join(gitDir, 'rebase-merge'), { recursive: true });
+  writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho barrado >&2\nexit 1\n');
+  const r2 = commitarRazao(vault, ['2030-03'], '2030-03-10');
+  assert.equal(r2.commit, false);
+  assert.match(r2.motivo, /barrado/);
+  assert.equal(git('diff', '--cached', '--name-only').trim(), ''); // nada ficou no índice
 });

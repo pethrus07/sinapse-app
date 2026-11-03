@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { BASE_LOCAL, lerCredencial } from './credencial.mjs';
 import { PASTA_RAZAO, aplicar, gravarRetrato, hashId, lerRazao, planejar, planejarFaturas, planejarInvestimentos, sanear } from './nucleo.mjs';
 import { posicoesAtuais, retratoDe } from '../../src/lib/financeiroAnalise.ts';
-import { bancoDe, criarCliente, fetchDeFixture, final4, normalizarFatura, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
+import { bancoDe, criarCliente, fetchDeFixture, final4, hojeSP, normalizarFatura, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -50,18 +50,30 @@ const dataBR = (d) => (d ? d.split('-').reverse().join('/') : '');
  */
 export function commitarRazao(vault, meses, hoje, { git = 'git', extras = [] } = {}) {
   const arquivos = [...meses.map((m) => join(PASTA_RAZAO, `${m}.md`).split('\\').join('/')), ...extras];
-  const ultimas = (e, k) => String(e.stderr || e.message || '').trim().split(/\r?\n/).slice(-k).join(' | ');
+  const ultimas = (e, k) => sanear(String(e.stderr || e.message || '').trim().split(/\r?\n/).slice(-k).join(' | '));
   if (!arquivos.length) return { commit: false, motivo: 'nada gravado' };
-  const g = (...a) => execFileSync(git, ['-C', vault, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const g = (...a) => execFileSync(git, ['-C', vault, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 120000 });
+  // vault no meio de rebase, merge, cherry-pick ou revert: um commit agora entraria NA operação de
+  // outra sessão. Não commita; o razão fica gravado e a rodada de amanhã (ou o Pedro) commita.
+  try {
+    const gitDir = g('rev-parse', '--absolute-git-dir').trim();
+    const emCurso = ['rebase-merge', 'rebase-apply', 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD'].find((x) => existsSync(join(gitDir, x)));
+    if (emCurso) return { commit: false, motivo: `vault com operação do git em curso (${emCurso}): nada commitado` };
+    if (g('diff', '--name-only', '--diff-filter=U').trim()) return { commit: false, motivo: 'vault com conflito aberto: nada commitado' };
+  } catch (e) {
+    return { commit: false, motivo: `não consegui ler o estado do git do vault: ${ultimas(e, 2)}` };
+  }
   try {
     g('add', '--', ...arquivos);
     try { g('diff', '--cached', '--quiet', '--', ...arquivos); return { commit: false, motivo: 'gravou sem mudar o conteúdo' }; } catch { /* há diferença */ }
-    g('commit', '-m', `Razão: sincronização do Nubank de ${dataBR(hoje).slice(0, 5)}`, '--', ...arquivos);
+    g('commit', '-m', `Razão: sincronização do banco de ${dataBR(hoje).slice(0, 5)}`, '--', ...arquivos);
   } catch (e) {
+    // o pre-commit barrou: tira do índice o que esta rodada pôs lá (o arquivo segue gravado)
+    try { g('reset', '-q', '--', ...arquivos); } catch { /* sem HEAD ainda: nada a desfazer */ }
     return { commit: false, motivo: `commit recusado (pre-commit ou git): ${ultimas(e, 3)}` };
   }
   try { g('push'); return { commit: true, push: true }; } catch (e) {
-    return { commit: true, push: false, motivo: `push falhou: ${ultimas(e, 2)}` };
+    return { commit: true, push: false, motivo: `push falhou (fica para a próxima rodada): ${ultimas(e, 2)}` };
   }
 }
 
@@ -95,7 +107,7 @@ export async function rodar(argv, opcoes = {}) {
   } catch (e) {
     if (o.modo === 'gravar') {
       const env = opcoes.env || process.env;
-      registrarFalha(env.SINAPSE_FINANCAS || BASE_LOCAL, o.hoje || new Date().toISOString().slice(0, 10), e);
+      registrarFalha(env.SINAPSE_FINANCAS || BASE_LOCAL, o.hoje || hojeSP(), e);
     }
     throw e;
   }
@@ -103,7 +115,7 @@ export async function rodar(argv, opcoes = {}) {
 
 async function rodarSemRegistro(argv, { log = console.log, env = process.env } = {}) {
   const o = args(argv);
-  const hoje = o.hoje || new Date().toISOString().slice(0, 10);
+  const hoje = o.hoje || hojeSP();
   const base = env.SINAPSE_FINANCAS || BASE_LOCAL;
   const vault = resolve(o.vault || env.VAULT_PATH || join(APP, '..', 'sinapse'));
   const desde = o.desde || somarDias(hoje, -40);

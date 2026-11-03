@@ -29,26 +29,64 @@ export function hashId(fonte, id) {
 }
 
 const PADROES_SENSIVEIS = [
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, // chave Pix aleatória, itemId, id de conta
+  /[*•xX\d]{3}\.[*•xX\d]{3}\.[*•xX\d]{3}-[*•xX\d]{2}/g,  // CPF mascarado (***.123.456-**) ou formatado
   /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g,                  // CPF
   /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g,          // CNPJ
   /[*•xX]{2,}\s?\d{2,}/g,                               // cartão mascarado (**** 1234)
   /\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b/g,           // cartão inteiro
   /\b(ag|agencia|agência|conta|cc|c\/c)\.?\s*:?\s*\d[\d.-]*/gi, // agência / conta
+  /\+?55\s?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4}\b/g,        // telefone com DDI (chave Pix)
+  /\(?\b\d{2}\)?\s?9\s?\d{4}[-\s]?\d{4}\b/g,            // celular com DDD, sem DDI
   /\b\d{5,}\b/g,                                        // qualquer número longo (conta, documento, protocolo)
   /[\w.+-]+@[\w-]+\.[\w.]+/g,                            // e-mail (chave Pix)
-  /\+?55\s?\(?\d{2}\)?\s?9?\d{4}-?\d{4}/g,              // telefone (chave Pix)
 ];
 
-/** Tira documento, conta, cartão, e-mail e telefone. Não tira nome: nome nunca entra aqui. */
+/** Tira documento, conta, cartão, chave Pix (aleatória, e-mail, telefone) e números longos. */
 export function sanear(texto) {
   let s = String(texto || '');
   for (const p of PADROES_SENSIVEIS) s = s.replace(p, '');
-  return s.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/[·\-–—:,\s]+$/g, '').trim();
+  return s.replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/[·\-–—:,\s]+$/g, '').trim();
 }
 
 /** true se o texto ainda tem cara de dado sensível (usado nos testes e como trava antes de gravar). */
 export function pareceSensivel(texto) {
   return PADROES_SENSIVEIS.some((p) => { p.lastIndex = 0; const r = p.test(String(texto || '')); p.lastIndex = 0; return r; });
+}
+
+// Nome de pessoa não tem padrão: quem sabe o nome é a própria transação (pagador, recebedor e
+// titular, SÓ EM MEMÓRIA, em `t.nomes`). Toda palavra desses nomes (3+ letras, fora "da", "dos"…)
+// sai do texto gravável, no meio da frase ou no fim, sem acento e sem maiúscula.
+const LIGA = new Set(['da', 'de', 'do', 'das', 'dos', 'e', 'di', 'du']);
+const palavrasDe = (nomes) => [...new Set((nomes || []).flatMap((n) => norm(n).split(/[^a-z0-9]+/)).filter((w) => w.length >= 3 && !LIGA.has(w)))];
+
+/**
+ * Tira do texto as palavras dos nomes de pessoa conhecidos (os da transação), e o "da"/"de" que
+ * ficaria solto entre elas ou no fim ("para JOSÉ DA SILVA" → "para").
+ */
+export function tirarNomes(texto, nomes) {
+  const ws = new Set(palavrasDe(nomes));
+  if (!ws.size) return String(texto || '');
+  const partes = String(texto || '').split(/([\p{L}\p{N}]+)/u); // ímpares = palavras
+  const ehPalavra = (k) => k % 2 === 1 && partes[k] !== '';
+  const fora = partes.map((p, k) => ehPalavra(k) && ws.has(norm(p)));
+  const vizinha = (k, d) => { for (let x = k + d; x >= 0 && x < partes.length; x += d) { if (ehPalavra(x)) return x; if (/[^\s]/.test(partes[x])) return -1; } return -1; };
+  for (let k = 1; k < partes.length; k += 2) {
+    if (fora[k] || !LIGA.has(norm(partes[k]))) continue;
+    const a = vizinha(k, -1), b = vizinha(k, 1);
+    // solto entre nomes, depois do nome no fim, ou antes de um nome que vai até o fim ("Pix da Fulana")
+    let ateOFim = b >= 0 && fora[b];
+    for (let x = b; ateOFim && x >= 0; x = vizinha(x, 1)) if (!fora[x]) ateOFim = false;
+    if ((a >= 0 && fora[a] && (b < 0 || fora[b])) || ateOFim) fora[k] = true;
+  }
+  return sanear(partes.map((p, k) => (fora[k] ? '' : p)).join('').replace(/·\s*·/g, '·'));
+}
+
+/** true se o texto ainda tem alguma palavra dos nomes conhecidos. */
+export function temNome(texto, nomes) {
+  const ws = palavrasDe(nomes);
+  const n = ` ${norm(texto).replace(/[^a-z0-9]+/g, ' ')} `;
+  return ws.some((w) => n.includes(` ${w} `));
 }
 
 /* ------------------------------------------------------------------ regras */
@@ -376,7 +414,8 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}, { hoje = 
       continue;
     }
 
-    const descricao = descricaoSaneada(t, regra);
+    // nome de pessoa (pagador, recebedor, titular) sai mesmo se a regra o escreveu na descrição
+    const descricao = tirarNomes(descricaoSaneada(t, regra), t.nomes) || descricaoSaneada(t, null);
     const categoria = (regra && regra.categoria) || 'a classificar';
     const novo = {
       id: idNovo(t, descricao),
@@ -393,7 +432,7 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}, { hoje = 
       obs: '',
       origem: t.fonte,
       fitid: t.fitid,
-      conta: sanear(t.conta || ''),
+      conta: tirarNomes(sanear(t.conta || ''), t.nomes),
       ...(t.viaCartao ? { viaCartao: true, ...(t.fatura ? { fatura: t.fatura } : {}) } : {}),
     };
     const mes = mesDe(t.data);
@@ -438,12 +477,19 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}, { hoje = 
 export function planejarFaturas(faturas, razao, hoje) {
   const acoes = [];
   const rel = { atualizadas: [], abertas: [] };
+  const faturasVistas = new Set();
   for (const f of faturas) {
     if (!f.vencimento || f.vencimento < hoje.slice(0, 8) + '01') continue;
     const mes = mesDe(f.vencimento);
     const st = razao[mes];
-    const prev = st && st.lista.find((l) => l.tipo === 'saida' && /cart[aã]o/i.test(l.categoria || '') && ehAberto(l));
     const fatFitid = hashId(f.fonte, f.idFonte);
+    // a própria fatura (rodada anterior) primeiro; senão um previsto de cartão ainda sem fatura
+    // ligada. Com dois cartões no mesmo mês, a fatura do segundo não pode pisar no previsto que o
+    // primeiro já mediu (antes os dois brigavam pelo mesmo e o valor trocava a cada rodada).
+    const deCartao = (l) => l.tipo === 'saida' && /cart[aã]o/i.test(l.categoria || '') && ehAberto(l);
+    const prev = st && (st.lista.find((l) => deCartao(l) && l.faturaFitid === fatFitid)
+      || st.lista.find((l) => deCartao(l) && !l.faturaFitid && !faturasVistas.has(l.id)));
+    if (prev) faturasVistas.add(prev.id);
     if (prev) {
       if (Math.abs(n(prev.valor) - f.valor) < 0.005 && prev.confianca === 'medido') continue;
       const antes = n(prev.valor);
