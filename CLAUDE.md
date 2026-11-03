@@ -42,7 +42,13 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   público: nenhum dado financeiro real aqui**; o e2e troca o razão da cópia do vault por um falso
   (`e2e/fixtures/financeiro-falso.ts`) e aponta `SINAPSE_FINANCAS` para a pasta temporária.
   Credencial só em `%LOCALAPPDATA%\sinapse-financas\pluggy.cred` (DPAPI, o Pedro digita); itemId
-  também não entra no repo. A tarefa `Metis-Sincronizar` (`instalar-tarefa.ps1`) roda todo dia às 17:00 `--gravar --commitar`: commita no vault só os arquivos do razão que gravou.
+  também não entra no repo. A tarefa `Metis-Sincronizar` (`instalar-tarefa.ps1`) roda todo dia às 17:00 `--gravar --commitar`: commita no vault só os arquivos do razão que gravou (e não commita com rebase/merge/conflito em curso).
+  Revisão de 03/11/2026: POST do dev server só com `content-type: application/json` e origem local
+  (página de fora mandava text/plain e gravava); `rel` e mês validados contra `../`; bloco
+  ```financeiro com JSON quebrado responde 409 (antes o próximo lançamento apagava o mês); lançamento
+  à mão com cara de documento/conta/chave Pix é recusado (marcador de teste sem número longo). No e2e,
+  com `INDEX_OUT` o `vite.config.ts` aponta `./data/*.json` para lá (o primeiro paint não mostra mais
+  o src/data real) e `VITE_CACHE_DIR` separa o cache de dependências do :5173.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.

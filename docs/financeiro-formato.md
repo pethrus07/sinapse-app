@@ -142,8 +142,10 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
    "a classificar") e fazer o commit do vault.
 9. Diário (**instalado em 03/11/2026, 17:00**, tarefa `Metis-Sincronizar`): `powershell -ExecutionPolicy Bypass -File scripts\financas\instalar-tarefa.ps1 -Hora 17:00`
    (escondido; `-Remover` tira). Roda `--gravar --commitar`: depois de gravar, `git add` e `git commit` no
-   vault **só** dos `04-NEGOCIO/financeiro/AAAA-MM.md` que escreveu ("Razão: sincronização do Nubank de
-   DD/MM") e `git push`. Nada gravado: nada commitado. Pre-commit que barra ou push que falha vão para o log.
+   vault **só** dos `04-NEGOCIO/financeiro/AAAA-MM.md` que escreveu ("Razão: sincronização do banco de
+   DD/MM") e `git push`. Nada gravado: nada commitado. Pre-commit que barra (o `git add` é desfeito) ou push
+   que falha vão para o log. Vault no meio de rebase, merge, cherry-pick ou com conflito: não commita (o razão
+   fica gravado; a rodada seguinte commita). "Hoje" e o dia de cada transação são de São Paulo, não UTC.
 
 ### O que o sincronizador faz com cada transação
 
@@ -180,8 +182,10 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
    nome, ou a corretora do banco da conexão: Nubank → Nu Invest), `classe` (CDB, FII, Ação…) e
    `liquidez`: CDB/RDB sem vencimento ou do Nubank → `diaria`; outro título → `no-vencimento`;
    ação/FII → `bolsa-d2`. Mudou instituição, liquidez ou descrição: a posição do mês é regravada no lugar.
-7. **Trava**: antes de gravar, qualquer campo novo com cara de CPF, CNPJ, conta, cartão, e-mail ou
-   telefone aborta tudo (nenhum mês é gravado). Só o bloco do mês é reescrito; o resto do arquivo
+7. **Nome de pessoa**: o nome do pagador/recebedor sem CNPJ e o do titular ficam só em memória; cada
+   palavra deles sai da descrição e da conta gravadas, mesmo que uma regra os tenha escrito.
+8. **Trava**: antes de gravar, qualquer campo novo com cara de CPF (cru, formatado ou mascarado), CNPJ,
+   conta, cartão, e-mail, telefone ou chave Pix aleatória aborta tudo (nenhum mês é gravado). Só o bloco do mês é reescrito; o resto do arquivo
    (e o CRLF) fica.
 
 Fora do git, em `%LOCALAPPDATA%\sinapse-financas\`: `pluggy.cred`, `regras\regras.json`,
