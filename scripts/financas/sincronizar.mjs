@@ -125,12 +125,24 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
   const linha = (x) => `    ${dataBR(x.data)}  ${(x.direcao === 'entrada' ? '+' : '−') + brl(x.valor).padStart(13)}  ${x.descricao}${x.conta ? ' · ' + x.conta : ''}${x.categoriaFonte ? '  [' + x.categoriaFonte + ']' : ''}`;
   log(`\nPeríodo ${dataBR(desde)} a ${dataBR(ate)}: ${transacoes.length} transações lidas.`);
   log(`  casados (previsto liquidado): ${r.casados.length}`);
-  for (const c of r.casados) log(`    ${dataBR(c.data)}  ${brl(c.valor).padStart(14)}  ${c.descricao}`);
+  for (const c of r.casados) {
+    const varios = c.itens && c.itens.length > 1;
+    log(`    ${dataBR(c.data)}  ${brl(c.valor).padStart(14)}  ${varios ? 'soma de ' + c.itens.length + ':' : (c.itens?.[0]?.descricao || c.descricao)}`);
+    for (const i of c.itens || []) {
+      const extra = [i.modo === 'conciliar' ? `já lançado à mão${i.antes && i.antes !== c.data ? ', data ' + dataBR(i.antes) + ' → ' + dataBR(c.data) : ''}` : '',
+        i.valorPrevisto !== undefined ? `previsto ${brl(i.valorPrevisto)} → valor do banco` : ''].filter(Boolean).join('; ');
+      if (varios || extra) log(`        ${varios ? brl(i.valor).padStart(12) + '  ' + i.descricao : ''}${extra ? (varios ? '  ' : '') + '(' + extra + ')' : ''}`);
+    }
+  }
   log(`  novos com regra: ${r.novos.length}`);
   for (const x of r.novos) log(linha(x));
   log(`  a classificar: ${r.aClassificar.length}`);
   for (const x of r.aClassificar) log(linha(x));
-  log(`  ignorados: ${r.ignorados.jaImportado} já importados · ${r.ignorados.regra} por regra · ${r.ignorados.categoria} por categoria · ${r.ignorados.pendente} pendentes no banco`);
+  log(`  ignorados: ${r.ignorados.jaImportado} já importados · ${r.ignorados.regra} por regra · ${r.ignorados.categoria} por categoria · ${r.ignorados.pendente} pendentes no banco · ${r.ignorados.estorno || 0} compra+estorno`);
+  if (r.divergentes?.length) {
+    log(`  divergentes (cliente reconhecido, mas o valor não fecha com o razão; não gravados): ${r.divergentes.length}`);
+    for (const d of r.divergentes) log(`    ${dataBR(d.data)}  ${brl(d.valor).padStart(14)}  ${d.cliente} · no razão: ${d.razao.map((x) => x.id + ' ' + brl(x.valor) + ' ' + x.status).join(' | ')}`);
+  }
   if (r.ambiguos.length) {
     log(`  ambíguos (não gravados; uma regra com "previsto" ou "cliente" resolve): ${r.ambiguos.length}`);
     for (const a of r.ambiguos) log(`    ${dataBR(a.data)}  ${brl(a.valor).padStart(14)}  pode ser: ${a.opcoes.join(' | ')}`);
@@ -153,7 +165,7 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
   writeFileSync(join(base, 'estado.json'), JSON.stringify({ ultimaSync: new Date().toISOString(), conexoes }, null, 2), 'utf8');
   mkdirSync(join(base, 'logs'), { recursive: true });
   appendFileSync(join(base, 'logs', `${hoje.slice(0, 7)}.log`),
-    `${new Date().toISOString()} gravar: ${r.casados.length} casados, ${r.novos.length} novos, ${r.aClassificar.length} a classificar, ${r.ambiguos.length} ambíguos, meses ${meses.join(' ')}\n`, 'utf8');
+    `${new Date().toISOString()} gravar: ${r.casados.length} casados, ${r.novos.length} novos, ${r.aClassificar.length} a classificar, ${r.ambiguos.length} ambíguos, ${r.divergentes.length} divergentes, meses ${meses.join(' ')}\n`, 'utf8');
   log(`\nGravado em ${meses.length ? meses.join(', ') : 'nenhum mês'} (${vault}). Bruto em ${pastaBruto}.`);
   log('Revise no app (Financeiro → Lançamentos, categoria "a classificar") e faça o commit do vault.');
   return { modo: 'gravar', acoes, meses, relatorio: r, conexoes };

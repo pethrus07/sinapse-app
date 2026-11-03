@@ -5,7 +5,7 @@
 // Transação normalizada (o que um leitor entrega):
 //   { idFonte, fonte, data: 'AAAA-MM-DD', valor: > 0, direcao: 'entrada'|'saida',
 //     texto: string (SÓ EM MEMÓRIA: descrição crua + contraparte + estabelecimento, para as regras),
-//     documentos: string[] (só dígitos, SÓ EM MEMÓRIA), meio: 'pix'|'ted'|'boleto'|'cartao'|'outro',
+//     documentos: string[] (só dígitos, SÓ EM MEMÓRIA), meio: 'pix'|'ted'|'boleto'|'cartao'|'debito'|'outro',
 //     conta: 'Nubank · conta' (rótulo, nunca número), viaCartao: bool, fatura: 'AAAA-MM'|'',
 //     categoriaFonte: string (taxonomia do banco/agregador), pendente: bool }
 //
@@ -132,7 +132,7 @@ export function gravarMes(vault, mes, estado, lista, hoje) {
 
 const MEIO = {
   entrada: { pix: 'Pix recebido', ted: 'Transferência recebida', boleto: 'Boleto recebido', cartao: 'Estorno no cartão', outro: 'Entrada' },
-  saida: { pix: 'Pix enviado', ted: 'Transferência enviada', boleto: 'Boleto pago', cartao: 'Compra no cartão', outro: 'Saída' },
+  saida: { pix: 'Pix enviado', ted: 'Transferência enviada', boleto: 'Boleto pago', cartao: 'Compra no cartão', debito: 'Compra no débito', outro: 'Saída' },
 };
 
 export function descricaoSaneada(t, regra) {
@@ -145,26 +145,68 @@ export function descricaoSaneada(t, regra) {
 /* ------------------------------------------------------------------ plano */
 
 const diasEntre = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+const centavo = (v) => Math.round(n(v) * 100);
+
+/** Clientes que a regra aceita no casamento: `clientes` (lista) ou `cliente`. */
+const clientesDe = (regra) => (regra ? (Array.isArray(regra.clientes) && regra.clientes.length ? regra.clientes : regra.cliente ? [regra.cliente] : []) : []);
+/** A regra diz de quem é (cliente) ou qual previsto liquida: só então o razão escrito à mão pode ser conciliado. */
+const regraIdentifica = (regra) => !!(regra && (clientesDe(regra).length || regra.previsto));
 
 /**
- * Previsto candidato: aberto, mesma direção, mesmo valor (centavo), vencimento a até ±N dias
- * (sem dia: mesmo mês do arquivo), cliente da regra quando houver, e o pedaço de id da regra.
+ * Lançamentos do razão que esta transação pode ser. Sem olhar o valor (quem chama decide).
+ *  - aberto (a-receber/a-pagar), mesma direção, vencimento a até ±tol dias; sem dia: mesmo mês
+ *    do arquivo, ou qualquer mês quando a regra aponta o `previsto` (parcela sem data);
+ *  - JÁ liquidado à mão (recebido/pago sem `fitid`), só se a regra identifica o cliente ou o
+ *    previsto: a distância conta do vencimento ou do `liquidadoEm`, o que estiver mais perto.
+ *    Assim um pagamento que o Pedro registrou antes do banco ligar não vira lançamento em dobro.
+ * Cliente(s) e pedaço de id da regra filtram. Ordem: mais perto primeiro, depois mês e id.
  */
 function candidatos(t, regra, razao, tol) {
   const out = [];
+  const clientes = clientesDe(regra);
+  const liquidadosValem = regraIdentifica(regra);
   for (const [mes, st] of Object.entries(razao)) {
     for (const l of st.lista) {
-      if (!ehAberto(l) || l.tipo === 'investimento') continue;
+      if (l.tipo === 'investimento') continue;
       if (t.direcao === 'entrada' ? l.tipo !== 'entrada' : l.tipo === 'entrada') continue;
-      if (Math.abs(n(l.valor) - t.valor) > 0.005) continue;
-      if (l.vencimento) { if (Math.abs(diasEntre(l.vencimento.slice(0, 10), t.data)) > tol) continue; }
-      else if (mes !== mesDe(t.data)) continue;
-      if (regra && regra.cliente && (l.cliente || '') !== regra.cliente) continue;
+      const aberto = ehAberto(l);
+      const liquidado = !aberto && (l.status === 'recebido' || l.status === 'pago') && !l.fitid;
+      if (!aberto && !(liquidado && liquidadosValem)) continue;
+      if (clientes.length && !clientes.includes(l.cliente || '')) continue;
       if (regra && regra.previsto && !String(l.id).includes(regra.previsto)) continue;
-      out.push({ mes, l, dist: l.vencimento ? Math.abs(diasEntre(l.vencimento.slice(0, 10), t.data)) : 99 });
+      const datas = [l.vencimento, liquidado ? l.liquidadoEm : ''].map((d) => String(d || '').slice(0, 10)).filter(Boolean);
+      let dist;
+      if (datas.length) {
+        dist = Math.min(...datas.map((d) => Math.abs(diasEntre(d, t.data))));
+        if (dist > tol) continue;
+      } else if (mes === mesDe(t.data)) dist = 50;
+      else if (regra && regra.previsto && aberto) dist = 99;
+      else continue;
+      out.push({ mes, l, dist, liquidado });
     }
   }
-  return out.sort((a, b) => a.dist - b.dist);
+  return out.sort((a, b) => a.dist - b.dist || a.mes.localeCompare(b.mes) || String(a.l.id).localeCompare(String(b.l.id)));
+}
+
+/**
+ * Um Pix que paga vários lançamentos de uma vez (ex.: parcela + etapa no mesmo envio): procura
+ * combinações de 2 a 6 candidatos cuja soma bate no centavo. Devolve a melhor (menor distância
+ * máxima) e se houve empate com outra combinação diferente.
+ */
+function combinacao(cands, valor) {
+  const alvo = centavo(valor);
+  const lista = cands.slice(0, 16);
+  const achadas = [];
+  const rec = (i, soma, escolha) => {
+    if (soma === alvo && escolha.length >= 2) { achadas.push(escolha.slice()); return; }
+    if (soma >= alvo || escolha.length === 6 || achadas.length > 20) return;
+    for (let k = i; k < lista.length; k++) { escolha.push(lista[k]); rec(k + 1, soma + centavo(lista[k].l.valor), escolha); escolha.pop(); }
+  };
+  rec(0, 0, []);
+  if (!achadas.length) return null;
+  const pior = (c) => Math.max(...c.map((x) => x.dist));
+  achadas.sort((a, b) => pior(a) - pior(b));
+  return { melhor: achadas[0], empate: achadas.length > 1 && pior(achadas[1]) === pior(achadas[0]) };
 }
 
 function idNovo(t, desc) {
@@ -173,9 +215,35 @@ function idNovo(t, desc) {
 }
 
 /**
+ * Estornos: entrada cuja regra tem `estorno: true` anula uma saída de mesmo valor, na mesma conta,
+ * até `diasEstorno` (padrão 3) dias antes ou depois, ainda não importada. As duas saem do fluxo.
+ * Estorno parcial ou sem par segue como lançamento comum (com a categoria da regra).
+ */
+function parearEstornos(ts, regras, conhecidos) {
+  const fora = new Set();
+  const saidas = ts.filter((t) => t.direcao === 'saida' && !t.pendente && !conhecidos.has(t.fitid));
+  for (const t of ts) {
+    if (t.direcao !== 'entrada' || t.pendente || conhecidos.has(t.fitid)) continue;
+    const regra = regraDe(t, regras);
+    if (!regra || !regra.estorno) continue;
+    const janela = Number.isFinite(regra.diasEstorno) ? regra.diasEstorno : 3;
+    const par = saidas
+      .filter((s) => !fora.has(s.fitid) && (s.conta || '') === (t.conta || '') && centavo(s.valor) === centavo(t.valor) && Math.abs(diasEntre(s.data, t.data)) <= janela)
+      .sort((a, b) => Math.abs(diasEntre(a.data, t.data)) - Math.abs(diasEntre(b.data, t.data)))[0];
+    if (par) { fora.add(par.fitid); fora.add(t.fitid); }
+  }
+  return fora;
+}
+
+/**
  * Decide o que fazer com cada transação. Puro: não grava nada. Devolve as ações e o relatório.
  * `razao` é o de lerRazao (é mutado só numa cópia interna, para duas transações iguais não
  * liquidarem o mesmo previsto).
+ *
+ * Ordem de casamento: (1) um lançamento de mesmo valor; (2) vários do(s) cliente(s) da regra que
+ * somam o valor; (3) regra com `valorLivre` e `previsto`: o previsto aberto mais perto, com o
+ * valor do banco (fatura do cartão); (4) a regra diz o cliente, há lançamento dele sem banco na
+ * janela, mas nada fecha: DIVERGENTE, não grava (o Pedro corrige o razão ou cria a regra).
  */
 export function planejar(transacoes, razaoOriginal, regrasBrutas = {}) {
   const regras = normalizarRegras(regrasBrutas);
@@ -184,35 +252,77 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}) {
   for (const st of Object.values(razao)) for (const l of st.lista) if (l.fitid) conhecidos.add(l.fitid);
 
   const acoes = [];
-  const rel = { casados: [], novos: [], aClassificar: [], ignorados: { jaImportado: 0, regra: 0, categoria: 0, pendente: 0 }, ambiguos: [] };
+  const rel = { casados: [], novos: [], aClassificar: [], ignorados: { jaImportado: 0, regra: 0, categoria: 0, pendente: 0, estorno: 0 }, ambiguos: [], divergentes: [] };
 
-  for (const bruta of transacoes) {
-    const t = { ...bruta, fitid: bruta.fitid || hashId(bruta.fonte, bruta.idFonte) };
+  // do mais antigo para o mais novo (a API manda o mais novo primeiro): a parcela 2 vai para o
+  // primeiro pagamento, a 3 para o seguinte
+  const ts = transacoes.map((b) => ({ ...b, fitid: b.fitid || hashId(b.fonte, b.idFonte) }))
+    .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  const estornados = parearEstornos(ts, regras, conhecidos);
+
+  const liquidar = (t, c, extra = {}) => {
+    const { mes, l } = c;
+    const modo = c.liquidado ? 'conciliar' : 'liquidar';
+    if (!c.liquidado) l.status = l.tipo === 'entrada' ? 'recebido' : 'pago';
+    const antes = l.liquidadoEm || '';
+    l.liquidadoEm = t.data;
+    l.fitid = t.fitid;
+    l.origem = t.fonte;
+    Object.assign(l, extra);
+    acoes.push({ acao: modo, mes, id: l.id, liquidadoEm: t.data, fitid: t.fitid, origem: t.fonte, ...extra });
+    return { id: l.id, descricao: l.descricao, valor: n(l.valor), modo, antes, ...(extra.valorPrevisto !== undefined ? { valorPrevisto: extra.valorPrevisto } : {}) };
+  };
+  const casado = (t, itens) => rel.casados.push({
+    data: t.data, valor: t.valor, id: itens.map((i) => i.id).join(' + '), descricao: itens.map((i) => i.descricao).join(' + '), itens,
+  });
+
+  for (const t of ts) {
     if (conhecidos.has(t.fitid)) { rel.ignorados.jaImportado++; continue; }
     if (t.pendente) { rel.ignorados.pendente++; continue; }
+    if (estornados.has(t.fitid)) { rel.ignorados.estorno++; continue; }
     if (regras.ignorarCategorias.includes(norm(t.categoriaFonte))) { rel.ignorados.categoria++; continue; }
     const regra = regraDe(t, regras);
     if (regra && regra.ignorar) { rel.ignorados.regra++; continue; }
     conhecidos.add(t.fitid);
 
     // compra no cartão não liquida previsto: quem liquida é o pagamento da fatura na conta
-    const cands = t.viaCartao ? [] : candidatos(t, regra, razao, regras.toleranciaDias);
-    const empate = cands.length > 1 && cands[0].dist === cands[1].dist && !(regra && (regra.previsto || regra.cliente));
-    if (empate) {
-      rel.ambiguos.push({ data: t.data, valor: t.valor, direcao: t.direcao, opcoes: cands.slice(0, 4).map((c) => c.l.id) });
-      conhecidos.delete(t.fitid); // não grava: volta na próxima rodada, depois de uma regra decidir
+    const tol = regra && Number.isFinite(regra.toleranciaDias) ? regra.toleranciaDias : regras.toleranciaDias;
+    const todos = t.viaCartao ? [] : candidatos(t, regra, razao, tol);
+    const exatos = todos.filter((c) => centavo(c.l.valor) === centavo(t.valor));
+    const decide = regra && (regra.previsto || clientesDe(regra).length);
+
+    if (exatos.length) {
+      if (exatos.length > 1 && exatos[0].dist === exatos[1].dist && !decide) {
+        rel.ambiguos.push({ data: t.data, valor: t.valor, direcao: t.direcao, opcoes: exatos.slice(0, 4).map((c) => c.l.id) });
+        conhecidos.delete(t.fitid); // não grava: volta na próxima rodada, depois de uma regra decidir
+        continue;
+      }
+      casado(t, [liquidar(t, exatos[0])]);
       continue;
     }
-    if (cands.length) {
-      const { mes, l } = cands[0];
-      l.status = l.tipo === 'entrada' ? 'recebido' : 'pago';
-      l.liquidadoEm = t.data;
-      l.fitid = t.fitid;
-      l.origem = t.fonte;
-      acoes.push({ acao: 'liquidar', mes, id: l.id, liquidadoEm: t.data, fitid: t.fitid, origem: t.fonte });
-      rel.casados.push({ data: t.data, valor: t.valor, id: l.id, descricao: l.descricao });
+    if (clientesDe(regra).length && todos.length >= 2) {
+      const comb = combinacao(todos, t.valor);
+      if (comb && comb.empate) {
+        rel.ambiguos.push({ data: t.data, valor: t.valor, direcao: t.direcao, opcoes: comb.melhor.map((c) => c.l.id) });
+        conhecidos.delete(t.fitid);
+        continue;
+      }
+      if (comb) { casado(t, comb.melhor.map((c) => liquidar(t, c))); continue; }
+    }
+    if (regra && regra.valorLivre && regra.previsto) {
+      const c = todos.find((x) => !x.liquidado);
+      if (c) {
+        const valorPrevisto = n(c.l.valor);
+        casado(t, [liquidar(t, c, { valor: Math.round(t.valor * 100) / 100, valorPrevisto })]);
+        continue;
+      }
+    }
+    if (clientesDe(regra).length && todos.length) {
+      rel.divergentes.push({ data: t.data, valor: t.valor, direcao: t.direcao, cliente: clientesDe(regra)[0], razao: todos.slice(0, 6).map((c) => ({ id: c.l.id, valor: n(c.l.valor), status: c.l.status })) });
+      conhecidos.delete(t.fitid);
       continue;
     }
+
     const descricao = descricaoSaneada(t, regra);
     const categoria = (regra && regra.categoria) || 'a classificar';
     const novo = {
@@ -237,7 +347,7 @@ export function planejar(transacoes, razaoOriginal, regrasBrutas = {}) {
     if (!razao[mes]) razao[mes] = { arquivo: '', texto: '', lista: [] };
     razao[mes].lista.push(novo);
     acoes.push({ acao: 'novo', mes, lancamento: novo });
-    const linha = { data: t.data, valor: t.valor, direcao: t.direcao, descricao, conta: novo.conta, categoriaFonte: sanear(t.categoriaFonte || '') };
+    const linha = { data: t.data, valor: t.valor, direcao: t.direcao, descricao, categoria, conta: novo.conta, categoriaFonte: sanear(t.categoriaFonte || '') };
     if (categoria === 'a classificar') rel.aClassificar.push(linha); else rel.novos.push(linha);
   }
   return { acoes, relatorio: rel, razao };
@@ -346,6 +456,12 @@ export function aplicar(vault, acoes, hoje) {
       if (!l || !ehAberto(l)) continue; // alguém liquidou no meio: não pisa
       l.status = l.tipo === 'entrada' ? 'recebido' : 'pago';
       l.liquidadoEm = a.liquidadoEm; l.fitid = a.fitid; l.origem = a.origem;
+      if (a.valor !== undefined) { l.valorPrevisto = a.valorPrevisto; l.valor = a.valor; }
+    } else if (a.acao === 'conciliar') {
+      // já estava liquidado à mão: ganha a data real do banco e o fitid (não duplica depois)
+      const l = ls.find((x) => x.id === a.id);
+      if (!l || l.fitid || ehAberto(l)) continue;
+      l.liquidadoEm = a.liquidadoEm; l.fitid = a.fitid; l.origem = a.origem;
     } else if (a.acao === 'atualizar') {
       const l = ls.find((x) => x.id === a.id);
       if (l) Object.assign(l, a.campos);
@@ -357,10 +473,13 @@ export function aplicar(vault, acoes, hoje) {
       if (k >= 0) ls[k] = a.lancamento; else ls.push(a.lancamento);
     }
   }
-  // trava ANTES de gravar qualquer mês: ou grava tudo saneado, ou nada
+  // trava ANTES de gravar qualquer mês: ou grava tudo saneado, ou nada. Vale para o texto que o
+  // sincronizador escreveu (lançamento novo, posição); liquidar/conciliar não mexe em texto, e a
+  // obs escrita à mão num previsto conciliado não deve travar a rodada.
+  const escritos = new Set(acoes.filter((a) => a.lancamento).map((a) => a.lancamento.id));
   for (const [mes, ls] of tocados) {
     for (const l of ls) {
-      if (!l.origem) continue;
+      if (!l.origem || !escritos.has(l.id)) continue;
       for (const campo of ['descricao', 'conta', 'instituicao', 'obs']) {
         if (l[campo] && pareceSensivel(l[campo]))
           throw new Error(`trava de saneamento: ${mes} ${l.id} campo ${campo}. Nada foi gravado.`);

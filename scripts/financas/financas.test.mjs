@@ -90,6 +90,13 @@ test('normalizarTransacao: direção pelo type, valor positivo, rótulo da conta
   assert.equal(cc.fatura, '2030-04');
 });
 
+test('compra no débito da conta vira "Compra no débito", não "Saída"', () => {
+  const conta = { id: 'x', type: 'BANK', marketingName: 'Nu Pagamentos' };
+  const t = normalizarTransacao({ id: '1', date: '2030-03-01', amount: -10, type: 'DEBIT', operationType: 'CARTAO', description: 'Compra no débito|LOJA FALSA' }, conta);
+  assert.equal(t.meio, 'debito');
+  assert.equal(planejar([{ ...t, fonte: 'teste' }], {}).relatorio.aClassificar[0].descricao, 'Compra no débito');
+});
+
 test('cliente HTTP: autentica, manda X-API-KEY, segue o cursor da v2 e respeita dateFrom', async () => {
   const chamadas = [];
   const f = fetchDeFixture(ler);
@@ -118,6 +125,90 @@ test('planejar: fora de ±5 dias não casa', () => {
   assert.equal(p.relatorio.casados.length, 0);
 });
 
+/* conciliação: dados falsos, nenhum cliente, valor ou documento real */
+const T = (p) => ({ fonte: 'teste', idFonte: p.id || p.data + p.valor, data: '2030-03-05', valor: 100, direcao: 'entrada', texto: '', meio: 'pix', conta: 'Banco · conta', ...p });
+const R = (...listas) => Object.fromEntries(listas.map(([mes, lista]) => [mes, { arquivo: '', texto: '', lista }]));
+
+test('planejar: lançamento já marcado recebido à mão (sem fitid) é conciliado, não duplica; só com regra que diz o cliente', () => {
+  const razao = R(['2030-03', [L({ id: 'alfa-mar', valor: 340, vencimento: '2030-03-01', status: 'recebido', liquidadoEm: '2030-03-01', cliente: 'Cliente Alfa' })]]);
+  const regras = { regras: [{ quando: { documento: '11222333000181', direcao: 'entrada' }, cliente: 'Cliente Alfa' }] };
+  const t = T({ id: '1', data: '2030-03-04', valor: 340, documentos: ['11222333000181'] });
+  const p = planejar([t], razao, regras);
+  assert.equal(p.relatorio.casados.length, 1);
+  assert.equal(p.relatorio.casados[0].itens[0].modo, 'conciliar');
+  assert.equal(p.acoes[0].acao, 'conciliar');
+  assert.equal(p.razao['2030-03'].lista[0].liquidadoEm, '2030-03-04');
+  assert.equal(p.razao['2030-03'].lista.length, 1);
+  // sem regra, o recebido à mão não é candidato: a transação vira nova
+  assert.equal(planejar([t], razao, {}).relatorio.casados.length, 0);
+});
+
+test('planejar: um Pix que paga vários lançamentos do mesmo grupo de clientes casa pela soma', () => {
+  const razao = R(['2030-03', [
+    L({ id: 'parcela-beta', valor: 200, vencimento: '2030-03-20', cliente: 'Cliente Beta' }),
+    L({ id: 'etapa-gama', valor: 630, vencimento: '2030-03-20', cliente: 'Cliente Gama' }),
+    L({ id: 'outro-delta', valor: 200, vencimento: '2030-03-20', cliente: 'Cliente Delta' }),
+  ]]);
+  const regras = { regras: [{ quando: { documento: '99888777000166' }, cliente: 'Cliente Gama', clientes: ['Cliente Gama', 'Cliente Beta'] }] };
+  const p = planejar([T({ data: '2030-03-19', valor: 830, documentos: ['99888777000166'] })], razao, regras);
+  assert.equal(p.relatorio.casados.length, 1);
+  assert.deepEqual(p.relatorio.casados[0].itens.map((i) => i.id).sort(), ['etapa-gama', 'parcela-beta']);
+  assert.equal(p.razao['2030-03'].lista.find((l) => l.id === 'outro-delta').status, 'a-receber');
+  assert.equal(p.acoes.length, 2);
+  assert.equal(p.acoes[0].fitid, p.acoes[1].fitid);
+});
+
+test('planejar: cliente reconhecido mas o valor não fecha com o razão vira divergente e não grava', () => {
+  const razao = R(['2030-03', [L({ id: 'alfa-mar', valor: 480, vencimento: '2030-03-26', status: 'recebido', liquidadoEm: '2030-03-26', cliente: 'Cliente Alfa' })]]);
+  const regras = { regras: [{ quando: { texto: 'empresa alfa' }, cliente: 'Cliente Alfa' }] };
+  const p = planejar([T({ data: '2030-03-27', valor: 720, texto: 'EMPRESA ALFA LTDA' })], razao, regras);
+  assert.equal(p.relatorio.divergentes.length, 1);
+  assert.equal(p.relatorio.divergentes[0].razao[0].id, 'alfa-mar');
+  assert.equal(p.acoes.length, 0);
+  // sem lançamento do cliente na janela: entra como novo, com o cliente da regra
+  const p2 = planejar([T({ data: '2030-05-27', valor: 720, texto: 'EMPRESA ALFA LTDA' })], razao, regras);
+  assert.equal(p2.relatorio.aClassificar.length + p2.relatorio.novos.length, 1);
+  assert.equal(p2.acoes[0].lancamento.cliente, 'Cliente Alfa');
+});
+
+test('planejar: valorLivre + previsto liquida a fatura com o valor do banco, com tolerância própria da regra', () => {
+  const razao = R(['2030-04', [L({ id: '2030-04-cartao-de-credito-fatura', tipo: 'saida', valor: 610, vencimento: '2030-04-05', status: 'a-pagar', categoria: 'cartao' })]]);
+  const regras = { regras: [{ quando: { texto: 'pagamento de fatura', direcao: 'saida' }, categoria: 'cartao', previsto: 'cartao-de-credito-fatura', valorLivre: true, toleranciaDias: 10 }] };
+  const p = planejar([T({ data: '2030-03-28', valor: 877.5, direcao: 'saida', texto: 'Pagamento de fatura' })], razao, regras);
+  assert.equal(p.relatorio.casados.length, 1);
+  const l = p.razao['2030-04'].lista[0];
+  assert.deepEqual([l.status, l.valor, l.valorPrevisto, l.liquidadoEm], ['pago', 877.5, 610, '2030-03-28']);
+  // sem toleranciaDias, 8 dias de distância não casam
+  const semTol = { regras: [{ ...regras.regras[0], toleranciaDias: undefined }] };
+  assert.equal(planejar([T({ data: '2030-03-28', valor: 877.5, direcao: 'saida', texto: 'Pagamento de fatura' })], razao, semTol).relatorio.casados.length, 0);
+});
+
+test('planejar: parcela sem data em mês anterior casa quando a regra aponta o previsto, na ordem das parcelas', () => {
+  const razao = R(['2030-01', [
+    L({ id: '2030-01-epsilon-parcela-3-5', valor: 120, cliente: 'Cliente Epsilon' }),
+    L({ id: '2030-01-epsilon-parcela-2-5', valor: 120, cliente: 'Cliente Epsilon' }),
+  ]]);
+  const regras = { regras: [{ quando: { documento: '12345678909' }, cliente: 'Cliente Epsilon', previsto: 'epsilon-parcela' }] };
+  // chegam do mais novo para o mais antigo, como a API manda: o pagamento mais antigo leva a parcela 2
+  const p = planejar([T({ id: 'b', data: '2030-04-07', valor: 120, documentos: ['12345678909'] }), T({ id: 'a', data: '2030-03-07', valor: 120, documentos: ['12345678909'] })], razao, regras);
+  assert.deepEqual(p.relatorio.casados.map((c) => [c.data, c.id]), [['2030-03-07', '2030-01-epsilon-parcela-2-5'], ['2030-04-07', '2030-01-epsilon-parcela-3-5']]);
+  // sem a regra, parcela sem data só casa no mês do próprio arquivo
+  assert.equal(planejar([T({ data: '2030-03-07', valor: 120 })], razao, {}).relatorio.casados.length, 0);
+});
+
+test('planejar: compra e estorno do mesmo valor, mesma conta, se anulam; estorno parcial fica', () => {
+  const regras = { regras: [{ quando: { texto: 'estorno', direcao: 'entrada' }, estorno: true, categoria: 'estorno', descricao: 'Estorno' }, { quando: { texto: 'corrida' }, categoria: 'transporte', descricao: 'Transporte' }] };
+  const ts = [
+    T({ id: 'c1', data: '2030-03-02', valor: 15.5, direcao: 'saida', texto: 'Corrida app' }),
+    T({ id: 'e1', data: '2030-03-02', valor: 15.5, texto: 'Estorno - compra' }),
+    T({ id: 'c2', data: '2030-03-03', valor: 15.5, direcao: 'saida', texto: 'Corrida app' }),
+    T({ id: 'e2', data: '2030-03-04', valor: 11, texto: 'Estorno - compra' }),
+  ];
+  const p = planejar(ts, {}, regras);
+  assert.equal(p.relatorio.ignorados.estorno, 2);
+  assert.deepEqual(p.relatorio.novos.map((x) => [x.descricao, x.valor]).sort(), [['Estorno', 11], ['Transporte', 15.5]]);
+});
+
 test('gravarMes preserva o resto do arquivo e o CRLF', () => {
   const { vault } = vaultFalso();
   const r = lerRazao(vault);
@@ -141,7 +232,8 @@ test('sincronizar --simular não grava nada e relata casados, novos, a classific
   assert.deepEqual(rel.casados.map((c) => c.id).sort(), ['2030-03-02-beta', '2030-03-05-alfa', '2030-03-cartao-de-credito-fatura', '2030-03-reserva-de-mudanca']);
   assert.deepEqual(rel.novos.map((x) => x.descricao).sort(), ['Delivery', 'Netflix']);
   assert.deepEqual(rel.aClassificar.map((x) => x.descricao).sort(), ['Compra no cartão', 'Pix enviado', 'Transferência recebida']);
-  assert.deepEqual(rel.ignorados, { jaImportado: 0, regra: 0, categoria: 1, pendente: 1 });
+  assert.deepEqual(rel.ignorados, { jaImportado: 0, regra: 0, categoria: 1, pendente: 1, estorno: 0 });
+  assert.equal(rel.divergentes.length, 0);
   assert.equal(rel.ambiguos.length, 1);
   assert.deepEqual(rel.ambiguos[0].opcoes.sort(), ['2030-03-08-delta', '2030-03-08-gama']);
   assert.equal(r.faturas.atualizadas.length, 1);
@@ -222,6 +314,16 @@ test('aplicar trava se algo gravável ainda parecer dado sensível, e não grava
   const ruim = { acao: 'novo', mes: '2030-03', lancamento: L({ id: 'x', descricao: 'Pix 123.456.789-09', origem: 'pluggy', fitid: 'f' }) };
   assert.throws(() => aplicar(vault, [ruim], '2030-03-10'), /trava de saneamento/);
   assert.equal(readFileSync(join(vault, '04-NEGOCIO', 'financeiro', '2030-03.md'), 'utf8'), antes);
+});
+
+test('aplicar: conciliar grava data do banco e fitid no recebido à mão, sem travar por obs escrita à mão', () => {
+  const { vault } = vaultFalso();
+  const r = lerRazao(vault);
+  r['2030-02'].lista[0].obs = 'anotado à mão: protocolo 1234567';
+  gravarMes(vault, '2030-02', r['2030-02'], r['2030-02'].lista, '2030-03-10');
+  aplicar(vault, [{ acao: 'conciliar', mes: '2030-02', id: '2030-02-05-alfa', liquidadoEm: '2030-02-06', fitid: 'abc', origem: 'pluggy' }], '2030-03-10');
+  const l = lerRazao(vault)['2030-02'].lista[0];
+  assert.deepEqual([l.status, l.liquidadoEm, l.fitid, l.origem], ['recebido', '2030-02-06', 'abc', 'pluggy']);
 });
 
 test('avisoConsentimento: avisa a partir de 30 dias antes', () => {

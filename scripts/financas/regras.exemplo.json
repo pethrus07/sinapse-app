@@ -8,7 +8,9 @@
   "ignorarCategorias": ["Same person transfer"],
   "regras": [
     { "quando": { "documento": "11222333000181", "direcao": "entrada" }, "cliente": "Cliente Alfa", "categoria": "salario", "descricao": "Pix recebido · Cliente Alfa" },
+    { "quando": { "documento": "99888777000166", "direcao": "entrada" }, "cliente": "Cliente Gama", "clientes": ["Cliente Gama", "Cliente Beta"], "categoria": "cliente" },
     { "quando": { "texto": "pagamento de fatura", "direcao": "saida" }, "categoria": "cartao", "previsto": "cartao-de-credito-fatura" },
+    { "quando": { "texto": "estorno", "direcao": "entrada" }, "estorno": true, "categoria": "estorno", "descricao": "Estorno de compra" },
     { "quando": { "texto": "aplicacao rdb", "direcao": "saida" }, "categoria": "reserva", "previsto": "reserva" },
     { "quando": { "texto": "resgate rdb" }, "ignorar": true },
     { "quando": { "texto": "ifood" }, "categoria": "alimentacao", "descricao": "Delivery" },

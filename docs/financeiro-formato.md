@@ -97,9 +97,22 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
 1. **Já importada** (mesmo `fitid`): ignora. Reimportar nunca duplica.
 2. **Pendente no banco**, categoria em `ignorarCategorias` ou regra `ignorar`: ignora.
 3. **Casa com um previsto aberto**: mesma direção, mesmo valor (centavo), vencimento a até ±5 dias
-   (sem dia: mesmo mês), cliente e pedaço de id da regra quando houver. Liquida: `status`,
-   `liquidadoEm`, `fitid`, `origem`. Dois previstos empatados sem regra que decida: **ambíguo**,
-   não grava nada e volta na próxima rodada.
+   (sem dia: mesmo mês; com `previsto` na regra, qualquer mês, na ordem das parcelas), cliente e
+   pedaço de id da regra quando houver. Liquida: `status`, `liquidadoEm`, `fitid`, `origem`. Dois
+   previstos empatados sem regra que decida: **ambíguo**, não grava nada e volta na próxima rodada.
+   As transações são processadas da mais antiga para a mais nova.
+   - **Já lançado à mão** (`recebido`/`pago` sem `fitid`): se a regra diz o cliente ou o previsto,
+     ele também é candidato (distância pelo vencimento ou pelo `liquidadoEm`). É **conciliado**:
+     ganha `fitid`, `origem` e o `liquidadoEm` do banco, e não vira lançamento em dobro.
+   - **Soma**: sem um de mesmo valor, um Pix pode pagar de 2 a 6 lançamentos do(s) cliente(s) da
+     regra (`clientes`) que somam o valor no centavo (ex.: parcela + etapa no mesmo envio).
+   - **`valorLivre`** (com `previsto`): o previsto aberto mais perto é liquidado com o valor do
+     banco (o previsto antigo fica em `valorPrevisto`). Feito para o pagamento da fatura.
+   - **Divergente**: a regra diz o cliente, há lançamento dele sem banco na janela, mas nada fecha.
+     Não grava; o relatório mostra o que há no razão para o Pedro corrigir o valor ou lançar o que falta.
+   - **Estorno**: entrada com regra `estorno: true` anula uma saída de mesmo valor, mesma conta, até
+     `diasEstorno` (padrão 3) dias de distância, ainda não importada. As duas saem do fluxo; estorno
+     parcial segue como lançamento com a categoria da regra.
 4. **Não casa**: vira lançamento novo, já liquidado, com descrição **montada** (meio + cliente da
    regra: "Pix recebido · Desbravando UTV"; sem regra, "Pix recebido") e categoria da regra ou
    "a classificar". Compra no cartão nunca liquida previsto (quem liquida é o pagamento da fatura).
@@ -126,6 +139,9 @@ Ver `scripts/financas/regras.exemplo.json`. A primeira regra que casa decide.
 - `quando.direcao` (`entrada`/`saida`), `quando.viaCartao`, `quando.valor`, `quando.categoriaFonte`.
 - Efeito: `cliente`, `categoria`, `descricao` (o que vai para o vault), `previsto` (pedaço do id
   do previsto que deve liquidar), `ignorar: true`.
+- Casamento: `clientes` (lista de clientes que o mesmo pagador pode estar pagando; `cliente` segue
+  sendo o rótulo do lançamento novo), `toleranciaDias` (janela só desta regra), `valorLivre`,
+  `estorno` e `diasEstorno` (ver acima).
 
 ### Testes
 

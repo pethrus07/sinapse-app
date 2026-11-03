@@ -100,6 +100,7 @@ function meioDe(tx) {
   if (op.includes('PIX')) return 'pix';
   if (op.includes('TED') || op.includes('DOC') || op.includes('TRANSF')) return 'ted';
   if (op.includes('BOLETO')) return 'boleto';
+  if (op === 'CARTAO' || /compra no d[eé]bito/i.test(tx.description || '')) return 'debito'; // cartão de débito na conta
   if (/\bpix\b/i.test(tx.description || '')) return 'pix';
   return 'outro';
 }
