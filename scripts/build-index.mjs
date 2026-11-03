@@ -33,8 +33,9 @@ function lerEstadoFinancas() {
       rotulo: String(c.rotulo || 'conexão'), status: String(c.status || ''), execucao: String(c.execucao || ''),
       ultimaAtualizacao: String(c.ultimaAtualizacao || ''), autorizacaoVence: String(c.autorizacaoVence || ''), erro: String(c.erro || ''),
     }));
-    return { conexoes, ultimaSync: String(e.ultimaSync || '') };
-  } catch { return { conexoes: [], ultimaSync: '' }; }
+    const f = e.ultimaFalha && typeof e.ultimaFalha === 'object' ? { em: String(e.ultimaFalha.em || ''), mensagem: String(e.ultimaFalha.mensagem || '').slice(0, 300) } : null;
+    return { conexoes, ultimaSync: String(e.ultimaSync || ''), ultimaFalha: f };
+  } catch { return { conexoes: [], ultimaSync: '', ultimaFalha: null }; }
 }
 let cacheDisco = null;
 let cacheSujo = false;
@@ -219,7 +220,7 @@ export function buildIndex(VAULT, OUT) {
   // `tipo: diario` (ou o antigo `daily`) alimenta o link do dia na grade.
   const agenda = { blocos: [], semanal: [], mensal: [], datas: [], dailys: [], fonte: '' };
   // Financeiro: um arquivo por mes (`tipo: financeiro`) com bloco JSON de lancamentos.
-  const financeiro = { lancamentos: [], meses: [] };
+  const financeiro = { lancamentos: [], meses: [], retratos: [] };
 
   for (const file of files) {
     const rel = relative(VAULT, file).replace(/\\/g, '/');
@@ -265,6 +266,16 @@ export function buildIndex(VAULT, OUT) {
           financeiro.meses.push({ mes, rel, id, total: arr.length });
           for (const l of arr) financeiro.lancamentos.push({ ...l, mes, rel });
         } catch { /* JSON invalido -> ignora, nao quebra o indice */ }
+      }
+      // retratos do patrimônio (04-NEGOCIO/financeiro/patrimonio.md): um por dia de sincronização
+      const mp = content.match(/```patrimonio\s*\n([\s\S]*?)```/);
+      if (mp) {
+        try {
+          const p = JSON.parse(mp[1]);
+          for (const r of Array.isArray(p.retratos) ? p.retratos : []) {
+            if (r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.data))) financeiro.retratos.push({ data: r.data, total: Number(r.total) || 0, diaria: Number(r.diaria) || 0, porGrupo: r.porGrupo || {} });
+          }
+        } catch { /* JSON invalido -> ignora */ }
       }
     }
     if (type === 'daily' || type === 'diario') {
@@ -475,6 +486,8 @@ export function buildIndex(VAULT, OUT) {
   const estFin = lerEstadoFinancas();
   financeiro.conexoes = estFin.conexoes;
   financeiro.ultimaSync = estFin.ultimaSync;
+  financeiro.ultimaFalha = estFin.ultimaFalha;
+  financeiro.retratos.sort((a, b) => a.data.localeCompare(b.data));
   for (const c of estFin.conexoes) {
     const vence = c.autorizacaoVence.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(vence)) continue;

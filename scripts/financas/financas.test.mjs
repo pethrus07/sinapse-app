@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { aplicar, gravarMes, hashId, lerRazao, pareceSensivel, planejar, planejarInvestimentos, regraDe, normalizarRegras, sanear } from './nucleo.mjs';
-import { bancoDe, criarCliente, fetchDeFixture, final4, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
+import { aplicar, gravarMes, gravarRetrato, hashId, lerRazao, lerRetratos, pareceSensivel, planejar, planejarInvestimentos, regraDe, normalizarRegras, sanear } from './nucleo.mjs';
+import { bancoDe, criarCliente, criterioDaTransacao, fetchDeFixture, final4, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
 import { avisoConsentimento, rodar } from './sincronizar.mjs';
 import { lerCredencial } from './credencial.mjs';
 
@@ -396,7 +396,7 @@ test('--gravar --commitar: commita SÓ os arquivos do razão gravados; outro arq
   assert.equal(r1.commit.push, false); // sem remoto: o push falha, fica registrado, não lança
   assert.match(git('log', '-1', '--format=%s'), /^Razão: sincronização do Nubank de 10\/03/);
   const noCommit = git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort();
-  assert.deepEqual(noCommit, ['04-NEGOCIO/financeiro/2030-02.md', '04-NEGOCIO/financeiro/2030-03.md', '04-NEGOCIO/financeiro/2030-04.md']);
+  assert.deepEqual(noCommit, ['04-NEGOCIO/financeiro/2030-02.md', '04-NEGOCIO/financeiro/2030-03.md', '04-NEGOCIO/financeiro/2030-04.md', '04-NEGOCIO/financeiro/patrimonio.md']);
   const st = git('status', '--porcelain');
   assert.match(st, /outra-sessao\.md/);
   assert.match(st, /A  novo-de-outra-sessao\.md/);
@@ -425,4 +425,50 @@ test('credencial DPAPI: grava cifrado e só lê de volta pela mesma conta (Windo
   assert.equal(c.clientSecret, 'segredo-falso');
   assert.deepEqual(c.itemIds, ['00000000-0000-4000-8000-000000000001']);
   assert.throws(() => lerCredencial(join(dir, 'nao-existe.cred')), /não encontrada/);
+});
+
+test('retrato do patrimônio: um por dia em patrimonio.md, sem id; o do mesmo dia é trocado; --gravar grava', async () => {
+  const { vault, base } = vaultFalso();
+  const r1 = { data: '2030-03-10', total: 1000, diaria: 700, porGrupo: { FII: 300, 'CDB liquidez diária': 700 } };
+  assert.equal(gravarRetrato(vault, r1, '2030-03-10'), '04-NEGOCIO/financeiro/patrimonio.md');
+  assert.equal(gravarRetrato(vault, r1, '2030-03-10'), ''); // igual: não mexe
+  gravarRetrato(vault, { ...r1, total: 1100 }, '2030-03-10');
+  gravarRetrato(vault, { ...r1, data: '2030-03-11' }, '2030-03-11');
+  assert.deepEqual(lerRetratos(vault).map((r) => [r.data, r.total]), [['2030-03-10', 1100], ['2030-03-11', 1000]]);
+  assert.deepEqual(Object.keys(lerRazao(vault)).sort(), ['2030-02', '2030-03']); // não vira mês do razão
+  // pela sincronização: as posições da fixture viram o retrato do dia
+  const { vault: v2, base: b2 } = vaultFalso();
+  await rodar(['--fixture', FIX, '--vault', v2, '--regras', REGRAS, '--hoje', '2030-03-10', '--gravar'], { log: () => {}, env: { SINAPSE_FINANCAS: b2 } });
+  const [r] = lerRetratos(v2);
+  assert.equal(r.data, '2030-03-10');
+  assert.equal(r.total, 7700);
+  assert.equal(r.diaria, 6200);
+  const txt = readFileSync(join(v2, '04-NEGOCIO', 'financeiro', 'patrimonio.md'), 'utf8');
+  for (const x of ['c0000001', '0001-RESERVA', 'FULANA']) assert.ok(!txt.includes(x), `patrimonio.md contém ${x}`);
+  void base;
+});
+
+test('sincronização que falha no --gravar fica no estado.json (ultimaFalha) sem apagar a última que deu certo', async () => {
+  const { vault, base } = vaultFalso();
+  mkdirSync(base, { recursive: true });
+  writeFileSync(join(base, 'estado.json'), JSON.stringify({ ultimaSync: '2030-03-09T10:00:00.000Z', conexoes: [{ rotulo: 'X' }] }));
+  const vazia = mkdtempSync(join(tmpdir(), 'sinapse-fix-'));
+  writeFileSync(join(vazia, 'itens.json'), JSON.stringify(['nao-existe']));
+  await assert.rejects(rodar(['--fixture', vazia, '--vault', vault, '--hoje', '2030-03-10', '--gravar'], { log: () => {}, env: { SINAPSE_FINANCAS: base } }));
+  const e = JSON.parse(readFileSync(join(base, 'estado.json'), 'utf8'));
+  assert.equal(e.ultimaSync, '2030-03-09T10:00:00.000Z');
+  assert.match(e.ultimaFalha.mensagem, /HTTP 404/);
+  assert.ok(readFileSync(join(base, 'logs', '2030-03.log'), 'utf8').includes('falhou'));
+  // --simular que falha não mexe no estado
+  const antes = readFileSync(join(base, 'estado.json'), 'utf8');
+  await assert.rejects(rodar(['--fixture', vazia, '--vault', vault, '--hoje', '2030-03-10'], { log: () => {}, env: { SINAPSE_FINANCAS: base } }));
+  assert.equal(readFileSync(join(base, 'estado.json'), 'utf8'), antes);
+});
+
+test('criterioDaTransacao: documento da contraparte, senão estabelecimento, senão o pedaço depois do "|"', () => {
+  assert.deepEqual(criterioDaTransacao({ type: 'DEBIT', paymentData: { receiver: { documentNumber: { value: '123.456.789-09' } } } }), { documento: '12345678909', direcao: 'saida' });
+  assert.deepEqual(criterioDaTransacao({ type: 'CREDIT', paymentData: { payer: { documentNumber: { value: '11.222.333/0001-81' } } } }), { documento: '11222333000181', direcao: 'entrada' });
+  assert.deepEqual(criterioDaTransacao({ type: 'DEBIT', description: 'Compra no débito|LOJA FALSA', merchant: { name: 'Loja Falsa Ltda' } }), { texto: 'loja falsa ltda', direcao: 'saida' });
+  assert.deepEqual(criterioDaTransacao({ type: 'DEBIT', description: 'Compra no débito|PADARIA FALSA' }), { texto: 'padaria falsa', direcao: 'saida' });
+  assert.equal(criterioDaTransacao({ type: 'DEBIT', description: 'x' }), null);
 });

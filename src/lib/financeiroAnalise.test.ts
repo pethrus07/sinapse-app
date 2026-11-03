@@ -44,7 +44,7 @@ test('gastosPorCategoria: média de 3 meses completos (sem o parcial e sem pontu
     gasto('2030-05', '16', 'lazer', 180), // não existia: nova
   ];
   const g = gastosPorCategoria(ls, '2030-06', '2030-05');
-  assert.deepEqual(g.meses, ['2030-02', '2030-03', '2030-04', '2030-05']);
+  assert.deepEqual(g.meses, ['2030-03', '2030-04', '2030-05', '2030-06']);
   assert.equal(g.foco, '2030-05');
   const por = Object.fromEntries(g.linhas.map((l) => [l.categoria, l]));
   assert.equal(por.mercado.media, 400);
@@ -56,7 +56,7 @@ test('gastosPorCategoria: média de 3 meses completos (sem o parcial e sem pontu
   assert.equal(por.casa.desvio, '');
   assert.equal(por.lazer.desvio, 'nova');
   assert.equal(g.linhas[0].categoria, 'casa'); // ordem: maior gasto no foco
-  assert.equal(g.totais[3], 700 + 220 + 1500 + 180);
+  assert.equal(g.totais[2], 700 + 220 + 1500 + 180);
   // mês em andamento: "abaixo" não vale (o mês não acabou)
   const ls2 = [...['2030-02', '2030-03', '2030-04'].map((m) => gasto(m, '10', 'mercado', 400)), gasto('2030-05', '02', 'mercado', 50)];
   assert.equal(gastosPorCategoria(ls2, '2030-05').linhas[0].desvio, '');
@@ -133,12 +133,13 @@ test('clientesRealizado: pago, quando, atraso em dias e o que falta até o fim',
     e({ vencimento: '2030-04-26', status: 'recebido', liquidadoEm: '2030-04-26' }), // em dia
     e({ vencimento: '2030-05-26', status: 'a-receber' }), // vencido em 05/06
     e({ vencimento: '2030-06-26', status: 'a-receber' }),
-    e({ vencimento: '', status: 'a-receber', semPrazo: true, valor: 9999 }), // sem prazo: fora
+    e({ vencimento: '', status: 'a-receber', semPrazo: true, valor: 9999 }), // sem prazo aberto: fora
+    e({ vencimento: '', status: 'recebido', semPrazo: true, valor: 100, liquidadoEm: '2030-05-02' }), // sem prazo pago: conta
     L({ tipo: 'entrada', cliente: '', valor: 50, status: 'recebido' }),
   ];
   const [c] = clientesRealizado(ls, '2030-06-05');
-  assert.deepEqual([c.cliente, c.recebido, c.vencido, c.diasVencido, c.falta, c.fim, c.atrasoMedio], ['Cliente Alfa', 1000, 500, 10, 1000, '2030-06', 2]);
-  assert.deepEqual(c.pagamentos.map((p) => [p.pagoEm, p.atraso]), [['2030-04-26', 0], ['2030-03-28', 2]]);
+  assert.deepEqual([c.cliente, c.recebido, c.vencido, c.diasVencido, c.falta, c.fim, c.atrasoMedio], ['Cliente Alfa', 1100, 500, 10, 1000, '2030-06', 2]);
+  assert.deepEqual(c.pagamentos.map((p) => [p.pagoEm, p.atraso]), [['2030-05-02', 0], ['2030-04-26', 0], ['2030-03-28', 2]]);
 });
 
 test('avisosFinanceiro: fatura nos próximos 5 dias, falha da sincronização, parada e a classificar', () => {

@@ -138,6 +138,25 @@ export function normalizarTransacao(tx, conta, regras = {}) {
   };
 }
 
+/**
+ * "Lembrar para os próximos": a condição de regra que reconhece de novo a mesma contraparte.
+ * Documento de quem pagou/recebeu quando houver; senão o estabelecimento; senão o pedaço da
+ * descrição depois do "|" (formato do Nubank: "Compra no débito|LOJA"). Vai só para o
+ * regras.json local (fora do git): o documento e o nome nunca chegam ao vault.
+ */
+export function criterioDaTransacao(tx) {
+  const pd = tx.paymentData || {};
+  const lado = tx.type === 'CREDIT' ? pd.payer : pd.receiver;
+  const direcao = tx.type === 'CREDIT' ? 'entrada' : 'saida';
+  const doc = digitos(lado?.documentNumber?.value);
+  if (doc.length === 11 || doc.length === 14) return { documento: doc, direcao };
+  const loja = tx.merchant?.businessName || tx.merchant?.name || '';
+  const depois = String(tx.description || '').split('|')[1] || '';
+  const texto = String(loja || depois || lado?.name || '').trim().toLowerCase();
+  if (texto.length >= 3) return { texto, direcao };
+  return null;
+}
+
 export function normalizarFatura(b, conta, regras = {}) {
   return {
     fonte: 'pluggy', idFonte: b.id,

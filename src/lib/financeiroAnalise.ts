@@ -68,7 +68,9 @@ export function gastosPorCategoria(ls: Lancamento[], hojeMes: string, foco = hoj
   const parciais = mesesParciais(ls, hojeMes);
   const fim = foco > hojeMes ? hojeMes : foco;
   const meses: string[] = [];
-  for (let k = nMeses - 1; k >= 0; k--) meses.push(somarMes(fim, -k));
+  // a janela termina no mês de hoje (o seletor mostra até ele); o foco pode ser qualquer mês dela
+  for (let k = nMeses - 1; k >= 0; k--) meses.push(somarMes(hojeMes, -k));
+  if (!meses.includes(fim)) meses.unshift(fim);
   const idx = new Map(meses.map((m, i) => [m, i]));
   const media3: string[] = [];
   for (let m = somarMes(fim, -1); media3.length < 3 && m >= somarMes(fim, -12); m = somarMes(m, -1)) if (!parciais.has(m)) media3.push(m);
@@ -236,7 +238,8 @@ export interface ClienteResumo {
 export function clientesRealizado(ls: Lancamento[], hoje: string): ClienteResumo[] {
   const m = new Map<string, ClienteResumo>();
   for (const l of ls) {
-    if (l.tipo !== 'entrada' || !l.cliente || l.semPrazo) continue;
+    if (l.tipo !== 'entrada' || !l.cliente) continue;
+    if (l.semPrazo && !liquidado(l)) continue; // sem prazo: fora do que falta, mas o que já entrou conta
     const c = m.get(l.cliente) || { cliente: l.cliente, recebido: 0, pagamentos: [], vencido: 0, diasVencido: 0, falta: 0, fim: '', atrasoMedio: 0 };
     const venc = (l.vencimento || '').slice(0, 10);
     if (liquidado(l)) {

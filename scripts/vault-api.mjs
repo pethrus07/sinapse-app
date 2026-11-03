@@ -13,6 +13,44 @@ import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { buildIndex, slugify } from './build-index.mjs';
 import { caminhoAtas, lerFeitos, marcarFeito } from './compromissos.mjs';
+import { readdirSync } from 'node:fs';
+import { hashId } from './financas/nucleo.mjs';
+import { criterioDaTransacao } from './financas/pluggy.mjs';
+
+// Pasta local da Métis (fora do git): regras e bruto do banco. O endpoint de classificar lê o
+// bruto só para montar a regra "lembrar para os próximos"; nada dele volta para o app ou o vault.
+const BASE_FINANCAS = () => process.env.SINAPSE_FINANCAS || join(process.env.LOCALAPPDATA || join(process.env.USERPROFILE || '.', 'AppData', 'Local'), 'sinapse-financas');
+
+/** A transação crua do banco cujo hash é este fitid (procura do dia mais novo para o mais velho). */
+function brutoDoFitid(fitid) {
+  const raiz = join(BASE_FINANCAS(), 'bruto', 'pluggy');
+  if (!existsSync(raiz)) return null;
+  for (const dia of readdirSync(raiz).sort().reverse()) {
+    for (const f of readdirSync(join(raiz, dia)).filter((x) => /transac/.test(x) && x.endsWith('.json'))) {
+      let lista;
+      try { lista = JSON.parse(readFileSync(join(raiz, dia, f), 'utf8')); } catch { continue; }
+      const tx = (Array.isArray(lista) ? lista : lista.results || []).find((t) => t && t.id && hashId('pluggy', t.id) === fitid);
+      if (tx) return tx;
+    }
+  }
+  return null;
+}
+
+/** Acrescenta no INÍCIO do regras.json local (a primeira que casa decide) a regra nova. */
+function lembrarRegra(fitid, categoria) {
+  const tx = brutoDoFitid(fitid);
+  if (!tx) return { lembrou: false, motivo: 'a transação não está no bruto local' };
+  const quando = criterioDaTransacao(tx);
+  if (!quando) return { lembrou: false, motivo: 'a transação não tem documento nem nome para reconhecer' };
+  const arq = join(BASE_FINANCAS(), 'regras', 'regras.json');
+  const regras = existsSync(arq) ? JSON.parse(readFileSync(arq, 'utf8')) : {};
+  regras.regras = Array.isArray(regras.regras) ? regras.regras : [];
+  const igual = (r) => JSON.stringify(r.quando) === JSON.stringify(quando);
+  regras.regras = [{ quando, categoria, _criada: 'pelo app em ' + new Date().toISOString().slice(0, 10) }, ...regras.regras.filter((r) => !igual(r))];
+  mkdirSync(dirname(arq), { recursive: true });
+  writeFileSync(arq, JSON.stringify(regras, null, 2), 'utf8');
+  return { lembrou: true, por: quando.documento ? 'documento' : 'nome' };
+}
 
 const AREA_FOLDER = {
   estudo: '02-ESTUDO',
@@ -377,6 +415,23 @@ export function vaultApi() {
               // arquivo de outubro, senao a projecao joga tudo no mes corrente
               const mes = venc ? mesDe(venc) : (/^\d{4}-\d{2}$/.test(l.mes || '') ? l.mes : mesDe(''));
               const st = lerMes(mes);
+              // saldo lançado à mão (cripto, corretora que não vem pelo Open Finance)
+              if (l.tipo === 'investimento') {
+                const data = /^\d{4}-\d{2}-\d{2}$/.test(l.data || '') ? l.data : new Date().toISOString().slice(0, 10);
+                const st = lerMes(data.slice(0, 7));
+                const instituicao = String(l.instituicao || '').trim();
+                const base = slugify(['investimento', instituicao, l.descricao, data].join(' ')).slice(0, 60) || 'investimento';
+                let id = base;
+                for (let i = 2; st.lista.some((x) => x.id === id); i++) id = `${base}-${i}`;
+                const novo = {
+                  id, tipo: 'investimento', descricao: String(l.descricao).trim(), instituicao,
+                  classe: String(l.classe || 'cripto').trim(), liquidez: String(l.liquidez || '').trim(),
+                  data, valor, status: 'posicao', reserva: false, vencimento: '', obs: (l.obs || '').trim(),
+                };
+                gravarMes(st, [...st.lista, novo]);
+                const idx = reindex();
+                return sendJson(res, { ok: true, id, mes: st.mes, rel: relDoMes(st.mes), ...idx });
+              }
               const tipo = ['saida', 'reserva'].includes(l.tipo) ? l.tipo : 'entrada';
               const base = slugify([venc || mes, l.cliente || '', l.descricao].join(' ')).slice(0, 60) || 'lancamento';
               let id = base;
@@ -395,6 +450,7 @@ export function vaultApi() {
                 nota: (l.nota || '').trim(),
                 recorrente: !!l.recorrente,
                 semPrazo: !!l.semPrazo,
+                ...(l.pontual ? { pontual: true } : {}),
                 obs: (l.obs || '').trim(),
               };
               const lista = [...st.lista, novo];
@@ -430,6 +486,33 @@ export function vaultApi() {
               gravarMes(st, lista);
               const idx = reindex();
               return sendJson(res, { ok: true, acao, id: p.id, mes, ...idx });
+            }
+
+            // classificar: troca a categoria de um lançamento; `lembrar` grava a regra no regras.json
+            // LOCAL (%LOCALAPPDATA%), nunca no repo nem no vault. `pontual` liga/desliga a marca.
+            if (acao === 'classificar' || acao === 'pontual') {
+              const mes = (p.mes || '').slice(0, 7);
+              const st = mes ? lerMes(mes) : null;
+              if (!st || !st.corpo) return sendJson(res, { error: 'mês não encontrado: ' + mes }, 404);
+              const alvo = st.lista.find((x) => x.id === p.id);
+              if (!alvo) return sendJson(res, { error: 'lançamento não encontrado: ' + p.id }, 404);
+              let lembrete = null;
+              let lista;
+              if (acao === 'pontual') {
+                lista = st.lista.map((x) => {
+                  if (x.id !== p.id) return x;
+                  const { pontual, ...resto } = x;
+                  return p.valor === false ? resto : { ...resto, pontual: true };
+                });
+              } else {
+                const categoria = String(p.categoria || '').trim().toLowerCase();
+                if (!categoria || categoria === 'a classificar') return sendJson(res, { error: 'escolha uma categoria' }, 400);
+                lista = st.lista.map((x) => (x.id === p.id ? { ...x, categoria } : x));
+                if (p.lembrar) lembrete = alvo.fitid ? lembrarRegra(alvo.fitid, categoria) : { lembrou: false, motivo: 'lançamento sem origem no banco' };
+              }
+              gravarMes(st, lista);
+              const idx = reindex();
+              return sendJson(res, { ok: true, acao, id: p.id, mes, lembrete, ...idx });
             }
 
             return sendJson(res, { error: 'ação desconhecida: ' + acao }, 400);

@@ -129,6 +129,45 @@ export function gravarMes(vault, mes, estado, lista, hoje) {
   return arquivo;
 }
 
+/* ------------------------------------------------------------------ retrato do patrimônio */
+
+export const ARQ_PATRIMONIO = join(PASTA_RAZAO, 'patrimonio.md');
+const BLOCO_PAT = /```patrimonio\s*\n([\s\S]*?)```/;
+
+export function lerRetratos(vault) {
+  const arq = join(vault, ARQ_PATRIMONIO);
+  if (!existsSync(arq)) return [];
+  const m = readFileSync(arq, 'utf8').match(BLOCO_PAT);
+  return m ? JSON.parse(m[1]).retratos || [] : [];
+}
+
+/**
+ * Guarda o retrato do dia (total, liquidez diária e por grupo; nenhum id, nenhum nome de
+ * aplicação) em 04-NEGOCIO/financeiro/patrimonio.md. Um por dia: o do mesmo dia é trocado.
+ * Devolve o caminho relativo se o arquivo mudou, senão ''.
+ */
+export function gravarRetrato(vault, retrato, hoje) {
+  const arq = join(vault, ARQ_PATRIMONIO);
+  const antigo = existsSync(arq) ? readFileSync(arq, 'utf8') : '';
+  const m = antigo.match(BLOCO_PAT);
+  const lista = m ? JSON.parse(m[1]).retratos || [] : [];
+  const nova = [...lista.filter((r) => r.data !== retrato.data), retrato].sort((a, b) => a.data.localeCompare(b.data));
+  // uma linha por retrato: o arquivo cresce ~1 linha por dia e o diff do git fica legível
+  const json = '{\n  "retratos": [\n' + nova.map((r) => '    ' + JSON.stringify(r)).join(',\n') + '\n  ]\n}';
+  const bloco = '```patrimonio\n' + json + '\n```';
+  let texto;
+  if (m) {
+    const crlf = antigo.includes('\r\n');
+    texto = antigo.replace(BLOCO_PAT, () => (crlf ? bloco.replace(/\n/g, '\r\n') : bloco));
+  } else {
+    texto = `---\ntipo: financeiro\narea: negocio\ntags:\n  - financeiro\n  - patrimonio\ncriado: '${hoje}'\n---\n\n# 📈 Patrimônio · um retrato por dia\n\n> Gravado pela sincronização do banco (e pelas posições lançadas à mão): total, liquidez diária e quanto em cada grupo. O app desenha a evolução a partir daqui.\n\n${bloco}\n\n## Conexões\n- Negócio: [[MOC-negocio]]\n`;
+  }
+  if (texto === antigo) return '';
+  mkdirSync(join(vault, PASTA_RAZAO), { recursive: true });
+  writeFileSync(arq, texto, 'utf8');
+  return ARQ_PATRIMONIO.split('\\').join('/');
+}
+
 /* ------------------------------------------------------------------ descrição saneada */
 
 const MEIO = {

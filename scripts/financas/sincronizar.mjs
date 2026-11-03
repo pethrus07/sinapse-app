@@ -19,7 +19,8 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_LOCAL, lerCredencial } from './credencial.mjs';
-import { PASTA_RAZAO, aplicar, hashId, lerRazao, planejar, planejarFaturas, planejarInvestimentos } from './nucleo.mjs';
+import { PASTA_RAZAO, aplicar, gravarRetrato, hashId, lerRazao, planejar, planejarFaturas, planejarInvestimentos, sanear } from './nucleo.mjs';
+import { posicoesAtuais, retratoDe } from '../../src/lib/financeiroAnalise.ts';
 import { bancoDe, criarCliente, fetchDeFixture, final4, normalizarFatura, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -47,8 +48,8 @@ const dataBR = (d) => (d ? d.split('-').reverse().join('/') : '');
  * arquivos abertos no vault: o `git commit -- <arquivos>` leva só esses, mesmo que haja outra coisa
  * no índice. Sem --no-verify: se o pre-commit barrar, registra e não tenta de novo. Nunca lança erro.
  */
-export function commitarRazao(vault, meses, hoje, { git = 'git' } = {}) {
-  const arquivos = meses.map((m) => join(PASTA_RAZAO, `${m}.md`).split('\\').join('/'));
+export function commitarRazao(vault, meses, hoje, { git = 'git', extras = [] } = {}) {
+  const arquivos = [...meses.map((m) => join(PASTA_RAZAO, `${m}.md`).split('\\').join('/')), ...extras];
   const ultimas = (e, k) => String(e.stderr || e.message || '').trim().split(/\r?\n/).slice(-k).join(' | ');
   if (!arquivos.length) return { commit: false, motivo: 'nada gravado' };
   const g = (...a) => execFileSync(git, ['-C', vault, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -74,7 +75,33 @@ export function avisoConsentimento(conexoes, hoje) {
     .filter((c) => c.avisarEm <= hoje);
 }
 
-export async function rodar(argv, { log = console.log, env = process.env } = {}) {
+/** Rodada que deu erro: fica no estado.json (o app avisa na Visão) e no log. Mensagem saneada. */
+function registrarFalha(base, hoje, e) {
+  try {
+    mkdirSync(join(base, 'logs'), { recursive: true });
+    const arq = join(base, 'estado.json');
+    const estado = existsSync(arq) ? JSON.parse(readFileSync(arq, 'utf8')) : {};
+    const mensagem = sanear(String((e && e.message) || e)).slice(0, 300);
+    estado.ultimaFalha = { em: new Date().toISOString(), mensagem };
+    writeFileSync(arq, JSON.stringify(estado, null, 2), 'utf8');
+    appendFileSync(join(base, 'logs', `${hoje.slice(0, 7)}.log`), `${estado.ultimaFalha.em} falhou: ${mensagem}\n`, 'utf8');
+  } catch { /* registrar a falha nunca pode esconder a falha original */ }
+}
+
+export async function rodar(argv, opcoes = {}) {
+  const o = args(argv);
+  try {
+    return await rodarSemRegistro(argv, opcoes);
+  } catch (e) {
+    if (o.modo === 'gravar') {
+      const env = opcoes.env || process.env;
+      registrarFalha(env.SINAPSE_FINANCAS || BASE_LOCAL, o.hoje || new Date().toISOString().slice(0, 10), e);
+    }
+    throw e;
+  }
+}
+
+async function rodarSemRegistro(argv, { log = console.log, env = process.env } = {}) {
   const o = args(argv);
   const hoje = o.hoje || new Date().toISOString().slice(0, 10);
   const base = env.SINAPSE_FINANCAS || BASE_LOCAL;
@@ -194,19 +221,25 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
   mkdirSync(pastaBruto, { recursive: true });
   for (const [k, v] of Object.entries(bruto)) writeFileSync(join(pastaBruto, `${k}.json`), JSON.stringify(v, null, 2), 'utf8');
   mkdirSync(base, { recursive: true });
-  writeFileSync(join(base, 'estado.json'), JSON.stringify({ ultimaSync: new Date().toISOString(), conexoes }, null, 2), 'utf8');
+  const arqEstado = join(base, 'estado.json');
+  let ultimaFalha = null;
+  try { ultimaFalha = JSON.parse(readFileSync(arqEstado, 'utf8')).ultimaFalha || null; } catch { /* primeira vez */ }
+  writeFileSync(arqEstado, JSON.stringify({ ultimaSync: new Date().toISOString(), conexoes, ...(ultimaFalha ? { ultimaFalha } : {}) }, null, 2), 'utf8');
+  // retrato do patrimônio do dia (banco + o que foi lançado à mão), um por dia
+  const posicoes = posicoesAtuais(Object.values(lerRazao(vault)).flatMap((st) => st.lista));
+  const patrimonioMudou = posicoes.length ? gravarRetrato(vault, retratoDe(posicoes, hoje), hoje) : '';
   mkdirSync(join(base, 'logs'), { recursive: true });
   appendFileSync(join(base, 'logs', `${hoje.slice(0, 7)}.log`),
     `${new Date().toISOString()} gravar: ${r.casados.length} casados, ${r.novos.length} novos, ${r.aClassificar.length} a classificar, ${r.ambiguos.length} ambíguos, ${r.divergentes.length} divergentes, meses ${meses.join(' ')}\n`, 'utf8');
-  log(`\nGravado em ${meses.length ? meses.join(', ') : 'nenhum mês'} (${vault}). Bruto em ${pastaBruto}.`);
+  log(`\nGravado em ${meses.length ? meses.join(', ') : 'nenhum mês'}${patrimonioMudou ? ' + retrato do patrimônio' : ''} (${vault}). Bruto em ${pastaBruto}.`);
   let commit;
   if (o.commitar) {
-    commit = commitarRazao(vault, meses, hoje);
+    commit = commitarRazao(vault, meses, hoje, { extras: patrimonioMudou ? [patrimonioMudou] : [] });
     const txt = commit.commit ? `commit feito${commit.push ? ' e enviado' : ''}${commit.motivo ? ' (' + commit.motivo + ')' : ''}` : `sem commit: ${commit.motivo}`;
     log(`Vault: ${txt}.`);
     appendFileSync(join(base, 'logs', `${hoje.slice(0, 7)}.log`), `${new Date().toISOString()} commitar: ${txt}\n`, 'utf8');
   } else log('Revise no app (Financeiro → Lançamentos, categoria "a classificar") e faça o commit do vault.');
-  return { modo: 'gravar', acoes, meses, relatorio: r, conexoes, commit };
+  return { modo: 'gravar', acoes, meses, relatorio: r, conexoes, commit, patrimonio: patrimonioMudou };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
