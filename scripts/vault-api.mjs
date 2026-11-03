@@ -418,10 +418,11 @@ export function vaultApi() {
                 lista = st.lista.map((x) => {
                   if (x.id !== p.id) return x;
                   if (acao === 'reabrir')
-                    return { ...x, status: x.tipo === 'saida' ? 'a-pagar' : 'a-receber', liquidadoEm: '' };
+                    return { ...x, status: x.tipo === 'entrada' ? 'a-receber' : 'a-pagar', liquidadoEm: '' };
                   return {
                     ...x,
-                    status: x.tipo === 'saida' ? 'pago' : 'recebido',
+                    // reserva usa os status de saida: liquidar reserva e 'pago' (guardado)
+                    status: x.tipo === 'entrada' ? 'recebido' : 'pago',
                     liquidadoEm: (p.em || new Date().toISOString().slice(0, 10)).slice(0, 10),
                   };
                 });

@@ -10,11 +10,13 @@ export const STATUS_LABEL: Record<StatusLancamento, string> = {
   recebido: 'recebido',
   'a-pagar': 'a pagar',
   pago: 'pago',
+  posicao: 'saldo',
 };
 
 /** Reserva reusa os status de saida, mas "a pagar" nao descreve guardar dinheiro. */
 export function rotuloStatus(l: Lancamento): string {
   if (l.tipo === 'reserva') return l.status === 'pago' ? 'guardado' : 'a guardar';
+  if (l.tipo === 'investimento') return 'saldo';
   return STATUS_LABEL[l.status] || l.status;
 }
 
@@ -55,6 +57,7 @@ export function resumir(lancamentos: Lancamento[], hoje: string): Resumo {
     recebido: 0, pago: 0, guardar: 0, guardado: 0, saldoPrevisto: 0,
   };
   for (const l of lancamentos) {
+    if (l.tipo === 'investimento') continue; // saldo, nao fluxo
     const v = Number(l.valor) || 0;
     if (l.status === 'a-receber') { r.aReceber += v; r.qtdReceber++; }
     if (l.tipo === 'reserva') {

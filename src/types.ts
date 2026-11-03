@@ -180,10 +180,14 @@ export interface Ocorrencia extends ItemBase {
 
 // 'reserva' e DESTINACAO, nao despesa: sai do disponivel sem ser gasto.
 // Fica fora do calendario de proposito — guardar e decisao, nao compromisso com data.
-export type TipoLancamento = 'entrada' | 'saida' | 'reserva';
+// 'investimento' e SALDO (posicao numa data), nao fluxo: fica fora de projecao, agenda e somas.
+export type TipoLancamento = 'entrada' | 'saida' | 'reserva' | 'investimento';
 // Aqui entra so o CONTRATADO. Orcamento sem aceite nao e lancamento — decisao do
 // Pedro em 23/08/2026: dinheiro que talvez venha nao pode aparecer no previsto.
-export type StatusLancamento = 'a-receber' | 'recebido' | 'a-pagar' | 'pago';
+// 'posicao' so existe em investimento: o saldo informado naquela data.
+export type StatusLancamento = 'a-receber' | 'recebido' | 'a-pagar' | 'pago' | 'posicao';
+/** Quanto se confia no valor: medido no banco, extrapolado por conta, ou estimativa. */
+export type ConfiancaValor = 'medido' | 'extrapolado' | 'estimado';
 
 export interface Lancamento {
   id: string;
@@ -205,6 +209,19 @@ export interface Lancamento {
    */
   semPrazo?: boolean;
   obs?: string;
+  /** Ultimo mes (AAAA-MM) de um recorrente com prazo (acordo de 6 ciclos). Sem ele, recorrente = estavel. */
+  ate?: string;
+  /** Confianca do valor. Sem o campo, o app le da obs ("MEDIDO", "EXTRAPOLADO", "NAO MEDIDO"). */
+  confianca?: ConfiancaValor;
+  /** Investimento: onde esta, liquidez ('diaria' | 'no-vencimento' | 'carencia'), data do saldo, se e reserva. */
+  instituicao?: string;
+  liquidez?: string;
+  data?: string;
+  reserva?: boolean;
+  /** Veio da sincronizacao do banco: origem ('pluggy' | 'extrato') + fitid (hash, nunca o id cru). */
+  origem?: string;
+  fitid?: string;
+  conta?: string;          // rotulo da conta ("Nubank · conta"), nunca numero
   mes: string;             // preenchido pelo indexador
   rel: string;
 }
