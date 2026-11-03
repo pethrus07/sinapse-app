@@ -684,6 +684,9 @@ function processo(els, p, nomePool, X, Y) {
   // quantos contornos já saem/chegam por cima/baixo de cada elemento: o próximo sai deslocado,
   // senão dois laços sobem pela mesma linha vertical
   const portas = {};
+  // tarefa multi-instância: o meio do pé é das três barras; seta que chega ou sai por baixo começa
+  // deslocada (o laço de retrabalho cobria o marcador; revisão por imagem de 03/11)
+  for (const e of elementos) if (e.multiplo && pos[e.id]) portas[`${pos[e.id].id}|baixo`] = 1;
   const desloca = [0, 24, -24, 48, -48];
   const contorno = (a, b, lado, extra = 0) => {
     const k = (desvio[lado] || 0) + 1 + extra; // conta só contornos traçados (ver a escolha abaixo), não candidatos
