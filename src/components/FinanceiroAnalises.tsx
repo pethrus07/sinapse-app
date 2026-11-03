@@ -123,7 +123,9 @@ export function Recorrente({ r, parcial }: { r: RecorrenteMes; parcial: boolean 
   return (
     <Cartao id="recorrente" titulo="Recorrente × pontual"
       leitura={<>
-        Sem o que não se repete, o mês custa <b>{brl(r.gastoRecorrente)}</b>{parcial ? ' até agora' : ''}. As entradas que se repetem somam {brl(r.entradasRecorrentes)}: sobra recorrente de <b>{brl(r.sobraRecorrente)}</b>.
+        Sem o que não se repete, o mês custa <b>{brl(r.gastoRecorrente)}</b>{parcial ? ' até agora' : ''}. As entradas que se repetem somam {brl(r.entradasRecorrentes)}: {positivo
+          ? <>sobra recorrente de <b>{brl(r.sobraRecorrente)}</b>.</>
+          : <>não cobrem o gasto, faltam <b>{brl(-r.sobraRecorrente)}</b> (o resto veio de entrada que não se repete).</>}
       </>}
       mais={
         <>
