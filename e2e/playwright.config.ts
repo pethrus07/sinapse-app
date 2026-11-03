@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
-import { cpSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -28,6 +28,10 @@ if (!existsSync(VAULT)) {
   mkdirSync(join(TMP, 'estado'), { recursive: true })
   // o razão real nunca entra em teste nem em screenshot: a cópia recebe um razão falso
   gravarFinanceiroFalso(VAULT)
+  // estado falso da sincronização do banco: autorização vencendo em 20 dias (o aviso tem que aparecer)
+  mkdirSync(join(TMP, 'financas'), { recursive: true })
+  const vence = new Date(Date.now() + 20 * 86400000).toISOString()
+  writeFileSync(join(TMP, 'financas', 'estado.json'), JSON.stringify({ ultimaSync: new Date().toISOString(), conexoes: [{ rotulo: 'MeuPluggy', status: 'UPDATED', autorizacaoVence: vence }] }))
 }
 
 export default defineConfig({
@@ -58,6 +62,7 @@ export default defineConfig({
       INDEX_OUT: join(TMP, 'indice'),
       PROJETOS_PATH: resolve(VAULT_REAL, '..'), // pastas de projeto reais, só para ler o git
       SINAPSE_ESTADO: join(TMP, 'estado'), // o "feito" das promessas não vai para ~/.sinapse
+      SINAPSE_FINANCAS: join(TMP, 'financas'), // nunca lê o estado real da sincronização do banco
     },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

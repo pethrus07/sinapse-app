@@ -9,7 +9,11 @@
     "dev": "npm run index && vite",
     "build": "npm run index && vite build",
     "preview": "vite preview",
-    "reindex": "node scripts/index-vault.mjs"
+    "reindex": "node scripts/index-vault.mjs",
+    "test": "node --test src/lib/financeiroGraficos.test.ts scripts/financas/financas.test.mjs scripts/destinos-desenhos.test.mjs",
+    "financas:testar": "node scripts/financas/sincronizar.mjs --testar",
+    "financas:simular": "node scripts/financas/sincronizar.mjs --simular",
+    "financas:gravar": "node scripts/financas/sincronizar.mjs --gravar"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.17.6",

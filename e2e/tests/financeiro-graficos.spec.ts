@@ -54,6 +54,9 @@ test('Visão: os seis gráficos, leitura certa e o resto em "Mais opções"', as
   const inv = page.locator('[data-grafico="investimentos"]')
   await expect(inv.locator('.fg-leitura')).toContainText('Nenhum investimento')
 
+  // autorização do Open Finance a 20 dias de vencer: aviso no topo e data na agenda
+  await expect(page.locator('.fg-aviso')).toContainText('vence em')
+
   // tabela fica fechada até pedir
   const fluxo = page.locator('[data-grafico="fluxo"]')
   await expect(fluxo.locator('.fg-tabela')).toBeHidden()

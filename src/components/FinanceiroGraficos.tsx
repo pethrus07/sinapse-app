@@ -8,7 +8,7 @@ import { scaleBand, scaleLinear } from 'd3';
 import type { Financeiro } from '../types';
 import { brl } from '../lib/financeiro';
 import {
-  aReceberVencido, cartaoFuturo, fluxoMensal, investimentos, receitaPorCliente, reservaAcumulada,
+  aReceberVencido, avisosConexao, cartaoFuturo, fluxoMensal, investimentos, receitaPorCliente, reservaAcumulada,
   type LinhaFluxo,
 } from '../lib/financeiroGraficos';
 
@@ -511,8 +511,19 @@ export function FinanceiroGraficos({ financeiro, hoje }: { financeiro: Financeir
   const vencido = useMemo(() => aReceberVencido(ls, hoje), [ls, hoje]);
   const cartao = useMemo(() => cartaoFuturo(ls, hojeMes), [ls, hojeMes]);
   const inv = useMemo(() => investimentos(ls), [ls]);
+  const avisos = useMemo(() => avisosConexao(financeiro.conexoes || [], hoje), [financeiro.conexoes, hoje]);
   if (!ls.length) return <p className="muted">Nada no razão ainda.</p>;
+  const br = (d: string) => d.split('-').reverse().join('/');
   return (
+    <>
+    {avisos.map((a) => (
+      <p key={a.rotulo + a.motivo} className="fg-aviso" role="alert">
+        <span aria-hidden>⚠ </span>
+        {a.motivo === 'renovar' && <>A autorização do Open Finance ({a.rotulo}) vence em <b>{br(a.data)}</b>. Renove em meu.pluggy.ai antes disso: depois as leituras voltam vazias.</>}
+        {a.motivo === 'vencida' && <>A autorização do Open Finance ({a.rotulo}) venceu em <b>{br(a.data)}</b>. A sincronização parou até renovar em meu.pluggy.ai.</>}
+        {a.motivo === 'erro' && <>A conexão do Open Finance ({a.rotulo}) está com erro. Abra meu.pluggy.ai e confira.</>}
+      </p>
+    ))}
     <div className="fg">
       <Fluxo linhas={fluxo} hojeMes={hojeMes} />
       <Receita r={receita} hojeMes={hojeMes} />
@@ -521,5 +532,6 @@ export function FinanceiroGraficos({ financeiro, hoje }: { financeiro: Financeir
       <Cartao5 c={cartao} />
       <Investimentos inv={inv} />
     </div>
+    </>
   );
 }

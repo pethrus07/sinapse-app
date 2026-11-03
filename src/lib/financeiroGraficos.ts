@@ -60,6 +60,7 @@ export function fluxoMensal(ls: Lancamento[]): LinhaFluxo[] {
   for (const m of meses) linha(m);
   for (const l of ls) {
     if (l.tipo === 'investimento') continue;
+    if (l.viaCartao) continue; // compra no cartão sai do caixa quando a fatura é paga: contar as duas dobraria
     if (aberto(l) && l.semPrazo) continue;
     if (!liquidado(l) && !aberto(l)) continue;
     const mes = liquidado(l) ? mesRealizado(l) : mesPrevisto(l);
@@ -251,6 +252,22 @@ export function cartaoFuturo(ls: Lancamento[], hojeMes: string): MesCartao[] {
     m.set(mes, cur);
   }
   return [...m.values()].sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
+/* ------------------------------------------------- conexões do Open Finance */
+
+export interface AvisoConexao { rotulo: string; motivo: 'renovar' | 'vencida' | 'erro'; data: string }
+
+/** Autorização do Open Finance: avisa 30 dias antes de vencer, quando venceu e quando a conexão deu erro. */
+export function avisosConexao(conexoes: { rotulo: string; status: string; autorizacaoVence?: string; erro?: string }[], hoje: string): AvisoConexao[] {
+  const out: AvisoConexao[] = [];
+  for (const c of conexoes || []) {
+    const vence = (c.autorizacaoVence || '').slice(0, 10);
+    if (vence && vence < hoje) out.push({ rotulo: c.rotulo, motivo: 'vencida', data: vence });
+    else if (vence && diasEntre(hoje, vence) <= 30) out.push({ rotulo: c.rotulo, motivo: 'renovar', data: vence });
+    else if (c.erro || /ERROR/.test(c.status || '')) out.push({ rotulo: c.rotulo, motivo: 'erro', data: '' });
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------ 6 · investimentos */

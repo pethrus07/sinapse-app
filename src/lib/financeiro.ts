@@ -32,7 +32,7 @@ export const estaAberto = (l: Lancamento) =>
 const vazio: Financeiro = { lancamentos: [], meses: [] };
 export function normalizarFin(f?: Partial<Financeiro> | null): Financeiro {
   if (!f) return vazio;
-  return { lancamentos: f.lancamentos ?? [], meses: f.meses ?? [] };
+  return { lancamentos: f.lancamentos ?? [], meses: f.meses ?? [], conexoes: f.conexoes ?? [], ultimaSync: f.ultimaSync ?? '' };
 }
 
 export interface Resumo {
@@ -58,6 +58,7 @@ export function resumir(lancamentos: Lancamento[], hoje: string): Resumo {
   };
   for (const l of lancamentos) {
     if (l.tipo === 'investimento') continue; // saldo, nao fluxo
+    if (l.viaCartao) continue; // compra no cartao: o dinheiro sai na fatura
     const v = Number(l.valor) || 0;
     if (l.status === 'a-receber') { r.aReceber += v; r.qtdReceber++; }
     if (l.tipo === 'reserva') {

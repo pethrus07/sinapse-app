@@ -23,6 +23,19 @@ const cacheGit = new Map();
    ~15 s no primeiro índice depois de subir o servidor (medido em 28/10/2026). Só guarda saída
    de git de repositórios locais; fica fora do vault e do repo do app. */
 const ARQ_CACHE = process.env.SINAPSE_CACHE_GIT || join(homedir(), '.sinapse', 'cache-git.json');
+// Estado da sincronização do banco (scripts/financas/sincronizar.mjs --gravar): fora do git e do
+// vault. Só rótulo, status e datas — nenhum id de item ou conta.
+const ARQ_ESTADO_FIN = () => join(process.env.SINAPSE_FINANCAS || join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'sinapse-financas'), 'estado.json');
+function lerEstadoFinancas() {
+  try {
+    const e = JSON.parse(readFileSync(ARQ_ESTADO_FIN(), 'utf8'));
+    const conexoes = (e.conexoes || []).map((c) => ({
+      rotulo: String(c.rotulo || 'conexão'), status: String(c.status || ''), execucao: String(c.execucao || ''),
+      ultimaAtualizacao: String(c.ultimaAtualizacao || ''), autorizacaoVence: String(c.autorizacaoVence || ''), erro: String(c.erro || ''),
+    }));
+    return { conexoes, ultimaSync: String(e.ultimaSync || '') };
+  } catch { return { conexoes: [], ultimaSync: '' }; }
+}
 let cacheDisco = null;
 let cacheSujo = false;
 function lerCacheDisco() {
@@ -457,6 +470,16 @@ export function buildIndex(VAULT, OUT) {
       nota: g.nota,
       doFinanceiro: true,
     });
+  }
+  // a autorização do Open Finance vence em 1 ano: o aviso cai na agenda 30 dias antes
+  const estFin = lerEstadoFinancas();
+  financeiro.conexoes = estFin.conexoes;
+  financeiro.ultimaSync = estFin.ultimaSync;
+  for (const c of estFin.conexoes) {
+    const vence = c.autorizacaoVence.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(vence)) continue;
+    const de = new Date(Date.parse(vence + 'T12:00:00Z') - 30 * 86400000).toISOString().slice(0, 10);
+    agenda.datas.push({ de, titulo: `Renovar autorização do Open Finance (${c.rotulo}) até ${vence.split('-').reverse().join('/')}`, frente: 'pagar', nota: 'financas-automaticas', doFinanceiro: true });
   }
   financeiro.lancamentos.sort((a, b) => String(a.vencimento || '9999').localeCompare(String(b.vencimento || '9999')));
   financeiro.meses.sort((a, b) => String(a.mes).localeCompare(String(b.mes)));

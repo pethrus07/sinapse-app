@@ -222,6 +222,9 @@ export interface Lancamento {
   origem?: string;
   fitid?: string;
   conta?: string;          // rotulo da conta ("Nubank · conta"), nunca numero
+  /** Compra no cartao: o dinheiro sai quando a FATURA e paga, entao fica fora do fluxo e das somas. */
+  viaCartao?: boolean;
+  fatura?: string;         // AAAA-MM da fatura em que a compra cai
   mes: string;             // preenchido pelo indexador
   rel: string;
 }
@@ -229,4 +232,16 @@ export interface Lancamento {
 export interface Financeiro {
   lancamentos: Lancamento[];
   meses: { mes: string; rel: string; id: string; total: number }[];
+  /** Conexoes do Open Finance (estado.json do sincronizador, fora do git). Sem ids. */
+  conexoes?: Conexao[];
+  ultimaSync?: string;
+}
+
+export interface Conexao {
+  rotulo: string;
+  status: string;
+  execucao?: string;
+  ultimaAtualizacao?: string;
+  autorizacaoVence?: string;
+  erro?: string;
 }

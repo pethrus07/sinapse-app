@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Lancamento } from '../types';
 import {
-  aReceberVencido, cartaoFuturo, confiancaDe, diasEntre, ehEstavel, fluxoMensal, investimentos,
+  aReceberVencido, avisosConexao, cartaoFuturo, confiancaDe, diasEntre, ehEstavel, fluxoMensal, investimentos,
   mesPrevisto, mesRealizado, OUTROS, receitaPorCliente, reservaAcumulada, somarMes,
 } from './financeiroGraficos.ts';
 
@@ -175,4 +175,20 @@ test('investimentos: última posição por aplicação, liquidez diária e séri
     { mes: '2030-03', diaria: 1200, prazo: 3000 },
   ]);
   assert.deepEqual(investimentos([]).serie, []);
+});
+
+test('compra no cartão (viaCartao) não entra no fluxo: o caixa mexe quando a fatura é paga', () => {
+  const ls = [
+    L({ tipo: 'saida', vencimento: '2030-01-10', valor: 60, status: 'pago', liquidadoEm: '2030-01-10', viaCartao: true }),
+    L({ tipo: 'saida', vencimento: '2030-01-05', valor: 300, status: 'pago', liquidadoEm: '2030-01-05', categoria: 'cartao' }),
+  ];
+  assert.deepEqual(fluxoMensal(ls)[0].sai, { realizado: 300, previsto: 0 });
+});
+
+test('avisosConexao: 30 dias antes, vencida e erro', () => {
+  const c = (autorizacaoVence: string, extra = {}) => ({ rotulo: 'MeuPluggy', status: 'UPDATED', autorizacaoVence, ...extra });
+  assert.deepEqual(avisosConexao([c('2030-05-01T00:00:00Z')], '2030-03-01'), []);
+  assert.deepEqual(avisosConexao([c('2030-03-31T00:00:00Z')], '2030-03-01').map((a) => a.motivo), ['renovar']);
+  assert.deepEqual(avisosConexao([c('2030-02-28T00:00:00Z')], '2030-03-01').map((a) => a.motivo), ['vencida']);
+  assert.deepEqual(avisosConexao([c('', { status: 'LOGIN_ERROR', erro: 'USER_AUTHORIZATION_EXPIRED' })], '2030-03-01').map((a) => a.motivo), ['erro']);
 });
