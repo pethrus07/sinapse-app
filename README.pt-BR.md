@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-App web local que lê o vault de notas em Markdown do Sinapse (o segundo cérebro do Pedro) e mostra grafo, notas com links e backlinks, Frentes, Agenda, Financeiro, Panorama e a página de cada projeto. Também gera e publica os diagramas de arquitetura (UML, BPMN e C4) de todos os projetos.
+App web local que lê o vault de notas em Markdown do Sinapse (o segundo cérebro do Pedro) e mostra grafo, notas com links e backlinks, Frentes, Agenda, Métis (financeiro), Panorama e a página de cada projeto. Também gera e publica os diagramas de arquitetura (UML, BPMN e C4) de todos os projetos.
 
 ## Status
 
@@ -17,7 +17,8 @@ O vault tem centenas de notas, dezenas de projetos e prazos espalhados. O Markdo
 - Grafo das notas (tamanho pelo número de conexões, cor por área) e leitura de nota com wikilinks e backlinks. `[[x]]` dentro de código é exemplo e não vira link.
 - Busca nas notas, Skill Tree por domínio, Roadmap de estudo e Projetos por status.
 - Frentes (`#/frentes`): no máximo 3 frentes em andamento; o resto fica em estados que não ocupam vaga. Mostra o último commit e as horas da semana de cada frente, e "o que prometi" lido das atas de reunião (só leitura).
-- Agenda (rotina, prazos e diário) e Financeiro (um arquivo por mês).
+- Agenda (rotina, prazos e diário).
+- **Métis** (`#/financeiro`), o módulo financeiro, com o nome da deusa grega da sabedoria prática e da prudência. Um arquivo por mês no vault; sincronização só leitura com o banco pelo Open Finance (Meu Pluggy) todo dia às 17:00. Abas: **Visão** (fluxo, gastos por categoria contra a média de 3 meses, recorrente × pontual, patrimônio por classe com a reserva líquida contra o piso de R$ 5.000, clientes recebido × o que falta, avisos), **Pronoia** (previdência: renda futura por cliente, reserva projetada, cartão parcelado e a projeção mês a mês) e **Lançamentos** (fila "a classificar", formulário, lista). Por dentro continua `financeiro` (rota, pasta, formato de dados). Formato em `docs/financeiro-formato.md`.
 - Página do projeto com abas Visão geral, História (commits das pastas do projeto), Tarefas (as caixas `- [ ]` da nota) e Desenho.
 - Panorama (`#/panorama`): quadro por status e a linha do ano.
 - Desenhos: de uma especificação em JSON no vault saem três diagramas em notação padrão, medidos por um QA antes de ir para o repositório de cada projeto.

@@ -1,27 +1,27 @@
-// Aba "Visão" do Financeiro: os seis gráficos sobre o razão do vault.
+// Gráficos da Métis (o módulo financeiro) sobre o razão do vault. As páginas que os montam
+// (Visão e Pronoia) estão em MetisPaginas.tsx; as análises novas em FinanceiroAnalises.tsx.
 // Regras (skill de visualização + preferência do Pedro): pouca coisa por cartão, cartão sem
 // borda, a leitura do gráfico em uma frase, o resto em "Mais opções" (tabela de cada gráfico).
 // Cor por papel: entra/sai/guarda e clientes usam a paleta categórica validada para o fundo
 // escuro do app (#11141C); "vencido" usa a cor de estado, sempre com ícone e texto.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { scaleBand, scaleLinear } from 'd3';
-import type { Financeiro } from '../types';
 import { brl } from '../lib/financeiro';
 import {
-  aReceberVencido, avisosConexao, cartaoFuturo, fluxoMensal, investimentos, receitaPorCliente, reservaAcumulada,
+  aReceberVencido, cartaoFuturo, receitaPorCliente, reservaAcumulada,
   type LinhaFluxo,
 } from '../lib/financeiroGraficos';
 
 const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MES_LONGO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-const curto = (m: string) => `${MES[+m.slice(5, 7) - 1]}/${m.slice(2, 4)}`;
+export const curto = (m: string) => `${MES[+m.slice(5, 7) - 1]}/${m.slice(2, 4)}`;
 const tick = (m: string, i: number) => (i === 0 || m.endsWith('-01') ? curto(m) : MES[+m.slice(5, 7) - 1]);
-const longo = (m: string) => `${MES_LONGO[+m.slice(5, 7) - 1]} de ${m.slice(0, 4)}`;
-const num = (v: number) => Math.round(v).toLocaleString('pt-BR');
-const reais = (v: number) => 'R$ ' + num(v);
+export const longo = (m: string) => `${MES_LONGO[+m.slice(5, 7) - 1]} de ${m.slice(0, 4)}`;
+export const num = (v: number) => Math.round(v).toLocaleString('pt-BR');
+export const reais = (v: number) => 'R$ ' + num(v);
 
 /** Largura do contêiner, para o SVG desenhar no tamanho real (sem esticar texto). */
-function useLargura<T extends HTMLElement>(): [React.RefObject<T>, number] {
+export function useLargura<T extends HTMLElement>(): [React.RefObject<T>, number] {
   const ref = useRef<T>(null);
   const [w, setW] = useState(0);
   useEffect(() => {
@@ -37,7 +37,7 @@ function useLargura<T extends HTMLElement>(): [React.RefObject<T>, number] {
 
 interface Dica { x: number; y: number; titulo: string; linhas: { cor?: string; rotulo: string; valor: string; leve?: boolean }[] }
 
-function Dica({ d, largura }: { d: Dica | null; largura: number }) {
+export function Dica({ d, largura }: { d: Dica | null; largura: number }) {
   if (!d) return null;
   const esquerda = Math.min(Math.max(d.x + 12, 0), Math.max(largura - 210, 0));
   return (
@@ -54,7 +54,7 @@ function Dica({ d, largura }: { d: Dica | null; largura: number }) {
   );
 }
 
-function useDica(caixa: React.RefObject<HTMLElement>) {
+export function useDica(caixa: React.RefObject<HTMLElement>) {
   const [d, setD] = useState<Dica | null>(null);
   const mostrar = (e: { clientX: number; clientY: number } | null, alvo: Element | null, info: Omit<Dica, 'x' | 'y'>) => {
     const r = caixa.current?.getBoundingClientRect();
@@ -68,9 +68,9 @@ function useDica(caixa: React.RefObject<HTMLElement>) {
 
 /* ---------------------------------------------------------------- pedaços comuns */
 
-const M = { top: 18, right: 14, bottom: 28, left: 48 };
+export const M = { top: 18, right: 14, bottom: 28, left: 48 };
 
-function EixoY({ y, largura, ticks = 4 }: { y: ReturnType<typeof scaleLinear<number, number>>; largura: number; ticks?: number }) {
+export function EixoY({ y, largura, ticks = 4 }: { y: ReturnType<typeof scaleLinear<number, number>>; largura: number; ticks?: number }) {
   return (
     <g className="fg-eixo">
       {y.ticks(ticks).map((t) => (
@@ -84,13 +84,13 @@ function EixoY({ y, largura, ticks = 4 }: { y: ReturnType<typeof scaleLinear<num
 }
 
 /** Coluna com cantos de 4 px só no topo (quadrada na linha de base). */
-function colunaPath(x: number, y: number, w: number, h: number, raio = 4) {
+export function colunaPath(x: number, y: number, w: number, h: number, raio = 4) {
   if (h <= 0) return '';
   const r = Math.min(raio, w / 2, h);
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
-function Legenda({ itens }: { itens: { cor: string; rotulo: string; leve?: number; linha?: boolean; tracejada?: boolean }[] }) {
+export function Legenda({ itens }: { itens: { cor: string; rotulo: string; leve?: number; linha?: boolean; tracejada?: boolean }[] }) {
   return (
     <div className="fg-legenda">
       {itens.map((i) => (
@@ -107,7 +107,7 @@ function Legenda({ itens }: { itens: { cor: string; rotulo: string; leve?: numbe
   );
 }
 
-function Cartao({ titulo, leitura, children, mais, className = '', id }: {
+export function Cartao({ titulo, leitura, children, mais, className = '', id }: {
   titulo: string; leitura: React.ReactNode; children: React.ReactNode; mais?: React.ReactNode; className?: string; id: string;
 }) {
   return (
@@ -125,9 +125,9 @@ function Cartao({ titulo, leitura, children, mais, className = '', id }: {
   );
 }
 
-const COR = { entra: 'var(--s1)', sai: 'var(--s2)', guarda: 'var(--s3)' } as const;
-const SLOTS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
-const LEVE = 0.38; // previsto / extrapolado: o mesmo tom, mais claro
+export const COR = { entra: 'var(--s1)', sai: 'var(--s2)', guarda: 'var(--s3)' } as const;
+export const SLOTS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
+export const LEVE = 0.38; // previsto / extrapolado: o mesmo tom, mais claro
 
 /* ---------------------------------------------------------------- 1 · fluxo do mês */
 
@@ -181,7 +181,7 @@ function FluxoGrafico({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: stri
   );
 }
 
-function Fluxo({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: string }) {
+export function Fluxo({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: string }) {
   const agora = linhas.find((l) => l.mes === hojeMes);
   const soma = (p: { realizado: number; previsto: number }) => p.realizado + p.previsto;
   const sobra = agora ? soma(agora.entra) - soma(agora.sai) - soma(agora.guarda) : 0;
@@ -220,7 +220,7 @@ function Fluxo({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: string }) {
 
 /* ------------------------------------------------------ 2 · receita por cliente */
 
-function Receita({ r, hojeMes }: { r: ReturnType<typeof receitaPorCliente>; hojeMes: string }) {
+export function Receita({ r, hojeMes }: { r: ReturnType<typeof receitaPorCliente>; hojeMes: string }) {
   const [ref, w] = useLargura<HTMLDivElement>();
   const { d, mostrar, esconder } = useDica(ref);
   const H = 250;
@@ -299,7 +299,7 @@ function Receita({ r, hojeMes }: { r: ReturnType<typeof receitaPorCliente>; hoje
 
 /* ------------------------------------------------------- 3 · reserva acumulada */
 
-function Reserva({ r, hojeMes }: { r: ReturnType<typeof reservaAcumulada>; hojeMes: string }) {
+export function Reserva({ r, hojeMes }: { r: ReturnType<typeof reservaAcumulada>; hojeMes: string }) {
   const [ref, w] = useLargura<HTMLDivElement>();
   const { d, mostrar, esconder } = useDica(ref);
   const [foco, setFoco] = useState<string | null>(null);
@@ -371,7 +371,7 @@ function Reserva({ r, hojeMes }: { r: ReturnType<typeof reservaAcumulada>; hojeM
 
 /* ----------------------------------------------------------- 4 · a receber vencido */
 
-function Vencido({ v }: { v: ReturnType<typeof aReceberVencido> }) {
+export function Vencido({ v }: { v: ReturnType<typeof aReceberVencido> }) {
   const total = v.reduce((s, c) => s + c.total, 0);
   const max = Math.max(1, ...v.map((c) => c.total));
   return (
@@ -406,7 +406,7 @@ function Vencido({ v }: { v: ReturnType<typeof aReceberVencido> }) {
 
 const TOM = { medido: 1, extrapolado: 0.45, estimado: 0.22 } as const;
 
-function Cartao5({ c }: { c: ReturnType<typeof cartaoFuturo> }) {
+export function Cartao5({ c }: { c: ReturnType<typeof cartaoFuturo> }) {
   const [ref, w] = useLargura<HTMLDivElement>();
   const { d, mostrar, esconder } = useDica(ref);
   const H = 200;
@@ -454,84 +454,5 @@ function Cartao5({ c }: { c: ReturnType<typeof cartaoFuturo> }) {
         <Dica d={d} largura={w} />
       </div>
     </Cartao>
-  );
-}
-
-/* -------------------------------------------------------------- 6 · investimentos */
-
-const EXEMPLO_INV = `{
-  "id": "2030-01-31-banco-x-caixinha",
-  "tipo": "investimento",
-  "descricao": "Caixinha da reserva",
-  "instituicao": "Banco X",
-  "liquidez": "diaria",
-  "data": "2030-01-31",
-  "valor": 5000,
-  "status": "posicao",
-  "reserva": true,
-  "vencimento": ""
-}`;
-
-function Investimentos({ inv }: { inv: ReturnType<typeof investimentos> }) {
-  const vazio = !inv.atuais.length;
-  return (
-    <Cartao id="investimentos" titulo="Investimentos"
-      leitura={vazio
-        ? 'Nenhum investimento lançado ainda. O lugar está pronto: a sincronização com o banco ou um lançamento à mão preenchem aqui.'
-        : <><b>{brl(inv.total)}</b> aplicados, {brl(inv.diaria)} com liquidez diária.</>}
-      mais={
-        <>
-          <p className="fg-explica">Cada posição é um lançamento <code>tipo: "investimento"</code> no arquivo do mês, com o saldo naquela data. Liquidez: <code>diaria</code>, <code>no-vencimento</code> ou <code>carencia</code>. <code>reserva: true</code> faz a posição contar como saldo da reserva. Formato completo em <code>docs/financeiro-formato.md</code>.</p>
-          {vazio ? <pre className="fg-codigo">{EXEMPLO_INV}</pre> : (
-            <table className="fg-tabela">
-              <thead><tr><th>onde</th><th>o quê</th><th>liquidez</th><th>data</th><th className="num">saldo</th></tr></thead>
-              <tbody>{inv.atuais.map((p) => <tr key={p.chave}><td>{p.instituicao}</td><td>{p.descricao}{p.reserva ? ' · reserva' : ''}</td><td>{p.liquidez}</td><td>{p.data.split('-').reverse().join('/')}</td><td className="num">{num(p.valor)}</td></tr>)}</tbody>
-            </table>
-          )}
-        </>
-      }>
-      {!vazio && (
-        <div className="fg-numeros">
-          <div><span className="fg-num-rot">Total</span><b>{brl(inv.total)}</b></div>
-          <div><span className="fg-num-rot">Liquidez diária</span><b>{brl(inv.diaria)}</b></div>
-        </div>
-      )}
-    </Cartao>
-  );
-}
-
-/* ------------------------------------------------------------------------ página */
-
-export function FinanceiroGraficos({ financeiro, hoje }: { financeiro: Financeiro; hoje: string }) {
-  const ls = financeiro.lancamentos;
-  const hojeMes = hoje.slice(0, 7);
-  const fluxo = useMemo(() => fluxoMensal(ls), [ls]);
-  const receita = useMemo(() => receitaPorCliente(ls), [ls]);
-  const reserva = useMemo(() => reservaAcumulada(ls, hojeMes), [ls, hojeMes]);
-  const vencido = useMemo(() => aReceberVencido(ls, hoje), [ls, hoje]);
-  const cartao = useMemo(() => cartaoFuturo(ls, hojeMes), [ls, hojeMes]);
-  const inv = useMemo(() => investimentos(ls), [ls]);
-  const avisos = useMemo(() => avisosConexao(financeiro.conexoes || [], hoje), [financeiro.conexoes, hoje]);
-  if (!ls.length) return <p className="muted">Nada no razão ainda.</p>;
-  const br = (d: string) => d.split('-').reverse().join('/');
-  return (
-    <>
-    {avisos.map((a) => (
-      <p key={a.rotulo + a.motivo} className="fg-aviso" role="alert">
-        <span aria-hidden>⚠ </span>
-        {a.motivo === 'renovar' && <>A autorização do Open Finance ({a.rotulo}) vence em <b>{br(a.data)}</b>. Renove em meu.pluggy.ai antes disso: depois as leituras voltam vazias.</>}
-        {a.motivo === 'vencida' && <>A autorização do Open Finance ({a.rotulo}) venceu em <b>{br(a.data)}</b>. A sincronização parou até renovar em meu.pluggy.ai.</>}
-        {a.motivo === 'erro' && <>A conexão do Open Finance ({a.rotulo}) está com erro. Abra meu.pluggy.ai e confira.</>}
-      </p>
-    ))}
-    <div className="fg">
-      <Fluxo linhas={fluxo} hojeMes={hojeMes} />
-      <Receita r={receita} hojeMes={hojeMes} />
-      <Vencido v={vencido} />
-      <Reserva r={reserva} hojeMes={hojeMes} />
-      <Cartao5 c={cartao} />
-      <Investimentos inv={inv} />
-    </div>
-    </>
   );
 }

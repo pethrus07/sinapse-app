@@ -47,6 +47,16 @@ export function acaoFinanceiro(acao: string, mes: string, id: string) {
   return post('/api/financeiro', { acao, mes, id });
 }
 
+/** Troca a categoria; `lembrar` grava a regra no regras.json LOCAL (fora do git). */
+export function classificarFinanceiro(mes: string, id: string, categoria: string, lembrar: boolean) {
+  return post('/api/financeiro', { acao: 'classificar', mes, id, categoria, lembrar });
+}
+
+/** Liga/desliga `pontual` (gasto que não se repete). */
+export function pontualFinanceiro(mes: string, id: string, valor: boolean) {
+  return post('/api/financeiro', { acao: 'pontual', mes, id, valor });
+}
+
 /** Muda o estado de uma tarefa da nota de projeto (a linha é a chave). */
 export function mudarTarefa(rel: string, linha: string, estado: string) {
   return post('/api/tarefa', { rel, linha, estado });

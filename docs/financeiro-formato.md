@@ -1,4 +1,9 @@
-# Financeiro: formato do razão e sincronização com o banco
+# Métis (financeiro): formato do razão e sincronização com o banco
+
+> **Métis** é o nome do módulo financeiro do Sinapse (a deusa grega da sabedoria prática e da
+> prudência); a visão de projeção dentro dela é a **Pronoia** (previdência): "Métis › Pronoia".
+> O nome é só o que aparece na tela: pasta (`04-NEGOCIO/financeiro/`), bloco ` ```financeiro `,
+> `scripts/financas/`, rota (`#/financeiro`, `#/financeiro/pronoia`) e ids continuam como estão.
 
 O razão vive no vault, um arquivo por mês em `04-NEGOCIO/financeiro/AAAA-MM.md`, com um bloco
 ` ```financeiro ` que contém `{ "lancamentos": [...] }`. O app lê, soma e desenha; quem escreve é o
@@ -52,18 +57,49 @@ Uma posição por aplicação por mês, com o saldo naquela data:
 - `reserva: true` faz a posição contar como saldo de partida da reserva no gráfico "Reserva acumulada".
 - Investimento não entra em fluxo, projeção, agenda nem nos totais a receber/pagar.
 
-## Os seis gráficos (aba Visão)
+## As abas da Métis
 
-Lógica em `src/lib/financeiroGraficos.ts`, testada em `src/lib/financeiroGraficos.test.ts`.
+Lógica em `src/lib/financeiroGraficos.ts` e `src/lib/financeiroAnalise.ts` (testadas em
+`*.test.ts`); páginas em `src/components/MetisPaginas.tsx`.
+
+**Visão** (o mês e o que já aconteceu), com os avisos no topo: fatura que vence nos próximos 5 dias,
+autorização do Open Finance perto de vencer, sincronização que falhou (`ultimaFalha` no
+`estado.json`) ou parou há mais de 3 dias, e lançamentos "a classificar".
 
 1. **Fluxo do mês**: entra, sai e guarda por mês; realizado (pelo `liquidadoEm`) forte, previsto fraco.
-2. **Receita por cliente**: colunas empilhadas por cliente, uma coluna depois do fim do razão com
+2. **Gastos por categoria** (mês escolhido no seletor): saída paga + compra no cartão (a fatura paga
+   fica fora, senão dobraria), com a média dos 3 meses completos antes do mês (sem pontuais; o mês em
+   que o banco começou no meio fica fora) e o destaque do que fugiu (± R$ 50 e 30%). Clicar abre os
+   lançamentos da categoria.
+3. **Recorrente × pontual**: gasto do mês sem os `pontual: true`; sobra recorrente = entradas
+   `recorrente` previstas no mês − gasto recorrente.
+4. **Patrimônio**: posições por grupo (CDB liquidez diária, renda fixa, FII, ação, cripto), reserva
+   líquida (só `liquidez: diaria`) × piso de R$ 5.000 e a evolução pelos retratos de `patrimonio.md`.
+5. **Clientes**: recebido, quando, dias de atraso (vencimento × `liquidadoEm`) e o que falta até o fim.
+6. **A receber vencido**: entrada aberta com vencimento passado, por origem, com dias de atraso.
+
+**Pronoia** (previdência: o que vem pela frente; `#/financeiro/pronoia`):
+
+1. **Receita por cliente**: colunas empilhadas por cliente, uma coluna depois do fim do razão com
    só o estável, e a linha da receita estável. Cor fixa por cliente (pelo total no razão).
-3. **A receber vencido**: entrada aberta com vencimento passado, por origem, com dias de atraso.
-4. **Reserva acumulada**: guardado (pago) e programado (pago + aberto), com o piso de R$ 5.000.
+2. **Reserva acumulada**: guardado (pago) e programado (pago + aberto), com o piso de R$ 5.000.
    Parte da última posição de investimento com `reserva: true`; sem ela, parte de zero e avisa.
-5. **Cartão parcelado**: faturas do mês de hoje em diante, tom pela `confianca`.
-6. **Investimentos**: total e liquidez diária; vazio até a primeira posição.
+3. **Cartão parcelado**: faturas do mês de hoje em diante, tom pela `confianca`.
+4. **Projeção mês a mês** (tabela).
+
+**Lançamentos**: a fila "a classificar" (um toque escolhe a categoria; "lembrar para os próximos"
+grava a regra no `regras.json` LOCAL pelo endpoint do dev server, a partir da transação crua do
+bruto, nunca no repo nem no vault), o formulário (inclui **= Saldo**: investimento lançado à mão,
+como cripto, com instituição livre e classe; o mais recente de cada nome vale) e a lista (o botão
+**1×** marca/desmarca `pontual`).
+
+## Pontual e retrato do patrimônio
+
+- `pontual: true` num lançamento de saída: gasto que não se repete (empréstimo, compra grande). Fica
+  no gasto do mês, mas fora do gasto recorrente e da média das categorias.
+- `04-NEGOCIO/financeiro/patrimonio.md`, bloco ` ```patrimonio `: `{ "retratos": [{ "data",
+  "total", "diaria", "porGrupo": { "<grupo>": valor } }] }`, um por dia, gravado pelo `--gravar`
+  (o do mesmo dia é trocado). Nenhum id nem nome de aplicação, só totais.
 
 ## Sincronizar com o banco (Open Finance pelo Meu Pluggy)
 
@@ -91,7 +127,7 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
 7. Simular: `npm run financas:simular` (padrão; não grava nada). Revisar o relatório.
 8. Gravar: `npm run financas:gravar`. Depois, revisar no app (Lançamentos, categoria
    "a classificar") e fazer o commit do vault.
-9. Diário (**instalado em 03/11/2026, 17:00**): `powershell -ExecutionPolicy Bypass -File scripts\financas\instalar-tarefa.ps1 -Hora 17:00`
+9. Diário (**instalado em 03/11/2026, 17:00**, tarefa `Metis-Sincronizar`): `powershell -ExecutionPolicy Bypass -File scripts\financas\instalar-tarefa.ps1 -Hora 17:00`
    (escondido; `-Remover` tira). Roda `--gravar --commitar`: depois de gravar, `git add` e `git commit` no
    vault **só** dos `04-NEGOCIO/financeiro/AAAA-MM.md` que escreveu ("Razão: sincronização do Nubank de
    DD/MM") e `git push`. Nada gravado: nada commitado. Pre-commit que barra ou push que falha vão para o log.

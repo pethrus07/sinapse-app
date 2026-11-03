@@ -4,6 +4,7 @@
 // calendário andou). Clientes "Alfa", "Beta"... são inventados.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 
 const somarMes = (mes: string, k: number) => {
   const [a, m] = mes.split('-').map(Number)
@@ -45,7 +46,38 @@ export function razaoFalso(hoje = new Date()): Record<string, object[]> {
   const alfa = passado.find((x) => String(x.id).endsWith('Alfa'))!
   alfa.status = 'a-receber'
   delete alfa.liquidadoEm
+
+  // gastos "do banco" (origem) nos dois meses fechados: o banco começa no dia 01 do primeiro,
+  // então ele conta na média. Mercado sobe de 400 para 700 (fugiu da média); a TV é pontual.
+  const g = (mes: string, dia: string, categoria: string, valor: number, extra: object = {}) => ({
+    id: `${mes}-gasto-${categoria}-${dia}`, tipo: 'saida', descricao: `Gasto falso · ${categoria}`, valor,
+    vencimento: `${mes}-${dia}`, status: 'pago', liquidadoEm: `${mes}-${dia}`, categoria, origem: 'teste', conta: 'Banco Falso · conta', ...extra,
+  })
+  porMes[meses[0]].push(g(meses[0], '01', 'mercado', 400), g(meses[0], '08', 'transporte', 200))
+  porMes[meses[1]].push(
+    g(meses[1], '03', 'mercado', 700), g(meses[1], '09', 'transporte', 210),
+    g(meses[1], '15', 'casa', 1500, { descricao: 'TV falsa', pontual: true }),
+    // o que a sincronização não reconheceu: o bruto falso (playwright.config) tem a transação
+    g(meses[1], '20', 'a classificar', 42.5, { id: `${meses[1]}-pix-falso`, descricao: 'Compra no débito', origem: 'pluggy', fitid: FITID_A_CLASSIFICAR }),
+  )
+  // fatura do cartão que vence daqui a 3 dias, com valor medido no banco
+  const em3 = new Date(hoje.getTime() + 3 * 86400000).toISOString().slice(0, 10)
+  porMes[em3.slice(0, 7)].push({
+    id: `${em3}-fatura-proxima`, tipo: 'saida', descricao: 'Cartão de crédito · fatura', valor: 321.09, vencimento: em3,
+    status: 'a-pagar', categoria: 'cartao', confianca: 'medido', obs: 'MEDIDO no banco.',
+  })
   return porMes
+}
+
+/** A transação crua falsa por trás do lançamento "a classificar" (id inventado). */
+export const TX_A_CLASSIFICAR = { id: 'tx-falsa-e2e-1', type: 'DEBIT', amount: -42.5, date: '2030-01-01', description: 'Compra no débito|LOJA FALSA E2E', merchant: { name: 'Loja Falsa E2E' } }
+export const FITID_A_CLASSIFICAR = createHash('sha256').update(`pluggy:${TX_A_CLASSIFICAR.id}`).digest('hex').slice(0, 16)
+
+/** O bruto falso, onde o "lembrar para os próximos" procura a transação. */
+export function gravarBrutoFalso(pastaFinancas: string, hoje = new Date()) {
+  const dia = join(pastaFinancas, 'bruto', 'pluggy', hoje.toISOString().slice(0, 10))
+  mkdirSync(dia, { recursive: true })
+  writeFileSync(join(dia, 'falso-transacoes.json'), JSON.stringify([TX_A_CLASSIFICAR]), 'utf8')
 }
 
 export function gravarFinanceiroFalso(vault: string, hoje = new Date()) {

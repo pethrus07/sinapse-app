@@ -2,7 +2,7 @@
 
 [Português](README.pt-BR.md)
 
-A local web app that reads the Sinapse vault (Pedro's second brain, a folder of Markdown notes) and shows a graph, notes with links and backlinks, Fronts, Agenda, Finance, Overview and a page for each project. It also generates and publishes the architecture diagrams (UML, BPMN and C4) of every project.
+A local web app that reads the Sinapse vault (Pedro's second brain, a folder of Markdown notes) and shows a graph, notes with links and backlinks, Fronts, Agenda, Métis (finance), Overview and a page for each project. It also generates and publishes the architecture diagrams (UML, BPMN and C4) of every project.
 
 ## Status
 
@@ -17,7 +17,8 @@ The vault holds hundreds of notes, dozens of projects and deadlines spread acros
 - Graph of the notes (size by number of connections, color by area) and note reading with wikilinks and backlinks. `[[x]]` inside code is an example and does not become a link.
 - Search, a Skill Tree by domain, a study Roadmap and Projects by status.
 - Fronts (`#/frentes`): at most 3 fronts in progress; the rest sit in states that take no slot. Shows each front's last commit, its hours this week, and "what I promised", read from meeting minutes (read only).
-- Agenda (routine, deadlines and journal) and Finance (one file per month).
+- Agenda (routine, deadlines and journal).
+- **Métis** (`#/financeiro`), the finance module, named after the Greek goddess of practical wisdom and prudence. One file per month in the vault; read-only bank sync through Open Finance (Meu Pluggy) every day at 17:00. Tabs: **Overview** (cash flow, spending by category against the 3-month average, recurring vs one-off, net worth by class with the liquid reserve against the R$ 5,000 floor, clients paid vs still due, alerts), **Pronoia** (foresight: future income by client, projected reserve, card installments and the month-by-month projection) and **Entries** (the "to classify" queue, the form, the list). Internally it keeps the name `financeiro` (route, folder, data format). Format in `docs/financeiro-formato.md`.
 - Project page with tabs Overview, History (commits of the project folders), Tasks (the `- [ ]` boxes of the note) and Diagram.
 - Overview (`#/panorama`): a board by status and the year line.
 - Diagrams: a JSON spec in the vault becomes three diagrams in standard notation, measured by a QA step before going to each project's repository.

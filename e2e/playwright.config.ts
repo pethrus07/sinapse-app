@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
-import { gravarFinanceiroFalso } from './fixtures/financeiro-falso'
+import { gravarBrutoFalso, gravarFinanceiroFalso } from './fixtures/financeiro-falso'
 
 // QA E2E do sinapse-app. A suíte inteira roda contra uma CÓPIA do vault em pasta temporária:
 // os testes que escrevem (agenda, financeiro, indice-vivo) nunca tocam o vault real.
@@ -32,6 +32,7 @@ if (!existsSync(VAULT)) {
   mkdirSync(join(TMP, 'financas'), { recursive: true })
   const vence = new Date(Date.now() + 20 * 86400000).toISOString()
   writeFileSync(join(TMP, 'financas', 'estado.json'), JSON.stringify({ ultimaSync: new Date().toISOString(), conexoes: [{ rotulo: 'MeuPluggy', status: 'UPDATED', autorizacaoVence: vence }] }))
+  gravarBrutoFalso(join(TMP, 'financas'))
 }
 
 export default defineConfig({

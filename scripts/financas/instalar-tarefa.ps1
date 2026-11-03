@@ -13,8 +13,14 @@
 # O Meu Pluggy atualiza 1 vez por dia; rodar mais vezes não traz nada novo.
 param([string]$Hora = '17:00', [switch]$Remover)
 $ErrorActionPreference = 'Stop'
-$nome = 'Sinapse-Financas'
+# Métis = o módulo financeiro do Sinapse. A tarefa se chamava 'Sinapse-Financas' até 03/11/2026:
+# instalar ou remover tira também a antiga, para nunca ficarem duas rodando.
+$nome = 'Metis-Sincronizar'
+$antigas = @('Sinapse-Financas')
 
+foreach ($a in $antigas) {
+  if (Get-ScheduledTask -TaskName $a -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName $a -Confirm:$false; "tarefa antiga $a removida" }
+}
 if ($Remover) {
   if (Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskName $nome -Confirm:$false; "tarefa $nome removida" }
   else { "tarefa $nome não estava instalada" }
@@ -33,5 +39,5 @@ $gatilho = New-ScheduledTaskTrigger -Daily -At $Hora
 $conf = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
 Register-ScheduledTask -TaskName $nome -Action $acao -Trigger $gatilho -Settings $conf -Force `
-  -Description 'Sinapse: lê Nubank e Inter pelo Open Finance (Meu Pluggy, só leitura) grava no razão do vault e faz commit só do razão.' | Out-Null
+  -Description 'Métis (financeiro do Sinapse): lê o banco pelo Open Finance (Meu Pluggy, só leitura), grava no razão do vault e faz commit só do razão.' | Out-Null
 "tarefa $nome instalada: todo dia às $Hora (escondida). Teste agora: Start-ScheduledTask -TaskName $nome"

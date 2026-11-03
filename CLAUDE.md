@@ -36,13 +36,13 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   outra sessão mexer no vault real durante a suíte, o teardown acusa (falso alarme: rodar de novo).
   Teste unitário: `npm test` (node --test: gráficos do financeiro, sincronizador do banco, plano de
   publicação dos desenhos). Não há CI.
-- Financeiro (03/11/2026): aba Visão com 6 gráficos (`src/components/FinanceiroGraficos.tsx`, lógica
+- **Métis** = o módulo financeiro (nome visível desde 03/11/2026; por dentro segue `financeiro`: rota, pasta, bloco, `scripts/financas/`). Abas Visão, **Pronoia** (projeção, `#/financeiro/pronoia`) e Lançamentos; páginas em `src/components/MetisPaginas.tsx`, análises em `FinanceiroAnalises.tsx` + `src/lib/financeiroAnalise.ts`. Gráficos base (`src/components/FinanceiroGraficos.tsx`, lógica
   em `src/lib/financeiroGraficos.ts`) e sincronização só leitura pelo Meu Pluggy
   (`scripts/financas/`). Formato, regras e passo a passo em `docs/financeiro-formato.md`. **Repo
   público: nenhum dado financeiro real aqui**; o e2e troca o razão da cópia do vault por um falso
   (`e2e/fixtures/financeiro-falso.ts`) e aponta `SINAPSE_FINANCAS` para a pasta temporária.
   Credencial só em `%LOCALAPPDATA%\sinapse-financas\pluggy.cred` (DPAPI, o Pedro digita); itemId
-  também não entra no repo. A tarefa `Sinapse-Financas` (`instalar-tarefa.ps1`) roda todo dia às 17:00 `--gravar --commitar`: commita no vault só os arquivos do razão que gravou.
+  também não entra no repo. A tarefa `Metis-Sincronizar` (`instalar-tarefa.ps1`) roda todo dia às 17:00 `--gravar --commitar`: commita no vault só os arquivos do razão que gravou.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.

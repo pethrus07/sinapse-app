@@ -20,7 +20,7 @@ import { SkillTreeView } from './components/SkillTreeView';
 import { AgendaView } from './components/AgendaView';
 import { FinanceiroView } from './components/FinanceiroView';
 import { NoteEditor } from './components/NoteEditor';
-import { acaoFinanceiro, buscarIndice, buscarVersao, criarDaily, lancarFinanceiro, setProgress } from './lib/api';
+import { acaoFinanceiro, buscarIndice, buscarVersao, classificarFinanceiro, criarDaily, lancarFinanceiro, pontualFinanceiro, setProgress } from './lib/api';
 import { corpoDaDaily, normalizar } from './lib/agenda';
 import { normalizarFin } from './lib/financeiro';
 import { areaLabel, colorForArea } from './lib/colors';
@@ -176,6 +176,20 @@ export default function App() {
     }
   }
 
+  async function handleClassificar(mes: string, id: string, categoria: string, lembrar: boolean) {
+    const idx = await classificarFinanceiro(mes, id, categoria, lembrar);
+    applyIndex(idx);
+    return (idx as { lembrete?: { lembrou: boolean; motivo?: string } }).lembrete || null;
+  }
+
+  async function handlePontual(mes: string, id: string, valor: boolean) {
+    try {
+      applyIndex(await pontualFinanceiro(mes, id, valor));
+    } catch (e) {
+      alert('Nao deu pra salvar: ' + (e as Error).message);
+    }
+  }
+
   function onSearchChange(v: string) {
     setQuery(v);
     if (v && route.type !== 'search') go('/search');
@@ -249,6 +263,8 @@ export default function App() {
         onOpen={(id) => go('/note/' + encodeURIComponent(id))}
         onLancar={handleLancar}
         onAcao={handleAcaoFin}
+        onClassificar={handleClassificar}
+        onPontual={handlePontual}
       />
     );
   } else if (route.type === 'skills') {
@@ -295,7 +311,7 @@ export default function App() {
             <span className="nav-text">🗓️ Agenda</span>
           </a>
           <a className={'nav-item' + (route.type === 'financeiro' ? ' active' : '')} href="#/financeiro">
-            <span className="nav-text">💰 Financeiro</span>
+            <span className="nav-text">💰 Métis</span>
           </a>
           <a className={'nav-item' + (route.type === 'projetos' ? ' active' : '')} href="#/projetos">
             <span className="nav-text">🚀 Projetos</span>

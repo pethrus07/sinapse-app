@@ -24,7 +24,10 @@ test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   await expect(page.locator('.fin-semdata').first()).toBeVisible()
   await expect(page.locator('.fin-tabela tr').first()).toBeVisible()
 
-  // projecao mes a mes + o aviso de que ela e otimista enquanto nao houver saidas
+  await page.screenshot({ path: `${SHOTS}/11-financeiro.png`, fullPage: true })
+
+  // projecao mes a mes mora na Pronoia (Métis › Pronoia)
+  await page.getByRole('tab', { name: 'Pronoia' }).click()
   await expect(page.getByRole('heading', { name: /Projeção mês a mês/ })).toBeVisible()
   await expect(page.locator('.fin-proj tbody tr').first()).toBeVisible()
   // reserva e destinacao: aparece na projecao como coluna propria e NAO no calendario
@@ -33,9 +36,8 @@ test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   await page.getByRole('button', { name: /Painel/ }).click()
   await expect(page.getByText(/Reserva de mudan/)).toHaveCount(0)
   await page.locator('a[href="#/financeiro"]').click()
-  await page.getByRole('tab', { name: 'Lançamentos' }).click()
+  await page.getByRole('tab', { name: 'Pronoia' }).click()
   await expect(page.locator('.fin-proj')).toBeVisible()
-  await page.screenshot({ path: `${SHOTS}/11-financeiro.png`, fullPage: true })
 
   expect(erros, erros.join('\n')).toEqual([])
 })
