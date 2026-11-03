@@ -10,7 +10,7 @@ Três vistas do sistema, cada uma numa notação padrão.
 
 ## Sinapse App · a lente sobre o vault
 
-App web local (Vite, React, TypeScript) que indexa o vault do Sinapse e mostra grafo, Frentes, Agenda, Financeiro, Panorama e a página de cada projeto. Também gera e publica os diagramas dos projetos. O Markdown segue sendo a fonte da verdade.
+App web local (Vite, React, TypeScript) que indexa o vault do Sinapse e mostra grafo, Frentes, Agenda, a Métis (finanças, com a projeção Pronoia) e a página de cada projeto. Também gera e publica os diagramas dos projetos. O Markdown é a fonte da verdade.
 
 ### Quem usa e para quê
 
