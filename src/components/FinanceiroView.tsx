@@ -5,6 +5,7 @@ import {
   aReceberPorCliente, brl, CATEGORIAS, STATUS_LABEL, agruparPorMes, clientesConhecidos,
   contarSaidas, estaAberto, foraDaProjecao, projetar, resumir, rotuloStatus,
 } from '../lib/financeiro';
+import { FinanceiroGraficos } from './FinanceiroGraficos';
 
 interface Props {
   financeiro: Financeiro;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 type Filtro = 'abertos' | 'todos';
+type Aba = 'visao' | 'lancamentos';
 
 const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const rotuloMes = (mes: string) => {
@@ -39,6 +41,12 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao }: 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('abertos');
+  // #/financeiro abre na Visão (gráficos); #/financeiro/lancamentos abre direto na lista
+  const [aba, setAbaEstado] = useState<Aba>(() => (location.hash.includes('lancamentos') ? 'lancamentos' : 'visao'));
+  const setAba = (a: Aba) => {
+    setAbaEstado(a);
+    history.replaceState(null, '', a === 'lancamentos' ? '#/financeiro/lancamentos' : '#/financeiro');
+  };
 
   const temNota = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
   const resumo = useMemo(() => resumir(financeiro.lancamentos, hoje), [financeiro.lancamentos, hoje]);
@@ -72,8 +80,8 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao }: 
     }
   }
 
-  const eh = (l: Lancamento) => (l.tipo === 'saida' ? 'saida' : l.tipo === 'reserva' ? 'reserva' : 'entrada');
-  const seta = (k: string) => (k === 'saida' ? '↑' : k === 'reserva' ? '→' : '↓');
+  const eh = (l: Lancamento) => (l.tipo === 'saida' ? 'saida' : l.tipo === 'reserva' ? 'reserva' : l.tipo === 'investimento' ? 'saldo' : 'entrada');
+  const seta = (k: string) => (k === 'saida' ? '↑' : k === 'reserva' ? '→' : k === 'saldo' ? '=' : '↓');
 
   return (
     <div className="pad-scroll">
@@ -86,7 +94,13 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao }: 
             sozinho no calendário — a data vive num lugar só.
           </p>
         </div>
+        <div className="ag-tabs" role="tablist">
+          <button role="tab" aria-selected={aba === 'visao'} className={'proj-tab' + (aba === 'visao' ? ' active' : '')} onClick={() => setAba('visao')}>Visão</button>
+          <button role="tab" aria-selected={aba === 'lancamentos'} className={'proj-tab' + (aba === 'lancamentos' ? ' active' : '')} onClick={() => setAba('lancamentos')}>Lançamentos</button>
+        </div>
       </div>
+
+      {aba === 'visao' ? <FinanceiroGraficos financeiro={financeiro} hoje={hoje} /> : (<>
 
       {/* ---------- resumo ---------- */}
       <div className="fin-kpis">
@@ -370,10 +384,10 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao }: 
                         {l.obs && <span className="fin-obs">{l.obs}</span>}
                       </td>
                       <td className={'fin-td-valor ' + eh(l)}>
-                        {eh(l) === 'entrada' ? '+' : eh(l) === 'reserva' ? '→' : '−'}{brl(Number(l.valor || 0))}
+                        {eh(l) === 'entrada' ? '+' : eh(l) === 'reserva' ? '→' : eh(l) === 'saldo' ? '=' : '−'}{brl(Number(l.valor || 0))}
                       </td>
                       <td className="fin-td-acoes">
-                        {estaAberto(l) ? (
+                        {l.tipo === 'investimento' ? null : estaAberto(l) ? (
                           <button
                             className="fin-mini ok"
                             title={eh(l) === 'saida' ? 'marcar como pago' : 'marcar como recebido'}
@@ -408,7 +422,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao }: 
           <p className="muted small fin-dica">
             Arquivos:{' '}
             {financeiro.meses.map((m, i) => (
-              <span key={m.mes}>
+              <span key={m.rel}>
                 {i > 0 && ' · '}
                 <button className="linkbtn" onClick={() => onOpen(m.id)}>{m.mes}</button>
               </span>
@@ -416,6 +430,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao }: 
           </p>
         )}
       </section>
+      </>)}
     </div>
   );
 }

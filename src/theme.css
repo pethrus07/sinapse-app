@@ -757,3 +757,92 @@ button.fr-nome:hover { color: var(--accent); }
 .filtros { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
 .filtros select, .quadro-nova select { background: var(--panel2); border: 1px solid var(--line); color: var(--ink); border-radius: 9px; padding: 7px 10px; font: inherit; font-size: 13px; max-width: 320px; }
 .quadro-proj { display: block; font-size: 11.5px; text-decoration: none; margin-bottom: 4px; text-align: left; }
+
+/* ---------- Financeiro · Visão (gráficos) ----------
+   Paleta categórica validada (skill dataviz, validate_palette.js) contra o fundo do cartão
+   #11141C: 8 cores passam faixa de luminosidade, croma, CVD (pior vizinho 8,4), visão normal
+   (19,3) e contraste ≥ 3:1. Ordem fixa: a cor segue a série, nunca o rank. */
+.fg {
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --fg-grade: #1E2330; --fg-base: #333A48; --fg-vencido: #ec835a;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 24px; max-width: 1280px; align-items: start;
+}
+.fg-card { background: var(--panel); border-radius: 16px; padding: 26px 28px 18px; min-width: 0; position: relative; }
+.fg-card.largo { grid-column: 1 / -1; }
+.fg-titulo { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--soft); letter-spacing: 0; }
+.fg-leitura { margin: 0 0 18px; font-size: 16px; line-height: 1.5; color: var(--ink); max-width: 70ch; }
+.fg-leitura b { font-weight: 700; }
+.fg-legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 10px; font-size: 12px; color: var(--soft); }
+.fg-leg-item { display: inline-flex; align-items: center; gap: 6px; }
+.fg-sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.fg-plot { position: relative; width: 100%; min-height: 40px; outline: none; }
+.fg-plot svg { display: block; overflow: visible; }
+.fg-eixo text, .fg-xtick { fill: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.fg-xtick.hoje { fill: var(--ink); font-weight: 700; }
+.fg-grade { stroke: var(--fg-grade); stroke-width: 1; }
+.fg-base { stroke: var(--fg-base); stroke-width: 1; }
+.fg-rot { fill: var(--ink); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fg-ref line { stroke: var(--ink); stroke-width: 1.5; opacity: 0.8; }
+.fg-ref.piso line { stroke: var(--soft); stroke-width: 1; opacity: 1; }
+.fg-ref.piso text { fill: var(--soft); font-size: 11px; }
+.fg-mira { stroke: var(--soft); stroke-width: 1; opacity: 0.5; }
+.fg-hit { outline: none; cursor: default; }
+.fg-hit:hover path, .fg-hit:focus path { filter: brightness(1.18); }
+.fg-hit:focus-visible rect { stroke: var(--soft); stroke-width: 1; }
+.fg-dica {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 150px; max-width: 220px;
+  background: #1B202B; border-radius: 10px; padding: 9px 11px; box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  font-size: 12px; transform: translateY(-100%);
+}
+.fg-dica-tit { color: var(--soft); margin-bottom: 4px; }
+.fg-dica-lin { display: flex; align-items: center; gap: 7px; line-height: 1.6; }
+.fg-dica-lin b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.fg-dica-lin span:last-child { color: var(--faint); }
+.fg-chave-lin { width: 12px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+.fg-mais { margin-top: 14px; }
+.fg-mais summary { cursor: pointer; color: var(--faint); font-size: 13px; padding: 4px 0; list-style: none; }
+.fg-mais summary::-webkit-details-marker { display: none; }
+.fg-mais summary::before { content: '+ '; }
+.fg-mais[open] summary::before { content: '− '; }
+.fg-mais summary:hover { color: var(--accent); }
+.fg-mais-corpo { overflow-x: auto; padding-top: 6px; }
+.fg-explica { font-size: 12.5px; color: var(--soft); line-height: 1.55; margin: 4px 0 10px; max-width: 80ch; }
+.fg-tabela { border-collapse: collapse; font-size: 12px; width: 100%; }
+.fg-tabela th { text-align: left; font-weight: 400; color: var(--faint); padding: 4px 8px; white-space: nowrap; }
+.fg-tabela td { padding: 5px 8px; border-top: 1px solid var(--line-soft); white-space: nowrap; }
+.fg-tabela .num { text-align: right; font-variant-numeric: tabular-nums; }
+.fg-tabela tr.hoje td { color: var(--ink); font-weight: 600; }
+.fg-tabela tr.forte td { font-weight: 700; }
+.fg-codigo { font-family: var(--mono); font-size: 11.5px; color: var(--soft); background: var(--bg); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 0; }
+.fg-barras { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.fg-barras li { display: grid; grid-template-columns: minmax(80px, 30%) 1fr; grid-template-areas: "nome val" "trilho trilho"; gap: 6px 12px; outline: none; }
+.fg-barra-nome { grid-area: nome; font-size: 13px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-barra-val { grid-area: val; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fg-barra-trilho { grid-area: trilho; display: block; height: 10px; }
+.fg-barra { display: block; height: 10px; border-radius: 0 4px 4px 0; min-width: 4px; }
+.fg-barra.vencido { background: var(--fg-vencido); }
+.fg-barras li:hover .fg-barra, .fg-barras li:focus .fg-barra { filter: brightness(1.15); }
+.fg-numeros { display: flex; gap: 40px; flex-wrap: wrap; }
+.fg-numeros div { display: flex; flex-direction: column; gap: 4px; }
+.fg-num-rot { font-size: 12px; color: var(--faint); }
+.fg-numeros b { font-size: 26px; letter-spacing: -0.02em; }
+.fg-aviso { background: rgba(232,163,61,0.08); border-radius: 12px; padding: 12px 16px; margin: 0 0 20px; font-size: 14px; line-height: 1.5; color: var(--ink); max-width: 1280px; }
+
+/* ---------- celular (≤ 720 px) ----------
+   A barra lateral vira uma faixa no topo com a navegação rolando de lado; busca, áreas e
+   estatísticas ficam para a tela grande. */
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--line); flex-direction: row; align-items: center; }
+  .sidebar .brand { padding: 10px 12px; flex-shrink: 0; }
+  .sidebar .brand-sub, .sidebar .search, .sidebar .newnote, .sidebar .stats, .sidebar .nav-label,
+  .sidebar .nav-item:has(.dot) { display: none; }
+  .sidebar .nav { flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 6px 8px; gap: 4px; }
+  .sidebar .nav-item { white-space: nowrap; padding: 7px 10px; }
+  .pad-scroll { padding: 22px 16px 60px; }
+  .fg-card { padding: 20px 16px 14px; border-radius: 14px; }
+  .fg { gap: 16px; }
+  .fg-leitura { font-size: 15px; }
+}

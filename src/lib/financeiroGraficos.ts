@@ -98,7 +98,7 @@ export function ehEstavel(l: Lancamento, mesDepois: string): boolean {
   return !l.ate || l.ate >= mesDepois;
 }
 
-export function receitaPorCliente(ls: Lancamento[], maxSeries = 6): ReceitaPorCliente {
+export function receitaPorCliente(ls: Lancamento[], maxSeries = 8): ReceitaPorCliente {
   const entradas = ls.filter((l) => l.tipo === 'entrada' && !(aberto(l) && l.semPrazo) && (aberto(l) || liquidado(l)));
   const razao = mesesDoRazao(ls);
   if (!razao.length) return { meses: [], mesDepois: '', series: [], estavel: 0, totais: [] };

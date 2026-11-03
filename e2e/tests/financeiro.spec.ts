@@ -15,7 +15,7 @@ function coletarErros(page: Page): string[] {
 
 test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   const erros = coletarErros(page)
-  await page.goto('/#/financeiro')
+  await page.goto('/#/financeiro/lancamentos')
 
   await expect(page.getByRole('heading', { name: /Entra, sai e o que falta receber/ })).toBeVisible()
   await expect(page.locator('.fin-kpi')).toHaveCount(6) // + reserva
@@ -33,6 +33,7 @@ test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   await page.getByRole('button', { name: /Painel/ }).click()
   await expect(page.getByText(/Reserva de mudan/)).toHaveCount(0)
   await page.locator('a[href="#/financeiro"]').click()
+  await page.getByRole('tab', { name: 'Lançamentos' }).click()
   await expect(page.locator('.fin-proj')).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/11-financeiro.png`, fullPage: true })
 
@@ -47,7 +48,7 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
   // e o toHaveCount(1) volta a ser uma afirmacao honesta
   const MARCA = 'TESTE e2e ' + Date.now()
   const DESC = MARCA + ' · lançamento com acentuação'
-  await page.goto('/#/financeiro')
+  await page.goto('/#/financeiro/lancamentos')
 
   // esperar a tabela renderizar antes de contar, senao a contagem sai 0 (corrida com o React)
   await expect(page.locator('.fin-tabela tr').first()).toBeVisible()
@@ -91,6 +92,7 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
 
   // --- liquida: sai do calendário e muda de status
   await page.locator('a[href="#/financeiro"]').click()
+  await page.getByRole('tab', { name: 'Lançamentos' }).click()
   await page.locator('.fin-listahead .proj-tab', { hasText: 'todos' }).click()
   await page.locator('.fin-tabela tr', { hasText: MARCA }).locator('.fin-mini.ok').click()
   await expect(page.locator('.fin-tabela tr', { hasText: MARCA }).locator('.fin-tag.st-recebido')).toBeVisible()
@@ -101,6 +103,7 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
 
   // --- remove e volta ao estado original (o teste limpa o que sujou)
   await page.locator('a[href="#/financeiro"]').click()
+  await page.getByRole('tab', { name: 'Lançamentos' }).click()
   await page.locator('.fin-listahead .proj-tab', { hasText: 'todos' }).click()
   await page.locator('.fin-tabela tr', { hasText: MARCA }).locator('.fin-mini.del').click()
   await expect(page.locator('.fin-tabela tr', { hasText: MARCA })).toHaveCount(0)
@@ -110,7 +113,7 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
 
 test('Financeiro: recusa lançamento sem descrição ou com valor inválido', async ({ page }) => {
   const erros = coletarErros(page)
-  await page.goto('/#/financeiro')
+  await page.goto('/#/financeiro/lancamentos')
 
   await page.locator('.fin-salvar').click()
   await expect(page.locator('.fin-erro')).toContainText('Escreve o que é')

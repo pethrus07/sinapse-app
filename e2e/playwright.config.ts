@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
+import { gravarFinanceiroFalso } from './fixtures/financeiro-falso'
 
 // QA E2E do sinapse-app. A suíte inteira roda contra uma CÓPIA do vault em pasta temporária:
 // os testes que escrevem (agenda, financeiro, indice-vivo) nunca tocam o vault real.
@@ -25,6 +26,8 @@ process.env.SINAPSE_E2E_VAULT = VAULT
 if (!existsSync(VAULT)) {
   cpSync(VAULT_REAL, VAULT, { recursive: true })
   mkdirSync(join(TMP, 'estado'), { recursive: true })
+  // o razão real nunca entra em teste nem em screenshot: a cópia recebe um razão falso
+  gravarFinanceiroFalso(VAULT)
 }
 
 export default defineConfig({
