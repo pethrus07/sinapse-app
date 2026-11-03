@@ -64,6 +64,7 @@ export default defineConfig({
       PROJETOS_PATH: resolve(VAULT_REAL, '..'), // pastas de projeto reais, só para ler o git
       SINAPSE_ESTADO: join(TMP, 'estado'), // o "feito" das promessas não vai para ~/.sinapse
       SINAPSE_FINANCAS: join(TMP, 'financas'), // nunca lê o estado real da sincronização do banco
+      VITE_CACHE_DIR: process.env.VITE_CACHE_DIR || resolve(APP, 'node_modules', '.vite-e2e'),
     },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

@@ -1,6 +1,9 @@
-import { defineConfig, type Connect, type Plugin } from 'vite';
+import { defineConfig, searchForWorkspaceRoot, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { vaultApi } from './scripts/vault-api.mjs';
+
+// sem @types/node no projeto: só o que este arquivo usa do process do Node
+declare const process: { env: Record<string, string | undefined>; cwd(): string };
 
 // Editor de desenho com as fontes da marca: o Excalidraw 0.17 busca Virgil.woff2 e Cascadia.woff2 em
 // EXCALIDRAW_ASSET_PATH (/excalidraw-ryze/, DesenhoView.tsx). Neste caminho elas viram as da RYZE
@@ -22,6 +25,8 @@ function fontesDoEditor(): Plugin {
   };
 }
 
+const INDEX_OUT = process.env.INDEX_OUT ? process.env.INDEX_OUT.split('\\').join('/') : '';
+
 export default defineConfig({
   plugins: [react(), vaultApi(), fontesDoEditor()],
   base: './',
@@ -33,9 +38,18 @@ export default defineConfig({
   // resolveu foi refazer o cache: `npx vite --force`. A mutação (tirar esta linha) não
   // reproduziu o defeito, então ela é seguro barato, não a correção provada.
   optimizeDeps: { include: ['react', 'react-dom', 'react-dom/client', '@excalidraw/excalidraw'] },
+  // O e2e sobe um Vite próprio (:5175) enquanto o do dia a dia (:5173) pode estar rodando: cada um
+  // com o seu cache de dependências, para um não reescrever o node_modules/.vite do outro no meio.
+  ...(process.env.VITE_CACHE_DIR ? { cacheDir: process.env.VITE_CACHE_DIR } : {}),
+  // Índice gerado em outra pasta (INDEX_OUT, o e2e): o primeiro paint também sai de lá. Sem isto o
+  // App.tsx empacotava o src/data do dia a dia (o vault REAL, razão financeiro incluído) e trocava
+  // pelo índice da cópia quando o /api/indice respondia: dado real na tela do teste e a tela
+  // mudando no meio de um clique.
+  ...(INDEX_OUT ? { resolve: { alias: [{ find: /^\.\/data\/([\w-]+\.json)$/, replacement: INDEX_OUT + '/$1' }] } } : {}),
   server: {
     port: 5173,
     // O índice (src/data/*.json) é gerado; não deixar o watcher recarregar a página a cada escrita.
-    watch: { ignored: ['**/src/data/**'] },
+    watch: { ignored: ['**/src/data/**', ...(INDEX_OUT ? [INDEX_OUT + '/**'] : [])] },
+    ...(INDEX_OUT ? { fs: { allow: [searchForWorkspaceRoot(process.cwd()), INDEX_OUT] } } : {}),
   },
 });

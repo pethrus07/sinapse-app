@@ -75,15 +75,15 @@ test('lancamentosDaCategoria: só os gastos daquela categoria naquele mês', () 
 test('recorrenteDoMes: gasto recorrente sem os pontuais e sobra recorrente', () => {
   const ls = [
     gasto('2030-05', '03', 'mercado', 600),
-    gasto('2030-05', '10', 'emprestimo', 2000, { pontual: true, descricao: 'Empréstimo' }),
+    gasto('2030-05', '10', 'emprestimo', 1700, { pontual: true, descricao: 'Empréstimo' }),
     gasto('2030-05', '11', 'cartao', 900), // fatura: fora
-    L({ tipo: 'entrada', status: 'recebido', valor: 2500, vencimento: '2030-05-05', liquidadoEm: '2030-05-05', recorrente: true }),
+    L({ tipo: 'entrada', status: 'recebido', valor: 2650, vencimento: '2030-05-05', liquidadoEm: '2030-05-05', recorrente: true }),
     L({ tipo: 'entrada', status: 'a-receber', valor: 300, vencimento: '2030-05-20', recorrente: true }),
     L({ tipo: 'entrada', status: 'recebido', valor: 999, vencimento: '2030-05-07', liquidadoEm: '2030-05-07' }), // pontual de entrada: fora
   ];
   const r = recorrenteDoMes(ls, '2030-05');
-  assert.deepEqual([r.gasto, r.pontual, r.gastoRecorrente, r.entradasRecorrentes, r.sobraRecorrente], [2600, 2000, 600, 2800, 2200]);
-  assert.deepEqual(r.pontuais, [{ descricao: 'Empréstimo', valor: 2000 }]);
+  assert.deepEqual([r.gasto, r.pontual, r.gastoRecorrente, r.entradasRecorrentes, r.sobraRecorrente], [2300, 1700, 600, 2950, 2350]);
+  assert.deepEqual(r.pontuais, [{ descricao: 'Empréstimo', valor: 1700 }]);
 });
 
 test('grupoDe: classe, liquidez e nome', () => {

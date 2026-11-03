@@ -171,7 +171,7 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
      fecha com o valor real e guarda o previsto em `valorPrevisto`. Os `fitids` de todos os Pix ficam
      no lançamento. Mês corrente sem fechar: aparece em "acumulando" e não grava.
 4. **Não casa**: vira lançamento novo, já liquidado, com descrição **montada** (meio + cliente da
-   regra: "Pix recebido · Desbravando UTV"; sem regra, "Pix recebido") e categoria da regra ou
+   regra: "Pix recebido · Cliente Alfa"; sem regra, "Pix recebido") e categoria da regra ou
    "a classificar". Compra no cartão nunca liquida previsto (quem liquida é o pagamento da fatura).
 5. **Faturas** (`/bills`) primeiro: o previsto do cartão do mês do vencimento passa a ter o valor
    medido (`confianca: medido`); fatura futura sem previsto abre um.

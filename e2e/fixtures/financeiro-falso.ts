@@ -12,8 +12,12 @@ const somarMes = (mes: string, k: number) => {
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`
 }
 
+// dia LOCAL, como o app (toISOString é UTC: depois das 21h do último dia do mês o razão falso
+// nascia no mês seguinte e a tela, no mês certo, não achava o que o teste esperava)
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 export function razaoFalso(hoje = new Date()): Record<string, object[]> {
-  const mesHoje = hoje.toISOString().slice(0, 7)
+  const mesHoje = ymdLocal(hoje).slice(0, 7)
   const meses = [-2, -1, 0, 1, 2, 3, 4, 5].map((k) => somarMes(mesHoje, k))
   const porMes: Record<string, object[]> = {}
   meses.forEach((mes, i) => {
@@ -33,7 +37,7 @@ export function razaoFalso(hoje = new Date()): Record<string, object[]> {
         obs: i < 2 ? 'NAO MEDIDO. estimativa' : i < 5 ? 'MEDIDO no banco.' : 'EXTRAPOLADO, nao medido.',
       },
       { id: `${mes}-moradia`, tipo: 'saida', descricao: 'Moradia', valor: 500, vencimento: '', status: passado ? 'pago' : 'a-pagar', ...(passado ? { liquidadoEm: `${mes}-10` } : {}), categoria: 'moradia', recorrente: true },
-      { id: `${mes}-reserva`, tipo: 'reserva', descricao: 'Reserva de mudança', valor: 1000, vencimento: '', status: passado ? 'pago' : 'a-pagar', ...(passado ? { liquidadoEm: `${mes}-06` } : {}), categoria: 'reserva', recorrente: true },
+      { id: `${mes}-reserva`, tipo: 'reserva', descricao: 'Reserva falsa', valor: 1000, vencimento: '', status: passado ? 'pago' : 'a-pagar', ...(passado ? { liquidadoEm: `${mes}-06` } : {}), categoria: 'reserva', recorrente: true },
     ]
     // acordo com prazo: termina 3 meses à frente
     if (i <= 5) l.push(ent('Gama', '26', 500, { cliente: 'Cliente Gama', categoria: 'mensalidade', ate: meses[5] }))
@@ -48,7 +52,7 @@ export function razaoFalso(hoje = new Date()): Record<string, object[]> {
   delete alfa.liquidadoEm
 
   // gastos "do banco" (origem) nos dois meses fechados: o banco começa no dia 01 do primeiro,
-  // então ele conta na média. Mercado sobe de 400 para 700 (fugiu da média); a TV é pontual.
+  // então ele conta na média. Mercado sobe de 400 para 700 (fugiu da média); a compra grande é pontual.
   const g = (mes: string, dia: string, categoria: string, valor: number, extra: object = {}) => ({
     id: `${mes}-gasto-${categoria}-${dia}`, tipo: 'saida', descricao: `Gasto falso · ${categoria}`, valor,
     vencimento: `${mes}-${dia}`, status: 'pago', liquidadoEm: `${mes}-${dia}`, categoria, origem: 'teste', conta: 'Banco Falso · conta', ...extra,
@@ -56,12 +60,12 @@ export function razaoFalso(hoje = new Date()): Record<string, object[]> {
   porMes[meses[0]].push(g(meses[0], '01', 'mercado', 400), g(meses[0], '08', 'transporte', 200))
   porMes[meses[1]].push(
     g(meses[1], '03', 'mercado', 700), g(meses[1], '09', 'transporte', 210),
-    g(meses[1], '15', 'casa', 1500, { descricao: 'TV falsa', pontual: true }),
+    g(meses[1], '15', 'casa', 1500, { descricao: 'Compra grande falsa', pontual: true }),
     // o que a sincronização não reconheceu: o bruto falso (playwright.config) tem a transação
     g(meses[1], '20', 'a classificar', 42.5, { id: `${meses[1]}-pix-falso`, descricao: 'Compra no débito', origem: 'pluggy', fitid: FITID_A_CLASSIFICAR }),
   )
   // fatura do cartão que vence daqui a 3 dias, com valor medido no banco
-  const em3 = new Date(hoje.getTime() + 3 * 86400000).toISOString().slice(0, 10)
+  const em3 = ymdLocal(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 3))
   porMes[em3.slice(0, 7)].push({
     id: `${em3}-fatura-proxima`, tipo: 'saida', descricao: 'Cartão de crédito · fatura', valor: 321.09, vencimento: em3,
     status: 'a-pagar', categoria: 'cartao', confianca: 'medido', obs: 'MEDIDO no banco.',
@@ -75,7 +79,7 @@ export const FITID_A_CLASSIFICAR = createHash('sha256').update(`pluggy:${TX_A_CL
 
 /** O bruto falso, onde o "lembrar para os próximos" procura a transação. */
 export function gravarBrutoFalso(pastaFinancas: string, hoje = new Date()) {
-  const dia = join(pastaFinancas, 'bruto', 'pluggy', hoje.toISOString().slice(0, 10))
+  const dia = join(pastaFinancas, 'bruto', 'pluggy', ymdLocal(hoje))
   mkdirSync(dia, { recursive: true })
   writeFileSync(join(dia, 'falso-transacoes.json'), JSON.stringify([TX_A_CLASSIFICAR]), 'utf8')
 }

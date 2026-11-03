@@ -461,7 +461,7 @@ export function buildIndex(VAULT, OUT) {
   // O financeiro alimenta o calendario: vencimento ABERTO vira data na agenda.
   // Sem isso a mesma data existiria em dois lugares e uma das duas envelheceria.
   //
-  // AGRUPADO por (dia, cliente, direcao): o ciclo do Desbravando sao 6 lancamentos
+  // AGRUPADO por (dia, cliente, direcao): um ciclo de cliente pode ter 6 lancamentos
   // no dia 26, mas e UMA cobranca — 6 chips no mesmo dia afogam a grade. O detalhe
   // item por item vive na view Financeiro, que e o lugar dele.
   const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

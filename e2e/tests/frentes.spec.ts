@@ -139,16 +139,21 @@ test.beforeAll(async () => {
   montarAtas()
   fotoInicial = fotoDoAtas()
   estado = join(tmp, 'estado')
+  const env = {
+    ...process.env,
+    VAULT_PATH: vault,
+    INDEX_OUT: join(tmp, 'indice'),
+    PROJETOS_PATH: resolve(VAULT_REAL, '..'), // as pastas de projeto reais, só para ler o git
+    ATAS_PATH: atas, // a fixture, nunca o atas-salvas real
+    SINAPSE_ESTADO: estado, // o "feito" vai para cá, não para ~/.sinapse
+    VITE_CACHE_DIR: join(APP, 'node_modules', '.vite-e2e-frentes'), // não disputa o cache do :5173
+  }
+  // o primeiro paint sai do índice da cópia (vite.config: alias de ./data para INDEX_OUT): ele
+  // precisa existir antes do Vite servir o App
+  execFileSync(process.execPath, [join(APP, 'scripts', 'index-vault.mjs')], { cwd: APP, env, stdio: 'ignore' })
   servidor = spawn(process.execPath, [join(APP, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(PORTA), '--strictPort'], {
     cwd: APP,
-    env: {
-      ...process.env,
-      VAULT_PATH: vault,
-      INDEX_OUT: join(tmp, 'indice'),
-      PROJETOS_PATH: resolve(VAULT_REAL, '..'), // as pastas de projeto reais, só para ler o git
-      ATAS_PATH: atas, // a fixture, nunca o atas-salvas real
-      SINAPSE_ESTADO: estado, // o "feito" vai para cá, não para ~/.sinapse
-    },
+    env,
     stdio: 'ignore',
   })
   for (let i = 0; i < 120; i++) {
