@@ -1,0 +1,46 @@
+{
+  "page": 1,
+  "total": 3,
+  "totalPages": 1,
+  "results": [
+    {
+      "id": "a1111111-0000-4000-8000-000000000001",
+      "type": "BANK",
+      "subtype": "CHECKING_ACCOUNT",
+      "number": "9999999-1",
+      "name": "Conta corrente",
+      "marketingName": "Nubank",
+      "balance": 1000,
+      "itemId": "00000000-0000-4000-8000-000000000001",
+      "taxNumber": "123.456.789-09",
+      "owner": "FULANA DE TESTE DA SILVA",
+      "currencyCode": "BRL"
+    },
+    {
+      "id": "a2222222-0000-4000-8000-000000000002",
+      "type": "CREDIT",
+      "subtype": "CREDIT_CARD",
+      "number": "5555 **** **** 4321",
+      "name": "Cartão de crédito",
+      "marketingName": "Nubank Ultravioleta",
+      "balance": 1000,
+      "itemId": "00000000-0000-4000-8000-000000000001",
+      "taxNumber": "123.456.789-09",
+      "owner": "FULANA DE TESTE DA SILVA",
+      "currencyCode": "BRL"
+    },
+    {
+      "id": "a3333333-0000-4000-8000-000000000003",
+      "type": "BANK",
+      "subtype": "CHECKING_ACCOUNT",
+      "number": "88888888-2",
+      "name": "Conta corrente",
+      "marketingName": "Banco Inter",
+      "balance": 1000,
+      "itemId": "00000000-0000-4000-8000-000000000001",
+      "taxNumber": "123.456.789-09",
+      "owner": "FULANA DE TESTE DA SILVA",
+      "currencyCode": "BRL"
+    }
+  ]
+}

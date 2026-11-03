@@ -1,0 +1,40 @@
+{
+  "page": 1,
+  "total": 3,
+  "totalPages": 1,
+  "results": [
+    {
+      "id": "b0000001-0000-4000-8000-000000000001",
+      "dueDate": "2030-02-05T00:00:00",
+      "billClosingDate": "2030-01-29T00:00:00",
+      "totalAmount": 280,
+      "totalAmountCurrencyCode": "BRL",
+      "minimumPaymentAmount": 56,
+      "allowsInstallments": true,
+      "financeCharges": [],
+      "payments": []
+    },
+    {
+      "id": "b0000002-0000-4000-8000-000000000002",
+      "dueDate": "2030-03-05T00:00:00",
+      "billClosingDate": "2030-02-26T00:00:00",
+      "totalAmount": 312.4,
+      "totalAmountCurrencyCode": "BRL",
+      "minimumPaymentAmount": 62.48,
+      "allowsInstallments": true,
+      "financeCharges": [],
+      "payments": []
+    },
+    {
+      "id": "b0000003-0000-4000-8000-000000000003",
+      "dueDate": "2030-04-05T00:00:00",
+      "billClosingDate": "2030-03-29T00:00:00",
+      "totalAmount": 259.9,
+      "totalAmountCurrencyCode": "BRL",
+      "minimumPaymentAmount": 51.98,
+      "allowsInstallments": true,
+      "financeCharges": [],
+      "payments": []
+    }
+  ]
+}

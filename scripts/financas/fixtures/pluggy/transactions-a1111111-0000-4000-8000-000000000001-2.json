@@ -1,0 +1,45 @@
+{
+  "results": [
+    {
+      "id": "f0000010-0000-4000-8000-000000000010",
+      "createdAt": "2030-02-28T10:00:00.000Z",
+      "updatedAt": "2030-02-28T10:00:00.000Z",
+      "description": "TED recebida FULANO ANTIGO CPF 222.333.444-55 Ag 0001 Conta 12345-6",
+      "descriptionRaw": null,
+      "currencyCode": "BRL",
+      "amount": 120,
+      "amountInAccountCurrency": null,
+      "date": "2030-02-28T00:00:00.000Z",
+      "balance": 0,
+      "category": "Transfers",
+      "accountId": "a1111111-0000-4000-8000-000000000001",
+      "providerCode": null,
+      "status": "POSTED",
+      "type": "CREDIT",
+      "operationType": "TED",
+      "paymentData": null,
+      "providerId": null
+    },
+    {
+      "id": "f0000011-0000-4000-8000-000000000011",
+      "createdAt": "2030-01-15T10:00:00.000Z",
+      "updatedAt": "2030-01-15T10:00:00.000Z",
+      "description": "Fora do período (antes de --desde)",
+      "descriptionRaw": null,
+      "currencyCode": "BRL",
+      "amount": 75,
+      "amountInAccountCurrency": null,
+      "date": "2030-01-15T00:00:00.000Z",
+      "balance": 0,
+      "category": "Transfers",
+      "accountId": "a1111111-0000-4000-8000-000000000001",
+      "providerCode": null,
+      "status": "POSTED",
+      "type": "CREDIT",
+      "operationType": null,
+      "paymentData": null,
+      "providerId": null
+    }
+  ],
+  "next": null
+}

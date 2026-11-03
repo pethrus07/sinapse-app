@@ -1,0 +1,21 @@
+{
+  "_leia": "Copie para %LOCALAPPDATA%\\sinapse-financas\\regras\\regras.json (fora do git) e troque pelos seus. A primeira regra que casa decide. 'texto' procura (sem acento, sem maiúscula) na descrição do banco, no nome de quem pagou/recebeu e no estabelecimento; esse texto fica só na memória e nunca é gravado. 'documento' casa o CPF/CNPJ (só dígitos) de quem pagou/recebeu. 'previsto' é um pedaço do id do lançamento previsto que a transação deve liquidar. 'descricao' é o que vai para o vault (não ponha nome de pessoa aqui).",
+  "toleranciaDias": 5,
+  "_contas": "Sem regra, o rótulo sai sozinho: 'Nubank · conta', 'Nubank · cartão', 'Inter · conta', 'Inter · cartão'. Só use 'contas' para trocar o rótulo (ex.: dois cartões). 'padrao' procura no nome comercial da conta; 'tipo' é BANK ou CREDIT.",
+  "contas": [
+    { "padrao": "gold", "tipo": "CREDIT", "rotulo": "Nubank · cartão" }
+  ],
+  "ignorarCategorias": ["Same person transfer"],
+  "regras": [
+    { "quando": { "documento": "11222333000181", "direcao": "entrada" }, "cliente": "Cliente Alfa", "categoria": "salario", "descricao": "Pix recebido · Cliente Alfa" },
+    { "quando": { "texto": "pagamento de fatura", "direcao": "saida" }, "categoria": "cartao", "previsto": "cartao-de-credito-fatura" },
+    { "quando": { "texto": "aplicacao rdb", "direcao": "saida" }, "categoria": "reserva", "previsto": "reserva" },
+    { "quando": { "texto": "resgate rdb" }, "ignorar": true },
+    { "quando": { "texto": "ifood" }, "categoria": "alimentacao", "descricao": "Delivery" },
+    { "quando": { "texto": "netflix", "viaCartao": true }, "categoria": "assinatura", "descricao": "Netflix" }
+  ],
+  "investimentos": [
+    { "padrao": "caixinha", "liquidez": "diaria", "reserva": true, "descricao": "Caixinha da reserva" },
+    { "padrao": "cdb", "liquidez": "no-vencimento" }
+  ]
+}

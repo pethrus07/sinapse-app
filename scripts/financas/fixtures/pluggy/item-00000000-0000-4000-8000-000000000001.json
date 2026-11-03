@@ -1,0 +1,13 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "connector": {
+    "id": 200,
+    "name": "MeuPluggy",
+    "institutionUrl": "https://meu.pluggy.ai/"
+  },
+  "status": "UPDATED",
+  "executionStatus": "SUCCESS",
+  "consentExpiresAt": "2030-04-01T00:00:00.000Z",
+  "lastUpdatedAt": "2030-03-10T06:00:00.000Z",
+  "error": null
+}

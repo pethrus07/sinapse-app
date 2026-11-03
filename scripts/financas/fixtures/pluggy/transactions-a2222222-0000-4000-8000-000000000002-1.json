@@ -1,0 +1,70 @@
+{
+  "results": [
+    {
+      "id": "f0000012-0000-4000-8000-000000000012",
+      "createdAt": "2030-03-01T10:00:00.000Z",
+      "updatedAt": "2030-03-01T10:00:00.000Z",
+      "description": "Netflix.com",
+      "descriptionRaw": null,
+      "currencyCode": "BRL",
+      "amount": 59.9,
+      "amountInAccountCurrency": null,
+      "date": "2030-03-01T00:00:00.000Z",
+      "balance": 0,
+      "category": "Video streaming",
+      "accountId": "a2222222-0000-4000-8000-000000000002",
+      "providerCode": null,
+      "status": "POSTED",
+      "type": "DEBIT",
+      "operationType": null,
+      "paymentData": null,
+      "providerId": null,
+      "merchant": {
+        "name": "NETFLIX",
+        "businessName": "NETFLIX ENTRETENIMENTO BRASIL LTDA",
+        "cnpj": "13.590.585/0001-99",
+        "category": "streaming",
+        "cnae": "5911199"
+      },
+      "creditCardMetadata": {
+        "installmentNumber": 1,
+        "totalInstallments": 1,
+        "totalAmount": null,
+        "purchaseDate": null,
+        "cardNumber": "4321",
+        "billId": null,
+        "billForecastDate": "2030-04-05"
+      }
+    },
+    {
+      "id": "f0000013-0000-4000-8000-000000000013",
+      "createdAt": "2030-03-02T10:00:00.000Z",
+      "updatedAt": "2030-03-02T10:00:00.000Z",
+      "description": "LOJA FULANO MEI 12345678000199",
+      "descriptionRaw": null,
+      "currencyCode": "BRL",
+      "amount": 200,
+      "amountInAccountCurrency": null,
+      "date": "2030-03-02T00:00:00.000Z",
+      "balance": 0,
+      "category": "Shopping",
+      "accountId": "a2222222-0000-4000-8000-000000000002",
+      "providerCode": null,
+      "status": "POSTED",
+      "type": "DEBIT",
+      "operationType": null,
+      "paymentData": null,
+      "providerId": null,
+      "creditCardMetadata": {
+        "installmentNumber": 1,
+        "totalInstallments": 1,
+        "totalAmount": null,
+        "purchaseDate": null,
+        "cardNumber": "4321",
+        "billId": null,
+        "billForecastDate": "2030-04-05"
+      }
+    }
+  ],
+  "next": null
+}

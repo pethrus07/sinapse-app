@@ -1,0 +1,55 @@
+{
+  "page": 1,
+  "total": 3,
+  "totalPages": 1,
+  "results": [
+    {
+      "id": "c0000001-0000-4000-8000-000000000001",
+      "name": "Caixinha Reserva",
+      "code": null,
+      "number": "0001-RESERVA",
+      "type": "FIXED_INCOME",
+      "subtype": "CDB",
+      "status": "ACTIVE",
+      "balance": 6200,
+      "amount": 6200,
+      "currencyCode": "BRL",
+      "owner": "FULANA DE TESTE DA SILVA",
+      "institution": {
+        "name": "Nu Pagamentos",
+        "number": "260"
+      },
+      "itemId": "00000000-0000-4000-8000-000000000001",
+      "date": "2030-03-10"
+    },
+    {
+      "id": "c0000002-0000-4000-8000-000000000002",
+      "name": "CDB Banco Falso 2032",
+      "type": "FIXED_INCOME",
+      "subtype": "CDB",
+      "status": "ACTIVE",
+      "balance": 1500,
+      "amount": 1500,
+      "currencyCode": "BRL",
+      "institution": {
+        "name": "Banco Inter",
+        "number": "077"
+      },
+      "itemId": "00000000-0000-4000-8000-000000000001",
+      "dueDate": "2032-01-01T00:00:00",
+      "date": "2030-03-10"
+    },
+    {
+      "id": "c0000003-0000-4000-8000-000000000003",
+      "name": "CDB resgatado",
+      "type": "FIXED_INCOME",
+      "subtype": "CDB",
+      "status": "TOTAL_WITHDRAWAL",
+      "balance": 0,
+      "institution": {
+        "name": "Banco Inter"
+      },
+      "itemId": "00000000-0000-4000-8000-000000000001"
+    }
+  ]
+}
