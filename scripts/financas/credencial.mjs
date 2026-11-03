@@ -21,9 +21,13 @@ export function lerCredencial(arquivo = ARQ_CRED()) {
     throw new Error(`credencial não encontrada em ${arquivo}. Rode antes: powershell -File scripts\\financas\\pluggy-credencial.ps1`);
   }
   let texto;
+  // Chamado de dentro do PowerShell 7, o powershell.exe (5.1) herda o PSModulePath do 7, carrega o
+  // Microsoft.PowerShell.Security errado e o ConvertTo-SecureString falha. Sem a variável, ele usa o dele.
+  const env = { ...process.env, SINAPSE_PLUGGY_CRED: arquivo };
+  for (const k of Object.keys(env)) if (k.toUpperCase() === 'PSMODULEPATH') delete env[k];
   try {
     texto = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', DECIFRAR], {
-      env: { ...process.env, SINAPSE_PLUGGY_CRED: arquivo }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+      env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
     });
   } catch {
     // a mensagem do PowerShell não é repassada: pode citar o conteúdo
