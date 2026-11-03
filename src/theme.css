@@ -467,7 +467,8 @@ button.ag-chip:hover, a.ag-chip:hover { border-color: var(--line); background: #
 /* ---------- Financeiro (#/financeiro) ---------- */
 .fin-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .fin-kpi {
-  background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--line);
+  /* régua do Pedro: cartão sem borda; só a faixa de cima, e só quando diz estado (entra, sai, alerta) */
+  background: var(--panel); border: none; border-top: 3px solid transparent;
   border-radius: 11px; padding: 12px 13px; display: flex; flex-direction: column; gap: 3px;
 }
 .fin-kpi.entrada { border-top-color: #7BE0A3; }
@@ -488,7 +489,7 @@ button.ag-chip:hover, a.ag-chip:hover { border-color: var(--line); background: #
 
 .fin-form {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+  background: var(--panel); border: none; border-radius: 12px; padding: 14px;
   align-items: end;
 }
 .fin-campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -906,4 +907,26 @@ button.fr-nome:hover { color: var(--accent); }
   .fg-leitura { font-size: 15px; }
   .mt-fila-cats { padding-left: 4px; }
   .mt-cat { grid-template-columns: minmax(80px, 40%) 1fr; }
+  /* alvo de toque de 44 px na Métis (abas, meses, "Mais opções", links dos avisos e da fila) */
+  .metis .proj-tab, .metis .mt-mes, .metis .fg-mais > summary, .metis .linkbtn,
+  .metis .fin-mini, .metis .fin-tbtn, .metis .fin-salvar, .metis button, .metis select, .metis input {
+    min-height: 44px;
+  }
+  .metis .proj-tab, .metis .mt-mes, .metis .linkbtn { display: inline-flex; align-items: center; }
+  .metis .fg-mais > summary { display: flex; align-items: center; }
+  /* lista de lançamentos: a tabela de 5 colunas passava 100 px da tela; no celular cada linha
+     vira data + valor em cima, descrição embaixo, ações por último */
+  .metis .fin-tabela:not(.fin-proj), .metis .fin-tabela:not(.fin-proj) tbody { display: block; }
+  .metis .fin-tabela:not(.fin-proj) tr { display: grid; grid-template-columns: 18px 1fr auto; column-gap: 8px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+  .metis .fin-tabela:not(.fin-proj) td { border-top: none; padding: 2px 0; min-width: 0; }
+  .metis .fin-tabela:not(.fin-proj) .fin-td-tipo { grid-row: span 3; }
+  .metis .fin-tabela:not(.fin-proj) .fin-td-venc { grid-column: 2; grid-row: 1; }
+  .metis .fin-tabela:not(.fin-proj) .fin-td-valor { grid-column: 3; grid-row: 1; text-align: right; }
+  .metis .fin-tabela:not(.fin-proj) .fin-td-desc { grid-column: 2 / 4; }
+  .metis .fin-tabela:not(.fin-proj) .fin-td-acoes { grid-column: 2 / 4; display: flex; gap: 8px; justify-content: flex-end; }
 }
+
+/* Métis: foco de teclado sempre visível (antes: barras e cartões só clareavam, campos sem contorno) */
+.metis :is(button, a[href], summary, input, select, textarea, [tabindex="0"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.metis .fg-hit:focus-visible { outline: none; }
+.metis .fg-hit:focus-visible rect { stroke: var(--accent); stroke-width: 2; }

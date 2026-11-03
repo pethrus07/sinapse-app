@@ -116,14 +116,14 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
   );
 
   return (
-    <div className="pad-scroll">
+    <div className="pad-scroll metis">
       <div className="ag-hero">
         <div>
           <div className="eyebrow-mono">Métis{aba === 'pronoia' ? ' › Pronoia' : ''}</div>
           <h1 className="rm-title">{aba === 'pronoia' ? 'O que vem pela frente' : 'Entra, sai e o que falta receber'}</h1>
           <p className="muted">
             {aba === 'pronoia'
-              ? 'Pronoia (previdência): a renda que segue, a reserva que se forma e as faturas que já estão assumidas.'
+              ? 'A renda que segue, a reserva que se forma e as faturas que já estão assumidas.'
               : 'Direto do banco, atualizado todo dia às 17h. O que tem data aparece sozinho na agenda.'}
           </p>
         </div>
@@ -152,7 +152,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
           ) : (
             <p className="muted small">
               Só o que está <b>aberto</b>: o que já foi pago ou recebido saiu do futuro. Item <b>sem dia</b> (marcado
-              <span className="fin-semdia">s/dia</span>) conta no mês do arquivo onde vive: cartão sem
+              <span className="fin-semdia">sem dia</span>) conta no mês do arquivo onde vive: cartão sem
               dia ainda é cartão daquele mês. <b>Guarda</b> não é gasto, é destinação: sai do
               disponível e vira reserva.
             </p>
@@ -182,7 +182,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
                     <td className="ag-td-data">
                       {rotuloMes(l.mes)}
                       <span className="muted"> {l.itens}</span>
-                      {l.semDia > 0 && <span className="fin-semdia" title="itens sem dia definido, projetados no mês do arquivo">{l.semDia} s/dia</span>}
+                      {l.semDia > 0 && <span className="fin-semdia" title="itens sem dia definido, projetados no mês do arquivo">{l.semDia} sem dia</span>}
                     </td>
                     <td className="num entrada">{l.entra ? brl(l.entra) : '—'}</td>
                     <td className="num saida">{l.sai ? brl(l.sai) : '—'}</td>

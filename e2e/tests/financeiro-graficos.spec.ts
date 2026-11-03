@@ -151,10 +151,34 @@ test('Visão e Pronoia no celular (390 px): sem rolagem lateral', async ({ page 
       }),
     )
     for (const d of larg) expect(d).toBeLessThanOrEqual(0)
+    // alvo de toque: tudo que se toca na Métis tem ao menos 44 px de altura no celular
+    const pequenos = await page.locator('.pad-scroll').evaluate((raiz) =>
+      [...raiz.querySelectorAll('button, a[href], summary, select, input, [role="tab"]')]
+        .filter((e) => (e as HTMLElement).offsetParent !== null)
+        .map((e) => ({ t: (e.textContent || (e as HTMLInputElement).value || e.tagName).trim().slice(0, 30), h: Math.round(e.getBoundingClientRect().height) }))
+        .filter((x) => x.h < 44),
+    )
+    expect(pequenos, rota + ' ' + JSON.stringify(pequenos)).toEqual([])
     await page.screenshot({ path: `${SHOTS}/${foto}.png` })
     await fotoInteira(page, `${foto}-inteira.png`, 390)
   }
   expect(erros, erros.join('\n')).toEqual([])
+})
+
+test('Lançamentos e fila "a classificar" no celular: sem rolagem lateral e alvo de toque de 44 px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/#/financeiro/lancamentos')
+  await expect(page.locator('.fin-tabela tr').first()).toBeVisible()
+  const vaza = await page.evaluate(() => { const el = document.querySelector('.pad-scroll') as HTMLElement; return el.scrollWidth - el.clientWidth })
+  expect(vaza).toBeLessThanOrEqual(1)
+  const pequenos = await page.locator('.pad-scroll').evaluate((raiz) =>
+    [...raiz.querySelectorAll('button, a[href], summary, select, input, [role="tab"]')]
+      .filter((e) => (e as HTMLElement).offsetParent !== null && !e.closest('.mt-rolagem, .fin-tabela-wrap'))
+      .map((e) => ({ t: (e.textContent || (e as HTMLInputElement).value || e.tagName).trim().slice(0, 30), h: Math.round(e.getBoundingClientRect().height) }))
+      .filter((x) => x.h < 44),
+  )
+  expect(pequenos, JSON.stringify(pequenos)).toEqual([])
+  await fotoInteira(page, '25-metis-lancamentos-390-inteira.png', 390)
 })
 
 test('Patrimônio: posições do banco e à mão, reserva líquida × piso e a evolução pelos retratos', async ({ page }) => {
