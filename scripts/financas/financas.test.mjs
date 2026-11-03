@@ -37,7 +37,7 @@ function vaultFalso() {
     L({ id: '2030-03-08-gama', valor: 500, vencimento: '2030-03-08', cliente: 'Cliente Gama' }),
     L({ id: '2030-03-08-delta', valor: 500, vencimento: '2030-03-08', cliente: 'Cliente Delta' }),
     L({ id: '2030-03-cartao-de-credito-fatura', tipo: 'saida', descricao: 'Cartao de credito · fatura', valor: 300, vencimento: '2030-03-05', status: 'a-pagar', categoria: 'cartao', obs: 'EXTRAPOLADO, nao medido.' }),
-    L({ id: '2030-03-reserva-de-mudanca', tipo: 'reserva', descricao: 'Reserva de mudança', valor: 1000, status: 'a-pagar', categoria: 'reserva' }),
+    L({ id: '2030-03-reserva-falsa', tipo: 'reserva', descricao: 'Reserva falsa', valor: 1000, status: 'a-pagar', categoria: 'reserva' }),
   ], true);
   const base = join(dir, 'local');
   return { dir, vault, base };
@@ -258,7 +258,7 @@ test('sincronizar --simular não grava nada e relata casados, novos, a classific
   assert.ok(!existsSync(join(vault, '04-NEGOCIO', 'financeiro', '2030-04.md')));
   assert.ok(!existsSync(base));
   const rel = r.relatorio;
-  assert.deepEqual(rel.casados.map((c) => c.id).sort(), ['2030-03-02-beta', '2030-03-05-alfa', '2030-03-cartao-de-credito-fatura', '2030-03-reserva-de-mudanca']);
+  assert.deepEqual(rel.casados.map((c) => c.id).sort(), ['2030-03-02-beta', '2030-03-05-alfa', '2030-03-cartao-de-credito-fatura', '2030-03-reserva-falsa']);
   assert.deepEqual(rel.novos.map((x) => x.descricao).sort(), ['Delivery', 'Netflix']);
   assert.deepEqual(rel.aClassificar.map((x) => x.descricao).sort(), ['Compra no cartão', 'Pix enviado', 'Transferência recebida']);
   assert.deepEqual(rel.ignorados, { jaImportado: 0, regra: 0, categoria: 1, pendente: 1, estorno: 0 });
@@ -293,7 +293,7 @@ test('sincronizar --gravar liquida, lança saneado, abre a fatura futura, guarda
   assert.equal(por('2030-03-cartao-de-credito-fatura').valor, 312.4);
   assert.equal(por('2030-03-cartao-de-credito-fatura').confianca, 'medido');
   assert.equal(por('2030-03-cartao-de-credito-fatura').status, 'pago');
-  assert.equal(por('2030-03-reserva-de-mudanca').status, 'pago');
+  assert.equal(por('2030-03-reserva-falsa').status, 'pago');
   assert.equal(por('2030-03-08-gama').status, 'a-receber'); // ambíguo: ninguém liquidou
   const netflix = mar.find((l) => l.descricao === 'Netflix');
   assert.equal(netflix.viaCartao, true);
