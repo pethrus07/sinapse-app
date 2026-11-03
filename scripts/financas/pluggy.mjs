@@ -148,14 +148,41 @@ export function normalizarFatura(b, conta, regras = {}) {
   };
 }
 
-export function normalizarInvestimento(i, hoje) {
+// Corretora de cada banco: ação e FII de quem tem conta no Nubank ficam na Nu Invest, etc.
+const CORRETORA = { Nubank: 'Nu Invest', Inter: 'Inter Invest' };
+// Emissor pelo nome (o campo `institution` costuma vir vazio no Meu Pluggy).
+const EMISSORES = [[/\bnu (financeira|pagamentos)\b|\bnubank\b/i, 'Nubank'], [/\bbanco inter\b|\binter&co\b/i, 'Inter']];
+// CDB/RDB destes emissores resgata no mesmo dia, mesmo tendo vencimento (caixinhas do Nubank).
+const LIQUIDEZ_DIARIA = ['Nubank'];
+const CLASSE = { CDB: 'CDB', RDB: 'RDB', LCI: 'LCI', LCA: 'LCA', TREASURY: 'Tesouro', REAL_ESTATE_FUND: 'FII', STOCK: 'Ação', ETF: 'ETF', BDR: 'BDR' };
+
+/**
+ * Investimento da API → posição. `banco` é o banco da conexão ('Nubank', 'Inter'), de onde sai a
+ * corretora quando a API não diz a instituição. Liquidez: CDB/RDB sem vencimento ou de emissor com
+ * resgate no dia → 'diaria'; outro título com vencimento → 'no-vencimento'; ação, FII, ETF, BDR →
+ * 'bolsa-d2' (vende na bolsa, o dinheiro cai em D+2).
+ */
+export function normalizarInvestimento(i, hoje, { banco = '' } = {}) {
+  const sub = String(i.subtype || '').toUpperCase();
+  const classe = CLASSE[sub] || '';
+  const bolsa = i.type === 'EQUITY' || ['REAL_ESTATE_FUND', 'STOCK', 'ETF', 'BDR'].includes(sub);
+  const emissor = (EMISSORES.find(([re]) => re.test(`${i.issuer || ''} ${i.name || ''}`)) || [])[1] || '';
+  const instituicao = i.institution?.name || (bolsa ? CORRETORA[banco] || banco : emissor || banco);
+  const vencimentoTitulo = String(i.dueDate || '').slice(0, 10);
+  let liquidez = '';
+  if (bolsa) liquidez = 'bolsa-d2';
+  else if ((sub === 'CDB' || sub === 'RDB') && (!vencimentoTitulo || LIQUIDEZ_DIARIA.includes(emissor))) liquidez = 'diaria';
+  else if (vencimentoTitulo) liquidez = 'no-vencimento';
+  const descricao = bolsa
+    ? `${classe || 'Renda variável'} ${i.code || i.name || ''}`.trim()
+    : classe && emissor ? `${classe} ${emissor}${liquidez === 'diaria' ? ' · liquidez diária' : ''}` : ''; // sem emissor conhecido: fica o nome da API
   return {
     fonte: 'pluggy', idFonte: i.id,
     nome: i.name || i.subtype || i.type || 'Investimento',
-    instituicao: i.institution?.name || '',
+    descricao, classe, liquidez, instituicao,
     tipoFonte: [i.type, i.subtype].filter(Boolean).join(' '),
     saldo: Number(i.balance ?? i.amount ?? i.value) || 0,
-    vencimentoTitulo: String(i.dueDate || '').slice(0, 10),
+    vencimentoTitulo,
     data: hoje,
     ativo: !i.status || i.status === 'ACTIVE',
   };

@@ -42,7 +42,7 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   público: nenhum dado financeiro real aqui**; o e2e troca o razão da cópia do vault por um falso
   (`e2e/fixtures/financeiro-falso.ts`) e aponta `SINAPSE_FINANCAS` para a pasta temporária.
   Credencial só em `%LOCALAPPDATA%\sinapse-financas\pluggy.cred` (DPAPI, o Pedro digita); itemId
-  também não entra no repo. `instalar-tarefa.ps1` existe mas a tarefa NÃO está instalada.
+  também não entra no repo. A tarefa `Sinapse-Financas` (`instalar-tarefa.ps1`) roda todo dia às 17:00 `--gravar --commitar`: commita no vault só os arquivos do razão que gravou.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.

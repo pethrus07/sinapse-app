@@ -46,7 +46,9 @@ Uma posição por aplicação por mês, com o saldo naquela data:
 }
 ```
 
-- `liquidez`: `diaria` (sai no mesmo dia), `no-vencimento` (só no vencimento do título) ou `carencia`.
+- `liquidez`: `diaria` (sai no mesmo dia), `no-vencimento` (só no vencimento do título), `carencia`
+  ou `bolsa-d2` (ação, FII: vende na bolsa e o dinheiro cai em dois dias úteis).
+- `classe`: `CDB`, `RDB`, `FII`, `Ação`, `ETF`, `Tesouro`, `cripto`…
 - `reserva: true` faz a posição contar como saldo de partida da reserva no gráfico "Reserva acumulada".
 - Investimento não entra em fluxo, projeção, agenda nem nos totais a receber/pagar.
 
@@ -89,8 +91,10 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
 7. Simular: `npm run financas:simular` (padrão; não grava nada). Revisar o relatório.
 8. Gravar: `npm run financas:gravar`. Depois, revisar no app (Lançamentos, categoria
    "a classificar") e fazer o commit do vault.
-9. Diário (opcional, **não instalado**): `powershell -ExecutionPolicy Bypass -File scripts\financas\instalar-tarefa.ps1`
-   (07:30, escondido; `-Remover` tira).
+9. Diário (**instalado em 03/11/2026, 17:00**): `powershell -ExecutionPolicy Bypass -File scripts\financas\instalar-tarefa.ps1 -Hora 17:00`
+   (escondido; `-Remover` tira). Roda `--gravar --commitar`: depois de gravar, `git add` e `git commit` no
+   vault **só** dos `04-NEGOCIO/financeiro/AAAA-MM.md` que escreveu ("Razão: sincronização do Nubank de
+   DD/MM") e `git push`. Nada gravado: nada commitado. Pre-commit que barra ou push que falha vão para o log.
 
 ### O que o sincronizador faz com cada transação
 
@@ -123,7 +127,10 @@ Docs: https://docs.pluggy.ai/en/docs/guides/meu-pluggy-personal-use
 5. **Faturas** (`/bills`) primeiro: o previsto do cartão do mês do vencimento passa a ter o valor
    medido (`confianca: medido`); fatura futura sem previsto abre um.
 6. **Investimentos** (`/investments`): uma posição por aplicação por mês; `liquidez` e `reserva`
-   vêm das regras (`investimentos`), senão título com vencimento vira `no-vencimento`.
+   vêm das regras (`investimentos`). Sem regra, o normalizador preenche `instituicao` (emissor pelo
+   nome, ou a corretora do banco da conexão: Nubank → Nu Invest), `classe` (CDB, FII, Ação…) e
+   `liquidez`: CDB/RDB sem vencimento ou do Nubank → `diaria`; outro título → `no-vencimento`;
+   ação/FII → `bolsa-d2`. Mudou instituição, liquidez ou descrição: a posição do mês é regravada no lugar.
 7. **Trava**: antes de gravar, qualquer campo novo com cara de CPF, CNPJ, conta, cartão, e-mail ou
    telefone aborta tudo (nenhum mês é gravado). Só o bloco do mês é reescrito; o resto do arquivo
    (e o CRLF) fica.

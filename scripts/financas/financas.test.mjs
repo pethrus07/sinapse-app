@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { aplicar, gravarMes, hashId, lerRazao, pareceSensivel, planejar, regraDe, normalizarRegras, sanear } from './nucleo.mjs';
-import { bancoDe, criarCliente, fetchDeFixture, final4, normalizarTransacao } from './pluggy.mjs';
+import { aplicar, gravarMes, hashId, lerRazao, pareceSensivel, planejar, planejarInvestimentos, regraDe, normalizarRegras, sanear } from './nucleo.mjs';
+import { bancoDe, criarCliente, fetchDeFixture, final4, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
 import { avisoConsentimento, rodar } from './sincronizar.mjs';
 import { lerCredencial } from './credencial.mjs';
 
@@ -353,6 +353,57 @@ test('aplicar: conciliar grava data do banco e fitid no recebido à mão, sem tr
   aplicar(vault, [{ acao: 'conciliar', mes: '2030-02', id: '2030-02-05-alfa', liquidadoEm: '2030-02-06', fitid: 'abc', origem: 'pluggy' }], '2030-03-10');
   const l = lerRazao(vault)['2030-02'].lista[0];
   assert.deepEqual([l.status, l.liquidadoEm, l.fitid, l.origem], ['recebido', '2030-02-06', 'abc', 'pluggy']);
+});
+
+test('normalizarInvestimento: instituição, classe e liquidez (CDB do Nubank diária, FII/ação D+2)', () => {
+  const n = (i) => normalizarInvestimento({ id: 'x', status: 'ACTIVE', balance: 10, ...i }, '2030-03-10', { banco: 'Nubank' });
+  const cdbNu = n({ type: 'FIXED_INCOME', subtype: 'CDB', name: 'CDB - NU FINANCEIRA S.A.', issuer: 'NU FINANCEIRA S.A.', dueDate: '2032-01-01T03:00:00Z' });
+  assert.deepEqual([cdbNu.instituicao, cdbNu.classe, cdbNu.liquidez, cdbNu.descricao], ['Nubank', 'CDB', 'diaria', 'CDB Nubank · liquidez diária']);
+  const cdbOutro = n({ type: 'FIXED_INCOME', subtype: 'CDB', name: 'CDB Banco Falso', issuer: 'BANCO FALSO S.A.', dueDate: '2032-01-01T03:00:00Z' });
+  assert.deepEqual([cdbOutro.liquidez, cdbOutro.descricao], ['no-vencimento', '']);
+  assert.equal(n({ type: 'FIXED_INCOME', subtype: 'CDB', name: 'CDB Banco Falso', issuer: 'BANCO FALSO S.A.' }).liquidez, 'diaria');
+  const fii = n({ type: 'EQUITY', subtype: 'REAL_ESTATE_FUND', name: 'FALS11', code: 'FALS11', issuer: 'FUNDO FALSO FII' });
+  assert.deepEqual([fii.instituicao, fii.classe, fii.liquidez, fii.descricao], ['Nu Invest', 'FII', 'bolsa-d2', 'FII FALS11']);
+  const acao = n({ type: 'EQUITY', subtype: 'STOCK', name: 'TEST3', code: 'TEST3' });
+  assert.deepEqual([acao.classe, acao.descricao, acao.liquidez], ['Ação', 'Ação TEST3', 'bolsa-d2']);
+  assert.equal(normalizarInvestimento({ id: 'y', type: 'EQUITY', subtype: 'STOCK', code: 'TEST3', institution: { name: 'Corretora Falsa' } }, '2030-03-10').instituicao, 'Corretora Falsa');
+});
+
+test('planejarInvestimentos: mesma posição com instituição/liquidez novas é regravada no lugar, sem duplicar', () => {
+  const inv = { fonte: 'teste', idFonte: 'p1', nome: 'X', saldo: 100, data: '2030-03-10' };
+  const razao = R(['2030-03', []]);
+  const a = planejarInvestimentos([inv], razao);
+  assert.equal(a.acoes.length, 1);
+  assert.equal(planejarInvestimentos([inv], razao).acoes.length, 0); // nada mudou
+  const b = planejarInvestimentos([{ ...inv, descricao: 'FII FALS11', instituicao: 'Nu Invest', liquidez: 'bolsa-d2', classe: 'FII' }], razao);
+  assert.equal(b.acoes.length, 1);
+  assert.equal(razao['2030-03'].lista.length, 1);
+  assert.deepEqual([razao['2030-03'].lista[0].instituicao, razao['2030-03'].lista[0].liquidez, razao['2030-03'].lista[0].classe], ['Nu Invest', 'bolsa-d2', 'FII']);
+});
+
+test('--gravar --commitar: commita SÓ os arquivos do razão gravados; outro arquivo aberto no vault fica de fora; sem nada novo, sem commit', async () => {
+  const { vault, base } = vaultFalso();
+  const git = (...a) => execFileSync('git', ['-C', vault, ...a], { encoding: 'utf8', windowsHide: true });
+  git('init', '-q'); git('config', 'user.email', 'teste@exemplo.invalid'); git('config', 'user.name', 'Teste');
+  git('config', 'core.hooksPath', join(vault, '.sem-hooks')); // o hook global (gitleaks) não roda no repo de teste
+  writeFileSync(join(vault, 'outra-sessao.md'), 'v1\n'); git('add', '-A'); git('commit', '-q', '-m', 'inicial');
+  writeFileSync(join(vault, 'outra-sessao.md'), 'v2 aberto por outra sessão\n');
+  writeFileSync(join(vault, 'novo-de-outra-sessao.md'), 'não versionado\n');
+  git('add', 'novo-de-outra-sessao.md'); // até o que está no índice fica de fora
+  const args = ['--fixture', FIX, '--vault', vault, '--regras', REGRAS, '--hoje', '2030-03-10', '--gravar', '--commitar'];
+  const r1 = await rodar(args, { log: () => {}, env: { SINAPSE_FINANCAS: base } });
+  assert.equal(r1.commit.commit, true);
+  assert.equal(r1.commit.push, false); // sem remoto: o push falha, fica registrado, não lança
+  assert.match(git('log', '-1', '--format=%s'), /^Razão: sincronização do Nubank de 10\/03/);
+  const noCommit = git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort();
+  assert.deepEqual(noCommit, ['04-NEGOCIO/financeiro/2030-02.md', '04-NEGOCIO/financeiro/2030-03.md', '04-NEGOCIO/financeiro/2030-04.md']);
+  const st = git('status', '--porcelain');
+  assert.match(st, /outra-sessao\.md/);
+  assert.match(st, /A  novo-de-outra-sessao\.md/);
+  assert.ok(readFileSync(join(base, 'logs', '2030-03.log'), 'utf8').includes('commitar: commit feito'));
+  const r2 = await rodar(args, { log: () => {}, env: { SINAPSE_FINANCAS: base } });
+  assert.equal(r2.commit.commit, false);
+  assert.equal(git('rev-list', '--count', 'HEAD').trim(), '2');
 });
 
 test('avisoConsentimento: avisa a partir de 30 dias antes', () => {

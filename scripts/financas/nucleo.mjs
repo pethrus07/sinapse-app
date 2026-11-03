@@ -444,9 +444,10 @@ export function planejarInvestimentos(invs, razao, regrasBrutas = {}) {
     const lanc = {
       id: `${mes}-investimento-${fitid.slice(0, 8)}`,
       tipo: 'investimento',
-      descricao: sanear(regra.descricao || i.nome || 'Investimento'),
+      descricao: sanear(regra.descricao || i.descricao || i.nome || 'Investimento'),
       instituicao: sanear(regra.instituicao || i.instituicao || ''),
-      liquidez: regra.liquidez || (i.vencimentoTitulo ? 'no-vencimento' : ''),
+      liquidez: regra.liquidez || i.liquidez || (i.vencimentoTitulo ? 'no-vencimento' : ''),
+      ...(i.classe ? { classe: i.classe } : {}),
       data: i.data,
       valor: Math.round(n(i.saldo) * 100) / 100,
       status: 'posicao',
@@ -460,7 +461,8 @@ export function planejarInvestimentos(invs, razao, regrasBrutas = {}) {
     const k = razao[mes].lista.findIndex((l) => l.fitid === fitid);
     if (k >= 0) {
       const velho = razao[mes].lista[k];
-      if (velho.data >= lanc.data && n(velho.valor) === lanc.valor) continue;
+      const igual = ['descricao', 'instituicao', 'liquidez', 'classe', 'reserva', 'obs'].every((c) => (velho[c] ?? '') === (lanc[c] ?? ''));
+      if (velho.data >= lanc.data && n(velho.valor) === lanc.valor && igual) continue; // nada mudou
       razao[mes].lista[k] = { ...velho, ...lanc, id: velho.id };
       acoes.push({ acao: 'posicao', mes, lancamento: razao[mes].lista[k] });
     } else {

@@ -4,6 +4,8 @@
 //   node scripts/financas/sincronizar.mjs --testar     autentica e lista as contas (final 4 dígitos), sem transação
 //   node scripts/financas/sincronizar.mjs              = --simular: mostra o que faria, não grava nada
 //   node scripts/financas/sincronizar.mjs --gravar     liquida previstos, lança o resto, grava bruto e estado
+//   node scripts/financas/sincronizar.mjs --gravar --commitar   e ainda faz commit + push no vault SÓ dos
+//                                                      arquivos do razão que gravou (nada gravado: nada commitado)
 //
 // Opções: --desde AAAA-MM-DD (padrão: 40 dias atrás) · --ate AAAA-MM-DD · --vault CAMINHO
 //         --regras ARQ (padrão %LOCALAPPDATA%\sinapse-financas\regras\regras.json)
@@ -13,10 +15,11 @@
 //   pluggy.cred (DPAPI) · regras\regras.json · bruto\pluggy\AAAA-MM-DD\*.json · estado.json · logs\
 // O terminal só mostra dado saneado: descrição montada, valor, data, rótulo da conta.
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_LOCAL, lerCredencial } from './credencial.mjs';
-import { aplicar, hashId, lerRazao, planejar, planejarFaturas, planejarInvestimentos } from './nucleo.mjs';
+import { PASTA_RAZAO, aplicar, hashId, lerRazao, planejar, planejarFaturas, planejarInvestimentos } from './nucleo.mjs';
 import { bancoDe, criarCliente, fetchDeFixture, final4, normalizarFatura, normalizarInvestimento, normalizarTransacao } from './pluggy.mjs';
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -28,6 +31,7 @@ function args(argv) {
     if (a === '--gravar') o.modo = 'gravar';
     else if (a === '--simular') o.modo = 'simular';
     else if (a === '--testar') o.modo = 'testar';
+    else if (a === '--commitar') o.commitar = true;
     else if (a.startsWith('--')) {
       const [k, v] = a.includes('=') ? a.slice(2).split('=') : [a.slice(2), argv[++i]];
       o[k] = v;
@@ -38,6 +42,28 @@ function args(argv) {
 
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const dataBR = (d) => (d ? d.split('-').reverse().join('/') : '');
+/**
+ * Commit + push no vault só dos arquivos do razão que esta rodada gravou. Outras sessões deixam
+ * arquivos abertos no vault: o `git commit -- <arquivos>` leva só esses, mesmo que haja outra coisa
+ * no índice. Sem --no-verify: se o pre-commit barrar, registra e não tenta de novo. Nunca lança erro.
+ */
+export function commitarRazao(vault, meses, hoje, { git = 'git' } = {}) {
+  const arquivos = meses.map((m) => join(PASTA_RAZAO, `${m}.md`).split('\\').join('/'));
+  const ultimas = (e, k) => String(e.stderr || e.message || '').trim().split(/\r?\n/).slice(-k).join(' | ');
+  if (!arquivos.length) return { commit: false, motivo: 'nada gravado' };
+  const g = (...a) => execFileSync(git, ['-C', vault, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  try {
+    g('add', '--', ...arquivos);
+    try { g('diff', '--cached', '--quiet', '--', ...arquivos); return { commit: false, motivo: 'gravou sem mudar o conteúdo' }; } catch { /* há diferença */ }
+    g('commit', '-m', `Razão: sincronização do Nubank de ${dataBR(hoje).slice(0, 5)}`, '--', ...arquivos);
+  } catch (e) {
+    return { commit: false, motivo: `commit recusado (pre-commit ou git): ${ultimas(e, 3)}` };
+  }
+  try { g('push'); return { commit: true, push: true }; } catch (e) {
+    return { commit: true, push: false, motivo: `push falhou: ${ultimas(e, 2)}` };
+  }
+}
+
 const somarDias = (d, k) => new Date(Date.parse(d + 'T12:00:00Z') + k * 86400000).toISOString().slice(0, 10);
 
 /** Aviso de renovação: 30 dias antes do fim da autorização (vale 1 ano). */
@@ -106,7 +132,8 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
     try {
       const is = await api.investimentos(itemId);
       bruto[`${h}-investimentos`] = is;
-      for (const i of is) { const n = normalizarInvestimento(i, hoje); if (n.ativo) invs.push(n); }
+      const banco = (contas.map((c) => bancoDe(c, regras).rotulo.split(' · ')[0]).find((b) => b !== 'Banco')) || '';
+      for (const i of is) { const n = normalizarInvestimento(i, hoje, { banco }); if (n.ativo) invs.push(n); }
     } catch (e) { log(`  (investimentos indisponíveis: ${e.message})`); }
   }
   for (const c of avisoConsentimento(conexoes, hoje)) log(`\n⚠ RENOVAR a autorização de ${c.rotulo} até ${dataBR(c.autorizacaoVence.slice(0, 10))} (meu.pluggy.ai). Depois dela as leituras voltam vazias.`);
@@ -172,8 +199,14 @@ export async function rodar(argv, { log = console.log, env = process.env } = {})
   appendFileSync(join(base, 'logs', `${hoje.slice(0, 7)}.log`),
     `${new Date().toISOString()} gravar: ${r.casados.length} casados, ${r.novos.length} novos, ${r.aClassificar.length} a classificar, ${r.ambiguos.length} ambíguos, ${r.divergentes.length} divergentes, meses ${meses.join(' ')}\n`, 'utf8');
   log(`\nGravado em ${meses.length ? meses.join(', ') : 'nenhum mês'} (${vault}). Bruto em ${pastaBruto}.`);
-  log('Revise no app (Financeiro → Lançamentos, categoria "a classificar") e faça o commit do vault.');
-  return { modo: 'gravar', acoes, meses, relatorio: r, conexoes };
+  let commit;
+  if (o.commitar) {
+    commit = commitarRazao(vault, meses, hoje);
+    const txt = commit.commit ? `commit feito${commit.push ? ' e enviado' : ''}${commit.motivo ? ' (' + commit.motivo + ')' : ''}` : `sem commit: ${commit.motivo}`;
+    log(`Vault: ${txt}.`);
+    appendFileSync(join(base, 'logs', `${hoje.slice(0, 7)}.log`), `${new Date().toISOString()} commitar: ${txt}\n`, 'utf8');
+  } else log('Revise no app (Financeiro → Lançamentos, categoria "a classificar") e faça o commit do vault.');
+  return { modo: 'gravar', acoes, meses, relatorio: r, conexoes, commit };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
