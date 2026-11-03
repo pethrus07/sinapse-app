@@ -49,10 +49,10 @@ test('Visão: avisos, fluxo, gastos, recorrente, patrimônio, clientes e vencido
 
   // gastos: mercado fugiu da média (400 → 700); a TV é pontual e fica fraca na barra
   const gastos = page.locator('[data-grafico="gastos"]')
-  await expect(gastos.locator('.fg-leitura')).toContainText('mercado')
-  const mercado = gastos.locator('.mt-cats li', { hasText: 'mercado' })
+  await expect(gastos.locator('.fg-leitura')).toContainText('Mercado')
+  const mercado = gastos.locator('.mt-cats li', { hasText: 'Mercado' })
   await expect(mercado).toContainText('R$ 300,00 acima da média')
-  await expect(gastos.locator('.mt-cats li', { hasText: 'casa' }).locator('.mt-cat-barra.pontual')).toHaveCount(1)
+  await expect(gastos.locator('.mt-cats li', { hasText: 'Casa' }).locator('.mt-cat-barra.pontual')).toHaveCount(1)
   // clique na categoria abre os lançamentos dela
   await mercado.locator('.mt-cat').click()
   await expect(mercado.locator('.mt-cat-itens')).toContainText('Gasto falso · mercado')
@@ -62,7 +62,11 @@ test('Visão: avisos, fluxo, gastos, recorrente, patrimônio, clientes e vencido
   // recorrente: a TV (pontual) fica fora do gasto recorrente
   const rec = page.locator('[data-grafico="recorrente"]')
   await expect(rec.locator('.fg-numeros')).toContainText('R$ 1.500,00')
-  await expect(rec.locator('.fg-leitura')).toContainText('sobra recorrente')
+  await expect(rec.locator('.fg-leitura')).toContainText('se sustenta até')
+  await expect(rec.locator('.fg-leitura')).toContainText('cai para R$ 2.250,00')
+  await expect(page.locator('[data-grafico="clientes"] .fg-titulo')).toHaveText('Fontes de renda: recebido × o que falta')
+  await expect(page.locator('[data-grafico="clientes"] .fg-barras li', { hasText: 'Cliente Alfa' })).toContainText('sem fim')
+  await expect(page.locator('[data-grafico="gastos"] .mt-cat-nome', { hasText: 'Mercado' })).toBeVisible()
 
   // clientes: recebido × o que falta, com o vencido do Alfa
   const cli = page.locator('[data-grafico="clientes"]')

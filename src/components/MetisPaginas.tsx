@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import type { Financeiro } from '../types';
 import { brl } from '../lib/financeiro';
 import { aReceberVencido, avisosConexao, cartaoFuturo, fluxoMensal, receitaPorCliente, reservaAcumulada, somarMes } from '../lib/financeiroGraficos';
-import { avisosFinanceiro, clientesRealizado, gastosPorCategoria, patrimonio, recorrenteDoMes } from '../lib/financeiroAnalise';
+import { avisosFinanceiro, clientesRealizado, gastosPorCategoria, patrimonio, recorrenteDoMes, rendaRecorrente } from '../lib/financeiroAnalise';
 import { Cartao5, curto, Fluxo, Receita, Reserva, Vencido } from './FinanceiroGraficos';
 import { Clientes, GastosCategoria, PatrimonioCard, Recorrente, SeletorMes } from './FinanceiroAnalises';
 
@@ -50,6 +50,7 @@ export function MetisVisao({ financeiro, hoje, onClassificar }: { financeiro: Fi
   const fluxo = useMemo(() => fluxoMensal(ls), [ls]);
   const gastos = useMemo(() => gastosPorCategoria(ls, hojeMes, foco), [ls, hojeMes, foco]);
   const rec = useMemo(() => recorrenteDoMes(ls, foco), [ls, foco]);
+  const renda = useMemo(() => rendaRecorrente(ls, hojeMes), [ls, hojeMes]);
   const pat = useMemo(() => patrimonio(ls, (financeiro.retratos || []) as never, hoje), [ls, financeiro.retratos, hoje]);
   const cli = useMemo(() => clientesRealizado(ls, hoje), [ls, hoje]);
   const vencido = useMemo(() => aReceberVencido(ls, hoje), [ls, hoje]);
@@ -63,11 +64,11 @@ export function MetisVisao({ financeiro, hoje, onClassificar }: { financeiro: Fi
           <span className="fg-num-rot">Mês das análises</span>
           <SeletorMes meses={gastos.meses} foco={gastos.foco} parciais={gastos.parciais} onFoco={setFoco} />
         </div>
+        <Recorrente r={rec} renda={renda} parcial={gastos.parciais.includes(foco)} />
         <GastosCategoria g={gastos} ls={ls} />
-        <Recorrente r={rec} parcial={gastos.parciais.includes(foco)} />
         <PatrimonioCard p={pat} />
-        <Clientes c={cli} hojeMes={hojeMes} />
         <Vencido v={vencido} />
+        <Clientes c={cli} hojeMes={hojeMes} />
       </div>
     </>
   );

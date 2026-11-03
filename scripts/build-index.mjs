@@ -23,6 +23,11 @@ const cacheGit = new Map();
    ~15 s no primeiro índice depois de subir o servidor (medido em 28/10/2026). Só guarda saída
    de git de repositórios locais; fica fora do vault e do repo do app. */
 const ARQ_CACHE = process.env.SINAPSE_CACHE_GIT || join(homedir(), '.sinapse', 'cache-git.json');
+// Área de uma nota sem `area` no frontmatter, pela pasta (mesmo vocabulário do vault).
+const AREA_DA_PASTA = {
+  '01-DIARIO': 'diario', '02-ESTUDO': 'estudo', '03-PROJETOS': 'projetos', '04-NEGOCIO': 'negocio',
+  '05-IDEIAS': 'ideias', '06-PESSOAS': 'pessoas', '07-FONTES': 'fontes', '08-CRESCIMENTO': 'crescimento',
+};
 // Estado da sincronização do banco (scripts/financas/sincronizar.mjs --gravar): fora do git e do
 // vault. Só rótulo, status e datas — nenhum id de item ou conta.
 const ARQ_ESTADO_FIN = () => join(process.env.SINAPSE_FINANCAS || join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'sinapse-financas'), 'estado.json');
@@ -241,7 +246,10 @@ export function buildIndex(VAULT, OUT) {
     }
     const h1 = content.match(/^#\s+(.+)$/m);
     const title = data.title || (h1 ? h1[1].trim() : id);
-    const area = (data.area || rel.split('/')[0] || '').toString();
+    // sem `area` no frontmatter, a pasta do vault diz a área ("04-NEGOCIO" → "negocio"): senão a
+    // pasta crua vira uma área à parte no menu
+    const pasta = rel.split('/')[0] || '';
+    const area = (data.area || AREA_DA_PASTA[pasta] || pasta).toString();
     const type = (data.tipo || 'nota').toString();
 
     // ---- agenda: rotina em bloco JSON, dailys e eventos por frontmatter ----

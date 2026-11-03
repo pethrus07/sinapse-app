@@ -192,7 +192,7 @@ export function Fluxo({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: stri
         : 'Nada lançado no mês de hoje.'}
       mais={
         <>
-          <p className="fg-explica">Realizado conta no mês em que o dinheiro mexeu (<code>liquidadoEm</code>); o que segue aberto conta no mês do vencimento. Item sem cronograma fica fora.</p>
+          <p className="fg-explica">O que já foi pago ou recebido conta no mês em que o dinheiro mexeu; o que segue aberto conta no mês do vencimento. Item sem cronograma fica fora.</p>
           <table className="fg-tabela">
             <thead><tr><th>mês</th><th>entra</th><th>sai</th><th>guarda</th></tr></thead>
             <tbody>
@@ -237,7 +237,7 @@ export function Receita({ r, hojeMes }: { r: ReturnType<typeof receitaPorCliente
       leitura={<>De <b>{brl(r.totais[iHoje])}</b> em {curto(r.meses[iHoje])} para <b>{brl(r.estavel)}</b> depois de {curto(ultimoRazao)}: é o que segue sem data de fim.</>}
       mais={
         <>
-          <p className="fg-explica"><b>Estável</b> = entrada recorrente sem fim declarado. Parcela termina sozinha; acordo com prazo leva <code>ate</code> (último mês) no lançamento. A última coluna, {curto(r.mesDepois)}, não tem arquivo no razão: mostra só o estável.</p>
+          <p className="fg-explica"><b>Estável</b> = entrada recorrente sem fim declarado. Parcela termina sozinha; acordo com prazo tem o último mês marcado no lançamento. A última coluna, {curto(r.mesDepois)}, não tem arquivo no razão: mostra só o estável.</p>
           <table className="fg-tabela">
             <thead><tr><th>cliente</th><th>até</th>{r.meses.map((m) => <th key={m} className="num">{curto(m)}</th>)}</tr></thead>
             <tbody>
@@ -424,7 +424,7 @@ export function Cartao5({ c }: { c: ReturnType<typeof cartaoFuturo> }) {
       leitura={<>Piso de <b>{brl(total)}</b> em faturas até {curto(c[c.length - 1].mes)}{ultMedido ? <>; medido no banco até {curto(ultMedido.mes)}, depois é conta de parcela</> : ''}. Compra nova entra em cima.</>}
       mais={
         <>
-          <p className="fg-explica">Todo valor é <b>piso</b>: só o parcelamento já assumido. A confiança vem do campo <code>confianca</code> ou da obs do lançamento.</p>
+          <p className="fg-explica">Todo valor é <b>piso</b>: só o parcelamento já assumido. Medido = valor da fatura lido no banco; extrapolado = conta feita com as parcelas que faltam.</p>
           <table className="fg-tabela">
             <thead><tr><th>vence</th><th className="num">R$</th><th>confiança</th></tr></thead>
             <tbody>{c.map((m) => <tr key={m.mes}><td>{curto(m.mes)}</td><td className="num">{num(m.valor)}</td><td>{m.confianca}</td></tr>)}</tbody>

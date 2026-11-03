@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import type { Lancamento } from '../types';
 import {
   avisosFinanceiro, clientesRealizado, comRetrato, ehGasto, gastosPorCategoria, grupoDe, lancamentosDaCategoria,
-  mesesParciais, patrimonio, posicoesAtuais, recorrenteDoMes, retratoDe,
+  entradaRecorrente, mesesParciais, patrimonio, posicoesAtuais, recorrenteDoMes, rendaRecorrente, retratoDe,
 } from './financeiroAnalise.ts';
+import { rotuloCategoria } from './financeiro.ts';
 
 let seq = 0;
 function L(p: Partial<Lancamento>): Lancamento {
@@ -155,4 +156,51 @@ test('avisosFinanceiro: fatura nos próximos 5 dias, falha da sincronização, p
   // falha antiga (antes da última que deu certo) não avisa; sincronização parada há 5 dias avisa
   const b = avisosFinanceiro([], '2030-05-08', { ultimaSync: '2030-05-03T20:00:00Z', ultimaFalha: { em: '2030-05-01T20:00:00Z', mensagem: 'x' } });
   assert.deepEqual(b, [{ tipo: 'sync-parada', desde: '2030-05-03', dias: 5 }]);
+});
+
+test('entradaRecorrente: recorrente, contrato em sequência (k/n ou 2+ meses); projeto e parcela solta não', () => {
+  const e = (p: Partial<Lancamento>) => L({ tipo: 'entrada', status: 'a-receber', cliente: 'Cliente Alfa', ...p });
+  const parceria = e({ categoria: 'mensalidade', descricao: 'Alfa · parceria, parcela 1/6', vencimento: '2030-05-05' });
+  const serieA = e({ categoria: 'parcela', descricao: 'Beta · plataformas', vencimento: '2030-05-26', cliente: 'Cliente Beta' });
+  const serieB = e({ categoria: 'parcela', descricao: 'Beta · plataformas', vencimento: '2030-06-26', cliente: 'Cliente Beta' });
+  const solta = e({ categoria: 'parcela', descricao: 'Publicação na loja', vencimento: '2030-05-21' });
+  const projeto = e({ categoria: 'projeto', descricao: 'Etapa 2/3', vencimento: '2030-05-20' });
+  const marcada = e({ recorrente: true, categoria: 'salario', vencimento: '2030-05-05' });
+  const ls = [parceria, serieA, serieB, solta, projeto, marcada];
+  assert.deepEqual(ls.map((l) => entradaRecorrente(l, ls)), [true, true, true, false, false, true]);
+  assert.equal(entradaRecorrente({ ...marcada, pontual: true }, ls), false);
+});
+
+test('rendaRecorrente: até quando a renda que se repete se sustenta (queda no mês depois do razão)', () => {
+  const e = (mes: string, valor: number, p: Partial<Lancamento> = {}) => L({ tipo: 'entrada', status: 'a-receber', valor, vencimento: `${mes}-05`, mes, ...p });
+  const ls: Lancamento[] = [];
+  for (const m of ['2030-05', '2030-06', '2030-07']) {
+    ls.push(e(m, 2000, { recorrente: true, cliente: 'Salário' }));                                  // sem fim
+    ls.push(e(m, 1000, { recorrente: true, ate: '2030-07', cliente: 'Cliente Alfa' }));              // acaba em jul
+    ls.push(e(m, 300, { categoria: 'parcela', descricao: `Beta · parcela ${m.slice(5)}/12`, cliente: 'Cliente Beta' }));
+  }
+  ls.push(gasto('2030-04', '10', 'mercado', 1800), gasto('2030-03', '10', 'mercado', 1800), gasto('2030-02', '01', 'mercado', 1800));
+  const r = rendaRecorrente(ls, '2030-05');
+  assert.deepEqual(r.meses, ['2030-05', '2030-06', '2030-07', '2030-08']);
+  assert.deepEqual(r.entradas, [3300, 3300, 3300, 2000]);
+  assert.equal(r.gastoBase, 1800);
+  assert.deepEqual([r.ateQuando, r.caiEm, r.antes, r.depois, r.semFim], ['2030-07', '2030-08', 3300, 2000, 2000]);
+  assert.deepEqual(r.sobra, [1500, 1500, 1500, 200]);
+});
+
+test('clientesRealizado: salário sem data de fim é "sem fim", contrato com ate não', () => {
+  const ls = [
+    L({ tipo: 'entrada', cliente: 'Fonte Alfa', recorrente: true, status: 'a-receber', vencimento: '2030-06-05' }),
+    L({ tipo: 'entrada', cliente: 'Cliente Beta', recorrente: true, ate: '2030-09', status: 'a-receber', vencimento: '2030-06-26' }),
+  ];
+  const por = Object.fromEntries(clientesRealizado(ls, '2030-06-01').map((c) => [c.cliente, c.semFim]));
+  assert.deepEqual(por, { 'Fonte Alfa': true, 'Cliente Beta': false });
+});
+
+test('rotuloCategoria: rótulo de tela com acento; o id não muda', () => {
+  assert.equal(rotuloCategoria('emprestimo'), 'Empréstimo');
+  assert.equal(rotuloCategoria('alimentacao'), 'Alimentação');
+  assert.equal(rotuloCategoria('pix a pessoa física'), 'Pix a pessoa física');
+  assert.equal(rotuloCategoria('algo novo'), 'Algo novo');
+  assert.equal(rotuloCategoria(''), 'Sem categoria');
 });

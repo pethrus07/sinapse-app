@@ -874,6 +874,7 @@ button.fr-nome:hover { color: var(--accent); }
 .mt-duplo .fg-barra { border-radius: 0; }
 .mt-duplo .fg-barra:last-child { border-radius: 0 4px 4px 0; }
 .mt-rolagem { overflow-x: auto; }
+.mt-recorrente { margin-bottom: 18px; }
 .mt-fila { max-width: 1280px; }
 .mt-fila-lista { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
 .mt-fila-lista li { border-top: 1px solid var(--line-soft); }

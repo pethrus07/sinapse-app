@@ -31,9 +31,9 @@ test('Fila "a classificar": um toque na categoria, e "lembrar" grava a regra só
   await expect(fila.locator('h3')).toContainText('A classificar')
   await expect(fila.locator('.mt-fila-lista li')).toHaveCount(1)
   await fila.locator('.mt-fila-item').click()
-  await expect(fila.locator('.mt-chip', { hasText: 'mercado' })).toBeVisible()
+  await expect(fila.locator('.mt-chip', { hasText: 'Mercado' })).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/24-metis-fila-1440.png` })
-  await fila.locator('.mt-chip', { hasText: 'mercado' }).click()
+  await fila.locator('.mt-chip', { hasText: 'Mercado' }).click()
 
   await expect(page.locator('.mt-fila')).toHaveCount(0) // fila vazia some
   const regras = JSON.parse(readFileSync(REGRAS, 'utf8'))

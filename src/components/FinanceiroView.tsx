@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Financeiro, Lancamento, Note, TipoLancamento } from '../types';
 import { dataCurta, hojeYmd, rotuloRelativo } from '../lib/agenda';
 import {
-  aReceberPorCliente, brl, CATEGORIAS, agruparPorMes, clientesConhecidos,
+  aReceberPorCliente, brl, CATEGORIAS, agruparPorMes, clientesConhecidos, rotuloCategoria,
   contarSaidas, estaAberto, foraDaProjecao, projetar, resumir, rotuloStatus,
 } from '../lib/financeiro';
 import { MetisPronoia, MetisVisao } from './MetisPaginas';
@@ -124,7 +124,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
           <p className="muted">
             {aba === 'pronoia'
               ? 'Pronoia (previdência): a renda que segue, a reserva que se forma e as faturas que já estão assumidas.'
-              : <>Um arquivo por mês em <code>04-NEGOCIO/financeiro/</code>. Vencimento aberto aparece sozinho no calendário — a data vive num lugar só.</>}
+              : 'Direto do banco, atualizado todo dia às 17h. O que tem data aparece sozinho na agenda.'}
           </p>
         </div>
         <div className="ag-tabs" role="tablist">
@@ -144,22 +144,22 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
           {contagem.saidas <= 1 ? (
             <p className="fin-nota alerta">
               <b>Esta projeção é otimista por construção.</b> Existem{' '}
-              <b>{contagem.entradas} entradas</b> e <b>{contagem.saidas} saída(s)</b> lançadas — ou seja,
+              <b>{contagem.entradas} entradas</b> e <b>{contagem.saidas} saída(s)</b> lançadas, ou seja,
               o lado do gasto praticamente não existe aqui. Cartão, contas, transporte e assinaturas
               não estão no sistema, então o acumulado abaixo é <b>teto</b>, não previsão. Não decidir
               adiantamento de cartão com este número.
             </p>
           ) : (
             <p className="muted small">
-              Só o que está <b>aberto</b> — o liquidado saiu do futuro. Item <b>sem dia</b> (marcado
+              Só o que está <b>aberto</b>: o que já foi pago ou recebido saiu do futuro. Item <b>sem dia</b> (marcado
               <span className="fin-semdia">s/dia</span>) conta no mês do arquivo onde vive: cartão sem
-              dia ainda é cartão daquele mês. <b>Guarda</b> não é gasto, é destinação — sai do
+              dia ainda é cartão daquele mês. <b>Guarda</b> não é gasto, é destinação: sai do
               disponível e vira reserva.
             </p>
           )}
           {fora.itens > 0 && (
             <p className="muted small">
-              <b>Fora da projeção:</b> {fora.itens} item(ns) sem cronograma —{' '}
+              <b>Fora da projeção:</b> {fora.itens} item(ns) sem cronograma,{' '}
               {brl(fora.receber)} a receber e {brl(fora.pagar)} a pagar. Não pertencem a mês nenhum
               (dívida sem prazo, valor ou data ainda a combinar), então não distorcem o fluxo.
             </p>
@@ -251,7 +251,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
 
       {resumo.qtdSemData > 0 && (
         <p className="fin-nota">
-          <b>{brl(resumo.semData)} sem data de vencimento</b> — {brl(resumo.semDataReceber)} a receber
+          <b>{brl(resumo.semData)} sem data de vencimento</b>: {brl(resumo.semDataReceber)} a receber
           e {brl(resumo.semDataPagar)} a pagar. Não é atraso, é indefinição: some da agenda enquanto
           não tiver data, porque calendário não mostra o que não tem dia.
         </p>
@@ -346,7 +346,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
             <input
               value={form.obs}
               onChange={(e) => set('obs', e.target.value)}
-              placeholder="opcional — o porquê, a condição, o combinado"
+              placeholder="opcional: o porquê, a condição, o combinado"
               autoComplete="off"
             />
           </label>
@@ -427,7 +427,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
                         <span className="fin-desc">{l.descricao}</span>
                         <span className="fin-meta">
                           {l.cliente && <span className="fin-tag">{l.cliente}</span>}
-                          {l.categoria && <span className="fin-tag fraca">{l.categoria}</span>}
+                          {l.categoria && <span className="fin-tag fraca">{rotuloCategoria(l.categoria)}</span>}
                           {l.recorrente && <span className="fin-tag fraca">mensal</span>}
                           {l.pontual && <span className="fin-tag fraca">pontual</span>}
                           <span className={'fin-tag st-' + l.status}>{rotuloStatus(l)}</span>

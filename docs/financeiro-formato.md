@@ -71,12 +71,19 @@ autorização do Open Finance perto de vencer, sincronização que falhou (`ulti
    fica fora, senão dobraria), com a média dos 3 meses completos antes do mês (sem pontuais; o mês em
    que o banco começou no meio fica fora) e o destaque do que fugiu (± R$ 50 e 30%). Clicar abre os
    lançamentos da categoria.
-3. **Recorrente × pontual**: gasto do mês sem os `pontual: true`; sobra recorrente = entradas
-   `recorrente` previstas no mês − gasto recorrente.
-4. **Patrimônio**: posições por grupo (CDB liquidez diária, renda fixa, FII, ação, cripto), reserva
-   líquida (só `liquidez: diaria`) × piso de R$ 5.000 e a evolução pelos retratos de `patrimonio.md`.
-5. **Clientes**: recebido, quando, dias de atraso (vencimento × `liquidadoEm`) e o que falta até o fim.
-6. **A receber vencido**: entrada aberta com vencimento passado, por origem, com dias de atraso.
+3. **Renda que se repete: até quando** (`rendaRecorrente`): a renda recorrente de cada mês, de hoje
+   até o mês depois do fim do razão (onde sobra só o que não tem data de fim), contra o gasto que se
+   repete (média dos meses completos), e o mês da queda (primeiro mês com 20% ou mais a menos que
+   hoje). Embaixo, o mês em foco: gasto que se repete, pontual e sobra.
+4. **Gastos por categoria** (ver 2), **Patrimônio**: posições por grupo (CDB liquidez diária, renda
+   fixa, FII, ação, cripto), reserva líquida (só `liquidez: diaria`) × piso de R$ 5.000 e a evolução
+   pelos retratos de `patrimonio.md`.
+5. **A receber vencido**: entrada aberta com vencimento passado, por origem, com dias de atraso.
+6. **Fontes de renda: recebido × o que falta**: recebido, quando, dias de atraso (vencimento ×
+   `liquidadoEm`) e o que falta até o fim; recorrente sem `ate` (salário) aparece como "sem fim".
+
+Rótulo de categoria na tela vem de `rotuloCategoria` (`src/lib/financeiro.ts`): o id gravado
+("alimentacao") não muda, a tela mostra "Alimentação".
 
 **Pronoia** (previdência: o que vem pela frente; `#/financeiro/pronoia`):
 
@@ -93,8 +100,14 @@ bruto, nunca no repo nem no vault), o formulário (inclui **= Saldo**: investime
 como cripto, com instituição livre e classe; o mais recente de cada nome vale) e a lista (o botão
 **1×** marca/desmarca `pontual`).
 
-## Pontual e retrato do patrimônio
+## Recorrente, pontual e retrato do patrimônio
 
+- **Entrada recorrente** (`entradaRecorrente`): `recorrente: true` (com ou sem `ate`), ou categoria de
+  contrato (`mensalidade`, `parcela`, `salario`, `assinatura`) em sequência: "parcela 3/7" no nome
+  (total > 1) ou a mesma série (cliente + descrição sem o número) em 2 meses ou mais. Fica de fora:
+  `pontual: true`, entrega única (`projeto`, `artes`) e parcela solta. Conta no mês em que entrou
+  (aberta: no do vencimento).
+- **Gasto recorrente**: todo gasto (cartão, casa, ônibus, contribuição) menos o `pontual: true`.
 - `pontual: true` num lançamento de saída: gasto que não se repete (empréstimo, compra grande). Fica
   no gasto do mês, mas fora do gasto recorrente e da média das categorias.
 - `04-NEGOCIO/financeiro/patrimonio.md`, bloco ` ```patrimonio `: `{ "retratos": [{ "data",

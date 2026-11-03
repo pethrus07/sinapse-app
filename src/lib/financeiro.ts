@@ -20,6 +20,28 @@ export function rotuloStatus(l: Lancamento): string {
   return STATUS_LABEL[l.status] || l.status;
 }
 
+/**
+ * Rótulo de tela da categoria. O id gravado no razão (e nas regras) não muda: "alimentacao"
+ * continua "alimentacao" no arquivo; só a tela mostra "Alimentação".
+ */
+const ROTULOS: Record<string, string> = {
+  'a classificar': 'A classificar', 'sem categoria': 'Sem categoria',
+  alimentacao: 'Alimentação', arte: 'Arte', artes: 'Artes', assinatura: 'Assinaturas', cartao: 'Cartão',
+  casa: 'Casa', ciclo: 'Ciclo', cliente: 'Cliente', compras: 'Compras', doacao: 'Doação', educacao: 'Educação',
+  emprestimo: 'Empréstimo', equipamento: 'Equipamento', estorno: 'Estorno', familia: 'Família', farmacia: 'Farmácia',
+  'hora avulsa': 'Hora avulsa', imposto: 'Impostos', impostos: 'Impostos', infra: 'Infra', lazer: 'Lazer',
+  mensalidade: 'Mensalidade', mercado: 'Mercado', moradia: 'Moradia', outro: 'Outro', parcela: 'Parcela',
+  'pix a pessoa física': 'Pix a pessoa física', 'pix recebido de pessoa física': 'Pix recebido de pessoa física',
+  projeto: 'Projeto', reserva: 'Reserva', rendimentos: 'Rendimentos', salario: 'Salário', saude: 'Saúde',
+  transporte: 'Transporte', vestuario: 'Vestuário',
+};
+export function rotuloCategoria(id: string | undefined): string {
+  const k = (id || '').trim().toLowerCase();
+  if (!k) return 'Sem categoria';
+  if (ROTULOS[k]) return ROTULOS[k];
+  return k.charAt(0).toUpperCase() + k.slice(1);
+}
+
 /** Sugestões do <datalist> — não restringe, só evita digitar de novo. */
 export const CATEGORIAS = [
   'mensalidade', 'ciclo', 'arte', 'projeto', 'parcela', 'hora avulsa',

@@ -119,12 +119,41 @@ export function lancamentosDaCategoria(ls: Lancamento[], categoria: string, mes:
 
 /* ------------------------------------------------------ recorrente × pontual */
 
+/** Categorias de contrato que se repete (mensalidade, parcela, salário, assinatura). */
+const CAT_RECORRENTE = new Set(['mensalidade', 'parcela', 'salario', 'salário', 'assinatura']);
+/** Entrega única: entra uma vez e acabou. */
+const CAT_AVULSA = new Set(['projeto', 'artes', 'arte', 'hora avulsa']);
+const PARCELA_KN = /\b(\d{1,2})\s*\/\s*(\d{1,2})\b/;
+const normSerie = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\d+\s*\/\s*\d+/g, '').replace(/[^a-z]+/g, ' ').trim();
+
+/**
+ * Entrada RECORRENTE (renda que se repete enquanto o contrato durar):
+ *  - `recorrente: true` (com ou sem `ate`); ou
+ *  - categoria de contrato (mensalidade, parcela, salário, assinatura) que é parte de uma
+ *    sequência: "parcela 3/7" no nome (com total > 1) ou a mesma série em 2+ meses.
+ * Fica de fora: `pontual: true`, entrega única (projeto, artes) e parcela solta sem sequência.
+ */
+export function entradaRecorrente(l: Lancamento, ls: Lancamento[]): boolean {
+  if (l.tipo !== 'entrada' || l.pontual) return false;
+  if (l.recorrente) return true;
+  const c = (l.categoria || '').toLowerCase();
+  if (CAT_AVULSA.has(c) || !CAT_RECORRENTE.has(c)) return false;
+  const kn = (l.descricao || '').match(PARCELA_KN);
+  if (kn && Number(kn[2]) > 1) return true;
+  const serie = `${l.cliente || ''}|${normSerie(l.descricao || '')}`;
+  const meses = new Set(ls.filter((x) => x.tipo === 'entrada' && `${x.cliente || ''}|${normSerie(x.descricao || '')}` === serie).map(mesPrevisto));
+  return meses.size >= 2;
+}
+
+/** Gasto pontual: `pontual: true`. Todo o resto do gasto (cartão, casa, ônibus) se repete. */
+export const gastoPontual = (l: Lancamento) => ehPontual(l);
+
 export interface RecorrenteMes {
   mes: string;
   gasto: number;               // tudo que foi gasto no mês
   pontual: number;             // marcado `pontual: true` (empréstimo, compra grande que não se repete)
   gastoRecorrente: number;     // gasto − pontual
-  entradasRecorrentes: number; // entradas com `recorrente: true` previstas para o mês (recebidas ou não)
+  entradasRecorrentes: number; // renda que se repete prevista para o mês (recebida ou não)
   sobraRecorrente: number;     // entradas recorrentes − gasto recorrente
   pontuais: { descricao: string; valor: number }[];
 }
@@ -135,12 +164,68 @@ export function recorrenteDoMes(ls: Lancamento[], mes: string): RecorrenteMes {
   for (const l of ls) {
     if (ehGasto(l) && mesRealizado(l) === mes) {
       gasto += n(l.valor);
-      if (ehPontual(l)) { pontual += n(l.valor); pontuais.push({ descricao: l.descricao, valor: n(l.valor) }); }
+      if (gastoPontual(l)) { pontual += n(l.valor); pontuais.push({ descricao: l.descricao, valor: n(l.valor) }); }
     }
-    if (l.tipo === 'entrada' && l.recorrente && !l.semPrazo && (aberto(l) || liquidado(l)) && mesPrevisto(l) === mes) entradas += n(l.valor);
+    if (l.tipo === 'entrada' && mesDaEntrada(l) === mes && entradaRecorrente(l, ls)) entradas += n(l.valor);
   }
   const r = (v: number) => Math.round(v * 100) / 100;
   return { mes, gasto: r(gasto), pontual: r(pontual), gastoRecorrente: r(gasto - pontual), entradasRecorrentes: r(entradas), sobraRecorrente: r(entradas - (gasto - pontual)), pontuais };
+}
+
+/** Mês de uma entrada: o que entrou conta quando entrou; o aberto, quando vence. Sem prazo aberto: nenhum. */
+function mesDaEntrada(l: Lancamento): string {
+  if (liquidado(l)) return mesRealizado(l);
+  if (aberto(l) && !l.semPrazo) return mesPrevisto(l);
+  return '';
+}
+
+export interface RendaRecorrente {
+  meses: string[];             // do mês de hoje até o mês depois do fim do razão
+  entradas: number[];          // renda que se repete por mês
+  gastoBase: number;           // gasto recorrente de referência (média dos meses completos)
+  baseMeses: string[];         // os meses que entraram na base
+  sobra: number[];             // entradas − gastoBase
+  ateQuando: string;           // último mês antes da queda ('' = não cai até o fim do razão)
+  caiEm: string;               // o mês da queda
+  antes: number;               // renda recorrente no mês de hoje
+  depois: number;              // renda recorrente no mês da queda
+  semFim: number;              // a parte que segue sem data de fim (recorrente sem `ate`)
+}
+
+/**
+ * Até quando a renda que se repete se sustenta. Para cada mês, de hoje em diante, soma a renda
+ * recorrente prevista; no mês depois do fim do razão sobra só a que não tem data de fim
+ * (`recorrente` sem `ate`, que vale para sempre). A queda é o primeiro mês em que a renda cai
+ * 20% ou mais em relação ao mês de hoje. O gasto de referência é a média do gasto recorrente
+ * dos meses completos (até 3) antes de hoje; sem nenhum, o último mês.
+ */
+export function rendaRecorrente(ls: Lancamento[], hojeMes: string): RendaRecorrente {
+  const parciais = mesesParciais(ls, hojeMes);
+  const doRazao = [...new Set(ls.filter((l) => l.mes).map((l) => l.mes.slice(0, 7)))].sort();
+  const ultimo = doRazao[doRazao.length - 1] || hojeMes;
+  const depois = somarMes(ultimo, 1);
+  const meses: string[] = [];
+  for (let m = hojeMes; m <= depois && meses.length < 60; m = somarMes(m, 1)) meses.push(m);
+  const rec = ls.filter((l) => entradaRecorrente(l, ls));
+  const entradas = meses.map((m) => {
+    if (m === depois) {
+      // depois do razão: só o que se repete sem data de fim, pelo valor do último mês
+      return rec.filter((l) => l.recorrente && !l.ate && mesDaEntrada(l) === ultimo).reduce((s, l) => s + n(l.valor), 0);
+    }
+    return rec.filter((l) => mesDaEntrada(l) === m).reduce((s, l) => s + n(l.valor), 0);
+  });
+  const baseMeses: string[] = [];
+  for (let m = somarMes(hojeMes, -1); baseMeses.length < 3 && m >= somarMes(hojeMes, -12); m = somarMes(m, -1)) if (!parciais.has(m)) baseMeses.push(m);
+  const gastoMes = (m: string) => recorrenteDoMes(ls, m).gastoRecorrente;
+  const gastoBase = baseMeses.length ? baseMeses.reduce((s, m) => s + gastoMes(m), 0) / baseMeses.length : gastoMes(somarMes(hojeMes, -1));
+  const r = (v: number) => Math.round(v * 100) / 100;
+  const antes = entradas[0] || 0;
+  const iQueda = entradas.findIndex((v, i) => i > 0 && antes > 0 && v <= antes * 0.8);
+  const semFim = entradas[entradas.length - 1] || 0;
+  return {
+    meses, entradas: entradas.map(r), gastoBase: r(gastoBase), baseMeses, sobra: entradas.map((v) => r(v - gastoBase)),
+    ateQuando: iQueda > 0 ? meses[iQueda - 1] : '', caiEm: iQueda > 0 ? meses[iQueda] : '', antes: r(antes), depois: r(iQueda > 0 ? entradas[iQueda] : antes), semFim: r(semFim),
+  };
 }
 
 /* ----------------------------------------------------------------- patrimônio */
@@ -232,6 +317,7 @@ export interface ClienteResumo {
   falta: number;               // aberto daqui até o fim (inclui o vencido)
   fim: string;                 // último mês previsto ('' = nada aberto)
   atrasoMedio: number;         // dias, só dos que pagaram atrasado (0 = em dia)
+  semFim: boolean;             // tem renda que se repete sem data de fim (salário): o "fim" é só o do razão
 }
 
 /** Quanto cada cliente pagou, quando, com quantos dias de atraso, e o que falta até o fim do previsto. */
@@ -240,7 +326,7 @@ export function clientesRealizado(ls: Lancamento[], hoje: string): ClienteResumo
   for (const l of ls) {
     if (l.tipo !== 'entrada' || !l.cliente) continue;
     if (l.semPrazo && !liquidado(l)) continue; // sem prazo: fora do que falta, mas o que já entrou conta
-    const c = m.get(l.cliente) || { cliente: l.cliente, recebido: 0, pagamentos: [], vencido: 0, diasVencido: 0, falta: 0, fim: '', atrasoMedio: 0 };
+    const c = m.get(l.cliente) || { cliente: l.cliente, recebido: 0, pagamentos: [], vencido: 0, diasVencido: 0, falta: 0, fim: '', atrasoMedio: 0, semFim: false };
     const venc = (l.vencimento || '').slice(0, 10);
     if (liquidado(l)) {
       const pagoEm = (l.liquidadoEm || venc).slice(0, 10);
@@ -250,6 +336,7 @@ export function clientesRealizado(ls: Lancamento[], hoje: string): ClienteResumo
       c.falta += n(l.valor);
       const mp = mesPrevisto(l);
       if (mp > c.fim) c.fim = mp;
+      if (l.recorrente && !l.ate) c.semFim = true;
       if (venc && venc < hoje) { c.vencido += n(l.valor); c.diasVencido = Math.max(c.diasVencido, diasEntre(venc, hoje)); }
     }
     m.set(l.cliente, c);
