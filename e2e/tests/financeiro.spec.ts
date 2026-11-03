@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 
 const SHOTS = 'shots'
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` // dia local, como o app
 mkdirSync(SHOTS, { recursive: true })
 
 function coletarErros(page: Page): string[] {
@@ -34,7 +35,7 @@ test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   await expect(page.locator('.fin-proj td.num.guarda').first()).toBeVisible()
   await page.locator('a[href="#/agenda"]').click()
   await page.getByRole('button', { name: /Painel/ }).click()
-  await expect(page.getByText(/Reserva de mudan/)).toHaveCount(0)
+  await expect(page.getByText(/Reserva falsa/)).toHaveCount(0)
   await page.locator('a[href="#/financeiro"]').click()
   await page.getByRole('tab', { name: 'Pronoia' }).click()
   await expect(page.locator('.fin-proj')).toBeVisible()
@@ -48,7 +49,7 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
 
   // descricao unica por rodada: residuo de uma rodada morta nunca colide com esta,
   // e o toHaveCount(1) volta a ser uma afirmacao honesta
-  const MARCA = 'TESTE e2e ' + Date.now()
+  const MARCA = 'TESTE e2e ' + Date.now().toString(36) // número longo seria barrado como documento
   const DESC = MARCA + ' · lançamento com acentuação'
   await page.goto('/#/financeiro/lancamentos')
 
@@ -75,7 +76,7 @@ test('Financeiro: lança pela interface, aparece no calendário, liquida e remov
   // passado fazia o teste quebrar sozinho quando o calendário andava)
   const venc = new Date()
   venc.setDate(venc.getDate() + 15)
-  await page.locator('input[type="date"]').fill(venc.toISOString().slice(0, 10))
+  await page.locator('input[type="date"]').fill(ymdLocal(venc))
   await page.locator('.fin-campo', { hasText: 'Cliente' }).locator('input').fill('Cliente ' + MARCA)
   await page.locator('.fin-salvar').click()
 

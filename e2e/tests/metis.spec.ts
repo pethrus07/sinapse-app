@@ -51,7 +51,7 @@ test('Saldo à mão (cripto) entra no patrimônio; marcar um gasto como pontual 
   page.on('dialog', (d) => d.accept())
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/#/financeiro/lancamentos')
-  const MARCA = 'Moeda e2e ' + Date.now()
+  const MARCA = 'Moeda e2e ' + Date.now().toString(36) // número longo seria barrado como documento
   await page.locator('.fin-tbtn.saldo').click()
   await page.locator('.fin-campo', { hasText: 'O que é' }).locator('input').fill(MARCA)
   await page.locator('.fin-campo', { hasText: 'Saldo (R$)' }).locator('input').fill('250,00')
@@ -77,7 +77,7 @@ test('Saldo à mão (cripto) entra no patrimônio; marcar um gasto como pontual 
   await expect(transp.locator('.fin-tag', { hasText: 'pontual' })).toBeVisible()
   await page.getByRole('tab', { name: 'Visão' }).click()
   await expect(rec).not.toHaveText(antes)
-  await expect(rec).toContainText('R$ 1.710,00') // TV 1.500 + transporte 210
+  await expect(rec).toContainText('R$ 1.710,00') // compra grande 1.500 + transporte 210
   // desfaz e limpa
   await page.getByRole('tab', { name: 'Lançamentos' }).click()
   await page.locator('.fin-listahead .proj-tab', { hasText: 'todos' }).click()

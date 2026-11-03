@@ -14,8 +14,8 @@ import matter from 'gray-matter';
 import { buildIndex, slugify } from './build-index.mjs';
 import { caminhoAtas, lerFeitos, marcarFeito } from './compromissos.mjs';
 import { readdirSync } from 'node:fs';
-import { hashId } from './financas/nucleo.mjs';
-import { criterioDaTransacao } from './financas/pluggy.mjs';
+import { gravarMes as gravarMesRazao, hashId, pareceSensivel } from './financas/nucleo.mjs';
+import { criterioDaTransacao, hojeSP } from './financas/pluggy.mjs';
 
 // Pasta local da Métis (fora do git): regras e bruto do banco. O endpoint de classificar lê o
 // bruto só para montar a regra "lembrar para os próximos"; nada dele volta para o app ou o vault.
@@ -96,6 +96,42 @@ const MAX_VAGAS = 3;
 // mesmo formato de scripts/build-index.mjs (RE_TAREFA): "- [ ] texto", "- [/] texto", "- [x] texto"
 const RE_TAREFA_API = /^(\s*[-*]\s+\[)( |x|X|\/)(\]\s+)(.+)$/;
 const FM = /^---(\r?\n)([\s\S]*?)\r?\n---/;
+
+/**
+ * Caminho relativo vindo do navegador -> arquivo DENTRO do vault. `join(VAULT, '../x')` escreveria
+ * fora (o /api/note e o /api/progress aceitavam qualquer `rel`).
+ */
+function dentroDoVault(VAULT, rel) {
+  if (typeof rel !== 'string' || !rel || rel.includes('\0')) throw erro('caminho inválido', 400);
+  const full = resolve(VAULT, rel);
+  const dentro = relative(VAULT, full);
+  if (!dentro || dentro.startsWith('..') || isAbsolute(dentro)) throw erro('fora do vault', 400);
+  return full;
+}
+
+/**
+ * Escrita só de quem é o próprio app. Uma página qualquer aberta no navegador consegue mandar um
+ * POST "simples" (text/plain, sem preflight) para o localhost; o CORS só esconde a resposta, a
+ * escrita já aconteceu. Exigir JSON força o preflight, e a origem (quando vem) tem que ser local.
+ */
+function postConfiavel(req) {
+  const tipo = String(req.headers['content-type'] || '').toLowerCase();
+  if (!tipo.startsWith('application/json')) return false;
+  const origem = req.headers.origin;
+  if (!origem) return true;
+  try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(origem).hostname); } catch { return false; }
+}
+
+/** "1.234,56", "1234,56", "1234.56" ou número -> reais com 2 casas (centavo inteiro). */
+export function valorBR(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+  let t = String(v ?? '').trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');
+  if (!/^-?[\d.,]+$/.test(t)) return NaN;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, ''); // "1.500" é mil e quinhentos
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+}
 
 function erro(msg, code) {
   const e = new Error(msg);
@@ -189,6 +225,8 @@ export function vaultApi() {
         if (!req.url || !req.url.startsWith('/api/')) return next();
         try {
           const url = req.url.split('?')[0];
+          if (req.method !== 'GET' && req.method !== 'HEAD' && !postConfiavel(req))
+            return sendJson(res, { error: 'escrita só pelo próprio app (JSON, origem local)' }, 403);
 
           // ---- GET /api/versao e /api/indice: indice VIVO ----
           // O JSON empacotado (src/data/*.json) esta em server.watch.ignored, entao o
@@ -211,7 +249,9 @@ export function vaultApi() {
               const slug = slugify(p.id || p.title || 'nota-sem-titulo') || 'nota';
               rel = `${folder}/${slug}.md`;
             }
-            const full = join(VAULT, rel);
+            if (!/\.md$/i.test(rel)) return sendJson(res, { error: 'nota precisa terminar em .md' }, 400);
+            let full;
+            try { full = dentroDoVault(VAULT, rel); } catch (e) { return sendJson(res, { error: e.message }, e.code); }
             let data = {};
             let body = p.body != null ? p.body : '';
             if (existsSync(full)) {
@@ -230,8 +270,9 @@ export function vaultApi() {
 
           if (url === '/api/progress' && req.method === 'POST') {
             const p = JSON.parse((await readBody(req)) || '{}');
-            const full = join(VAULT, p.rel || '');
-            if (!p.rel || !existsSync(full)) return sendJson(res, { error: 'nota não encontrada' }, 404);
+            let full;
+            try { full = dentroDoVault(VAULT, p.rel); } catch (e) { return sendJson(res, { error: e.message }, e.code); }
+            if (!existsSync(full)) return sendJson(res, { error: 'nota não encontrada' }, 404);
             const cur = matter(readFileSync(full, 'utf8'));
             cur.data.progresso = p.progresso;
             writeFileSync(full, matter.stringify(cur.content, clean(cur.data)));
@@ -369,55 +410,52 @@ export function vaultApi() {
             const p = JSON.parse((await readBody(req)) || '{}');
             const acao = p.acao || 'lancar';
 
-            const mesDe = (venc) => (venc && /^\d{4}-\d{2}/.test(venc) ? venc.slice(0, 7) : new Date().toISOString().slice(0, 7));
+            const hoje = hojeSP();
+            const mesDe = (venc) => (venc && /^\d{4}-\d{2}/.test(venc) ? venc.slice(0, 7) : hoje.slice(0, 7));
+            const MES_OK = /^\d{4}-(0[1-9]|1[0-2])$/; // o mês vira nome de arquivo: nada de "../"
             const relDoMes = (mes) => `04-NEGOCIO/financeiro/${mes}.md`;
             const BLOCO = /```financeiro\s*\n([\s\S]*?)```/;
 
+            // JSON quebrado no bloco (edição à mão): ERRO, nunca lista vazia. Lista vazia fazia o
+            // próximo lançamento regravar o mês só com ele e apagar todos os outros.
             function lerMes(mes) {
+              if (!MES_OK.test(mes)) throw erro('mês inválido: ' + mes, 400);
               const full = join(VAULT, relDoMes(mes));
-              if (!existsSync(full)) return { full, mes, data: null, corpo: null, lista: [] };
-              const cur = matter(readFileSync(full, 'utf8'));
-              const m = cur.content.match(BLOCO);
+              if (!existsSync(full)) return { full, mes, texto: '', lista: [], existe: false };
+              const texto = readFileSync(full, 'utf8');
+              const m = texto.match(BLOCO);
               let lista = [];
               if (m) {
-                try { lista = JSON.parse(m[1]).lancamentos || []; } catch { lista = []; }
+                try { lista = JSON.parse(m[1]).lancamentos || []; } catch { throw erro(`o bloco financeiro de ${relDoMes(mes)} tem JSON inválido: corrija o arquivo antes (nada foi gravado)`, 409); }
               }
-              return { full, mes, data: cur.data || {}, corpo: cur.content, lista };
+              return { full, mes, texto, lista, existe: true };
             }
 
+            // mesma gravação da sincronização (scripts/financas/nucleo.mjs): troca só o bloco e deixa
+            // o resto do arquivo (frontmatter, texto, CRLF) byte a byte igual
             function gravarMes(st, lista) {
-              const json = JSON.stringify({ lancamentos: lista }, null, 2);
-              let corpo;
-              if (st.corpo && BLOCO.test(st.corpo)) {
-                corpo = st.corpo.replace(BLOCO, '```financeiro\n' + json + '\n```');
-              } else if (st.corpo) {
-                corpo = st.corpo.trimEnd() + '\n\n```financeiro\n' + json + '\n```\n';
-              } else {
-                const [ano, m2] = st.mes.split('-');
-                const nomes = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-                corpo = `\n# 💰 Financeiro · ${nomes[Number(m2) - 1]} de ${ano}\n\n> Um arquivo por mês. O bloco abaixo é a fonte; o app lê, soma e joga os vencimentos abertos no [[AGENDA|calendário]].\n\n\`\`\`financeiro\n${json}\n\`\`\`\n\n## Conexões\n- Calendário: [[AGENDA]] · foco: [[AGORA]]\n- Negócio: [[MOC-negocio]]\n`;
-              }
-              const meta = st.data && Object.keys(st.data).length ? st.data : {
-                tipo: 'financeiro', area: 'negocio', tags: ['financeiro', 'caixa', st.mes], mes: st.mes,
-                criado: new Date().toISOString().slice(0, 10),
-              };
-              mkdirSync(dirname(st.full), { recursive: true });
-              writeFileSync(st.full, matter.stringify(corpo, clean(meta)));
+              gravarMesRazao(VAULT, st.mes, st.existe ? { arquivo: st.full, texto: st.texto } : null, lista, hoje);
             }
 
+            // o que se digita aqui vai para o vault (git): documento, conta, chave Pix ficam de fora
+            const sensivel = (l) => ['descricao', 'cliente', 'obs', 'instituicao'].find((c) => l[c] && pareceSensivel(String(l[c])));
+
+            try {
             if (acao === 'lancar') {
               const l = p.lancamento || {};
-              const valor = Number(String(l.valor).toString().replace(',', '.'));
+              const valor = valorBR(l.valor);
               if (!l.descricao || !Number.isFinite(valor) || valor <= 0)
                 return sendJson(res, { error: 'descrição e valor (> 0) são obrigatórios' }, 400);
+              const campo = sensivel(l);
+              if (campo) return sendJson(res, { error: `o campo ${campo} parece ter documento, conta, cartão, e-mail ou telefone: tire antes de gravar` }, 400);
               const venc = (l.vencimento || '').slice(0, 10);
               // sem dia, o mes pode ser dito explicitamente: cartao de outubro vive no
               // arquivo de outubro, senao a projecao joga tudo no mes corrente
-              const mes = venc ? mesDe(venc) : (/^\d{4}-\d{2}$/.test(l.mes || '') ? l.mes : mesDe(''));
+              const mes = venc ? mesDe(venc) : (MES_OK.test(l.mes || '') ? l.mes : mesDe(''));
               const st = lerMes(mes);
               // saldo lançado à mão (cripto, corretora que não vem pelo Open Finance)
               if (l.tipo === 'investimento') {
-                const data = /^\d{4}-\d{2}-\d{2}$/.test(l.data || '') ? l.data : new Date().toISOString().slice(0, 10);
+                const data = /^\d{4}-\d{2}-\d{2}$/.test(l.data || '') ? l.data : hoje;
                 const st = lerMes(data.slice(0, 7));
                 const instituicao = String(l.instituicao || '').trim();
                 const base = slugify(['investimento', instituicao, l.descricao, data].join(' ')).slice(0, 60) || 'investimento';
@@ -463,7 +501,7 @@ export function vaultApi() {
               const mes = (p.mes || '').slice(0, 7);
               if (!mes || !p.id) return sendJson(res, { error: 'mes e id são obrigatórios' }, 400);
               const st = lerMes(mes);
-              if (!st.corpo) return sendJson(res, { error: 'mês não encontrado: ' + mes }, 404);
+              if (!st.existe) return sendJson(res, { error: 'mês não encontrado: ' + mes }, 404);
               const achou = st.lista.some((x) => x.id === p.id);
               if (!achou) return sendJson(res, { error: 'lançamento não encontrado: ' + p.id }, 404);
 
@@ -479,7 +517,7 @@ export function vaultApi() {
                     ...x,
                     // reserva usa os status de saida: liquidar reserva e 'pago' (guardado)
                     status: x.tipo === 'entrada' ? 'recebido' : 'pago',
-                    liquidadoEm: (p.em || new Date().toISOString().slice(0, 10)).slice(0, 10),
+                    liquidadoEm: /^\d{4}-\d{2}-\d{2}/.test(p.em || '') ? p.em.slice(0, 10) : hoje,
                   };
                 });
               }
@@ -493,7 +531,7 @@ export function vaultApi() {
             if (acao === 'classificar' || acao === 'pontual') {
               const mes = (p.mes || '').slice(0, 7);
               const st = mes ? lerMes(mes) : null;
-              if (!st || !st.corpo) return sendJson(res, { error: 'mês não encontrado: ' + mes }, 404);
+              if (!st || !st.existe) return sendJson(res, { error: 'mês não encontrado: ' + mes }, 404);
               const alvo = st.lista.find((x) => x.id === p.id);
               if (!alvo) return sendJson(res, { error: 'lançamento não encontrado: ' + p.id }, 404);
               let lembrete = null;
@@ -516,6 +554,10 @@ export function vaultApi() {
             }
 
             return sendJson(res, { error: 'ação desconhecida: ' + acao }, 400);
+            } catch (e) {
+              if (e && e.code) return sendJson(res, { error: e.message }, e.code);
+              throw e;
+            }
           }
 
           return next();
