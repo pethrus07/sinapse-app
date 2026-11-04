@@ -77,6 +77,23 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   vê); bloqueia e conta chamadas a BCB/brapi/CoinGecko/CVM. Armadilhas: o Chromium dá caixa a filho de
   `<details>` fechado (a conferência de alvo de toque pula); `getByLabel('… bloco 1')` casa 10 e 11
   (usar `exact`); a heredoc do Git Bash comeu `\a` (virou BEL) num patch: patch com contrabarra por arquivo.
+  **Aion v2** (04/11/2026, branch `aion-v2`): regra **conceito × porquê** em todas as telas. Termo, nome
+  ou indicador = `<Termo id>` (sublinhado pontilhado, pop-up "O que é" com o bloco da trilha); número que
+  mudou = `<ComPorque fonte>` (ponto pequeno depois do número, pop-up "Por quê", fonte obrigatória);
+  ativo inteiro = `<ComAtivo>` ("O que é" em cima, "Por quê" embaixo; clique com mouse abre
+  `#/aion/ativo/<CODIGO>`, o preço no tempo com marcadores de evento). Glossário em
+  `src/lib/aionGlossario.ts` (49 verbetes; termo marcado sem verbete quebra o `npm test`). Gráficos
+  novos (lógica em `src/lib/aionSeries.ts`): patrimônio, aportes e renda passiva por mês, rendimento em
+  base 100, Selic/CDI/IPCA em small multiples, Focus semana a semana, preço com eventos, sparkline e
+  régua de 52 semanas, caminho das metas com faixa; todos dizem "1 mês de dado" quando é o caso. O
+  coletor ganhou `selicMeta.mensal`, `focus.historico`, `cvm.resultados`, `cvm.perfis` e `cvm.fiis`
+  (informe mensal de FII, ligado pelo ISIN). e2e: mercado falso com histórico de preço e Focus; o razão
+  falso estende para 12 meses no último teste; `fotosDosCartoes` tira um screenshot por cartão (a página
+  rola dentro de `.pad-scroll`: o `fullPage` não pega o que está abaixo da dobra). Armadilha: hover em
+  gráfico abaixo da dobra precisa de `scrollIntoViewIfNeeded` antes do `boundingBox`.
+  **Repo público, mais duro**: nenhum código de ativo que o Pedro tem em código, comentário, teste,
+  fixture ou commit (exemplos: ABCD3, WXYZ11, TEST3). Antes de commitar, conferir o diff contra os
+  códigos das posições do razão real (lendo na hora, sem gravar a lista em lugar nenhum).
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.

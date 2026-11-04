@@ -18,13 +18,17 @@
 |---|---|---|
 | posições (reserva, renda fixa, FII, ação) | razão da Métis, sincronização do Meu Pluggy, uma por aplicação por mês | vault, `04-NEGOCIO/financeiro/AAAA-MM.md` |
 | cripto | lançada à mão na Métis (Lançamentos, **= Saldo**, classe `cripto`) | idem |
-| Selic, CDI, IPCA, dólar | Banco Central SGS (432, 4389, 4391, 433, 1), grátis, sem chave | cache local |
+| Selic, CDI, IPCA, dólar | Banco Central SGS (432, 4389, 4391, 433, 1), grátis, sem chave. A Selic meta guarda também o valor do fim de cada mês dos últimos 5 anos (`selicMeta.mensal`); CDI e IPCA mensais, 6 anos | cache local |
 | Focus (IPCA, Selic, PIB, câmbio) | Banco Central, API Olinda, grátis, sem chave | cache local |
+| Focus semana a semana | Olinda (`ExpectativasMercadoAnuais`, `Data ge` um ano atrás): IPCA e Selic do ano e do próximo, o último valor de cada semana (`focus.historico`) | cache local |
 | decisões do Copom | comunicados do site do BC (`api/servico/sitebcb/copom`), sem chave | cache local |
 | próxima reunião do Copom | `CALENDARIO_COPOM` em `scripts/aion/fontes.mjs` (o BC não tem API do calendário; datas de 2026 conferidas em 04/11/2026) | código |
 | cotação, proventos, P/L | brapi.dev (sem token só PETR4, MGLU3, VALE3, ITUB4; com token grátis 15 mil req/mês) | cache local |
 | cripto (preço, 24 h) | CoinGecko (público sem chave; Demo com chave). Exige citar "Data provided by CoinGecko" | cache local |
 | fatos relevantes | CVM dados abertos (IPE) + código de negociação → CNPJ pelo FCA. Saem com atraso (semanal): histórico, não alerta | cache local |
+| resultado do trimestre | CVM, IPE "Dados Econômico-Financeiros" › "Press-release" (`cvm.resultados`): o dia da divulgação, marcador no gráfico de preço | cache local |
+| o que a empresa faz | CVM, FCA geral: `Setor_Atividade` e `Descricao_Atividade` (`cvm.perfis`) | cache local |
+| o que o FII é | CVM, informe mensal de FII (geral + complemento): o código liga pelo ISIN (ABCD11 → BRABCDCTF…); segmento, valor patrimonial da cota, DY do mês (`cvm.fiis`). O campo "mandato" veio vazio em 2026: papel × tijolo não sai daqui | cache local |
 | lista de observação, regra, metas, progresso do estudo | escritos pelo app | vault, `04-NEGOCIO/financeiro/aion-*.md` |
 
 **Proibido** (termos de uso): raspar o site da B3 (inclusive por IA e para uso próprio),
@@ -108,6 +112,50 @@ por ação, validação de cada campo, texto com cara de documento/conta/chave P
 `SINAPSE_SO_LEITURA=1` no dev server recusa toda escrita (403): para abrir o vault real sem risco
 (foi como as telas foram revistas com dado real).
 
+## Conceito × porquê (a regra das telas)
+
+O Pedro pediu (04/11/2026): saber quando o pop-up mostra um **conceito** ("o que é aquilo") e quando
+mostra um **porquê**. A regra:
+
+| onde passa o mouse (ou toca) | abre | marca na tela | componente |
+|---|---|---|---|
+| um **nome, termo ou indicador** (P/L, P/VP, DY, CDI, Selic, Focus, IPCA, "liquidez diária", nome de um tipo da carteira) | **O que é**: o conceito em 2 a 3 linhas, no tom da trilha, e "Entender: bloco N" | sublinhado pontilhado discreto | `<Termo id>` |
+| um **número que mudou** (valor, variação, desvio da regra, taxa, mediana) | **Por quê**: motivo, tipo da explicação, data e fonte; no fim, sempre "Fonte do número" | um ponto pequeno depois do número | `<ComPorque fonte>` |
+| um **ativo inteiro** (linha da Carteira e da Observação) | os dois: **O que é** em cima (o que a empresa ou o fundo faz, pela CVM; sem fonte, o tipo), **Por quê** embaixo | a linha toda | `<ComAtivo>` |
+
+O título do pop-up diz qual é ("O que é · Selic", "Por quê · Reserva", "O que é e por quê · ABCD3").
+**Nunca "Por quê" sem fonte**: `ComPorque` exige a fonte do número. Clique (mouse) num ativo abre o
+gráfico dele; no toque, o primeiro toque abre o pop-up e o botão "Ver … no tempo" leva ao gráfico.
+
+**O glossário mora em `src/lib/aionGlossario.ts`** (49 verbetes em 04/11/2026), não no vault: é
+conhecimento geral sem nada do Pedro; as telas e o teste leem o mesmo arquivo no build, então termo
+marcado sem verbete quebra o `npm test` (`aionGlossario.test.ts` lê o código das telas) e o tipo
+`IdTermo` quebra o tsc; o aprofundamento continua no vault, porque cada verbete aponta para um bloco
+da trilha. Texto de colega, sem travessão, 80 a 320 caracteres (o teste confere). Termo novo numa
+tela: verbete primeiro.
+
+## Os gráficos (skill dataviz)
+
+Forma antes de cor; um eixo só (nunca dois); legenda com 2+ séries e rótulo direto no fim da linha;
+hover e teclado (setas) em tudo; a tabela em "Mais opções". Paleta: slots 1 a 3 da categórica,
+validados no fundo do app (#11141C) com `validate_palette.js --pairs all` (CVD ΔE 9,4, normal 20,9,
+contraste ≥ 3:1); série única no slot 1; mês andando no mesmo tom, mais claro com contorno. Pouco dado:
+todo gráfico diz quanto tem ("1 mês de dado; o gráfico cresce com o tempo", `avisoPoucoDado`) e não
+inventa ponto entre dois reais. Lógica em `src/lib/aionSeries.ts`, desenho em `AionGraficos.tsx`
+(`GraficoLinhas`, `GraficoColunas`, `Sparkline`, `Faixa52`).
+
+| tela | gráfico | o que mostra |
+|---|---|---|
+| Carteira | Patrimônio mês a mês | colunas empilhadas reserva × fora da reserva, um retrato por mês do razão (mês sem retrato não aparece) |
+| Carteira | Aportes por mês | o que entrou de reserva e aplicação; o mês de hoje mais claro (andando, fora do ritmo) |
+| Carteira | Renda passiva por mês | dividendos, JCP e rendimentos recebidos, desde o primeiro mês do razão |
+| Carteira | Rendimento × CDI × IPCA | base 100 no primeiro retrato; a carteira anda por (valor − aportes do mês) ÷ valor anterior, então aporte não vira rendimento. Com 1 retrato, não desenha as três linhas em 100: diz que a comparação começa no mês que vem |
+| ativo (`#/aion/ativo/<CODIGO>`) | Preço no tempo | fechamento diário da brapi (3 meses no plano grátis) com marcadores: resultado (quadrado), fato relevante (losango), data com e data ex (círculo), Copom (triângulo). A forma diz o tipo; o marcador abre o porquê (data ex = causa; o resto, fato ou contexto). Sem token: diz o que falta |
+| Economia | Selic, CDI e IPCA | small multiples, um por indicador, mesma escala e mesmos meses (% ao ano; CDI e IPCA acumulados em 12 meses) |
+| Economia | Focus semana a semana | IPCA esperado e Selic esperada, ano corrente × próximo, a mediana de cada semana do último ano |
+| Observação | linha de preço + régua de 52 semanas | o histórico que a brapi deu (3 meses, dito) e a mínima/máxima de 52 semanas que ela informa |
+| Metas | Caminho até a meta | o que já foi (retratos), a projeção pelo ritmo real (tracejada) e a faixa: estimativa fraca = metade a 1,5× o ritmo; com 3+ meses, ritmo ± desvio padrão. Sem aporte medido: sem projeção (dito) |
+
 ## As telas
 
 1. **Carteira** (`#/aion`): total investido, reserva × piso, fora da reserva, renda passiva do mês
@@ -123,7 +171,7 @@ por ação, validação de cada campo, texto com cara de documento/conta/chave P
    inclusive um ativo da lista, pelo tipo dele) e a faixa ruim/base/bom em 1, 3 e 5 anos, em reais de
    hoje e líquida de imposto, antes × depois. Premissas editáveis em "Mais opções". "Olhar para trás":
    R$ X por mês desde uma data no CDI.
-5. **Metas** (`#/aion/metas`): ritmo real de aporte (média dos meses fechados, mês sem aporte = 0;
+5. **Metas** (`#/aion/metas`) (com o caminho de cada meta no tempo): ritmo real de aporte (média dos meses fechados, mês sem aporte = 0;
    menos de 3 meses = estimativa fraca) e quando chega cada meta, na ordem do Pedro (reserva, carteira,
    meta 3). Valores editáveis.
 6. **Economia** (`#/aion/economia`): Selic meta, CDI, IPCA (12 meses e mês), dólar, cada um com
@@ -181,7 +229,16 @@ Conta com premissas à vista, não previsão nem promessa:
   isenções, resgate, premissas do Focus, olhar para trás), `aionPorques.test.ts` (tipo de cada
   explicação, sem notícia, camada de fontes) e `scripts/aion/aion.test.mjs` (fontes com fetch falso,
   limite de requisição, zip e CSV da CVM, coleta inteira, escrita e validação).
-- `cd e2e && npm test`: `tests/aion.spec.ts` abre as 8 telas em 1440 e 390 (sem erro de console,
+- `src/lib/aionSeries.test.ts` (patrimônio mês a mês, aportes e renda passiva por mês, base 100 sem
+  aporte virar rendimento, acumulado em 12 meses, eventos do preço com fonte, caminho das metas e a
+  faixa) e `src/lib/aionGlossario.test.ts` (toda tela só marca termo com verbete; verbete sem
+  travessão, 2 a 3 linhas, bloco 1 a 11; "o que é" do ativo pela CVM).
+- `cd e2e && npm test`: `tests/aion.spec.ts` abre as 8 telas e o ativo no tempo em 1440 e 390 (nenhum
+  `[data-termo-sem-verbete]`); "O que é" e "Por quê" no hover e no toque (título, fonte, ordem no
+  ativo, todo porquê da Carteira e da Economia com fonte); o clique no ativo e os marcadores de
+  evento; 1 mês de dado (aviso) e o razão falso estendido para 12 meses (os gráficos crescem, sem
+  aviso). Screenshots por cartão em `e2e/shots/50…52-cartao-*.png`.
+- (v1) `tests/aion.spec.ts` abre as 8 telas em 1440 e 390 (sem erro de console,
   sem rolagem lateral, alvo de toque ≥ 44 px), o pop-up no hover e no toque, as escritas na cópia
   do vault e o "e se". Mercado falso em `SINAPSE_AION` temporário; posições falsas num arquivo
   próprio da cópia, apagado no fim (a Métis não as vê). Screenshots em `e2e/shots/40…44-aion-*.png`.
