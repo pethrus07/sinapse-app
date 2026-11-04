@@ -1162,3 +1162,62 @@ li.ai-pq-alvo:hover, .ai-ativo.ai-pq-alvo:hover { background: rgba(255,255,255,0
   .ai-form .fin-campo { flex: 1 1 100%; }
 }
 .aion .fg-mais > summary::before { margin-right: 0.3em; }
+
+/* Aion v2 (04/11/2026): a regra conceito × porquê na tela.
+   Termo com conceito ("O que é") = sublinhado pontilhado discreto; número com porquê ("Por quê") = um
+   ponto pequeno depois do número; ativo inteiro = a linha toda (os dois). A área de toque cresce para
+   44 px com padding em elemento inline (não muda a linha do texto). */
+.ai-alvo { cursor: help; outline: none; border-radius: 6px; }
+.ai-alvo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ai-alvo-termo { text-decoration: underline dotted; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 3px; padding: 16px 5px; margin: 0 -5px; }
+.ai-alvo-termo:hover { text-decoration-color: var(--soft); color: var(--ink); }
+.ai-pq-num::after, .ai-marcado::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--soft); opacity: 0.75; margin-left: 6px; vertical-align: 0.5em; }
+.mt-num > .ai-pq-num { align-self: flex-start; display: inline-flex; align-items: center; }
+.ai-pq-num:hover b, .ai-pq-num:hover { color: var(--ink); }
+li.ai-alvo-ativo:hover, .ai-ativo.ai-alvo-ativo:hover { background: rgba(255,255,255,0.025); }
+.ai-alvo-ativo { cursor: pointer; }
+.ai-pq-pop .ai-pq-cab-tit { font-weight: 600; color: var(--ink); }
+.ai-pq-pop.termo .ai-pq-cab-tit::before { content: ''; }
+.ai-pq-secao { margin: 2px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); }
+.ai-pq-parte { margin-top: 12px; padding-top: 10px; border-top: 1px solid #262c39; }
+.ai-oq-txt { margin: 4px 0 0; color: var(--soft); font-size: 12.5px; }
+.ai-pq-fonte-num { margin-top: 10px; }
+.ai-pq-abrir { margin-top: 12px; width: 100%; min-height: 44px; }
+.ai-aviso { margin: 8px 0 0; font-size: 12.5px; color: var(--faint); }
+.ai-termos { margin: 12px 0 0; font-size: 12.5px; color: var(--faint); line-height: 1.9; }
+.ai-voltar { grid-column: 1 / -1; margin-bottom: -8px; }
+.ai-voltar .mt-botao { margin-top: 0; min-height: 44px; }
+/* marcadores de evento no gráfico de preço: a forma diz o tipo (a cor é a mesma, tinta) */
+.ai-linhas { position: relative; }
+.ai-marcas { position: absolute; inset: 0; pointer-events: none; }
+.ai-marca-pos { position: absolute; width: 44px; height: 44px; pointer-events: auto; }
+.ai-marca-ev { display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; }
+.ai-marca-ev:hover .ai-forma, .ai-marca-ev:focus-visible .ai-forma { transform: scale(1.3); }
+.ai-forma { display: block; width: 10px; height: 10px; background: var(--ink); box-shadow: 0 0 0 2px var(--panel); transition: transform 0.12s; }
+.ai-forma.quadrado { border-radius: 2px; }
+.ai-forma.circulo { border-radius: 50%; }
+.ai-forma.losango { width: 9px; height: 9px; transform: rotate(45deg); }
+.ai-marca-ev:hover .ai-forma.losango, .ai-marca-ev:focus-visible .ai-forma.losango { transform: rotate(45deg) scale(1.3); }
+.ai-forma.triangulo { width: 12px; height: 11px; clip-path: polygon(50% 0, 100% 100%, 0 100%); box-shadow: none; }
+.ai-forma.leg { display: inline-block; margin-right: 6px; vertical-align: -1px; box-shadow: none; }
+.ai-forma.leg.losango { margin: 0 8px 0 2px; }
+/* small multiples: um gráfico por série, a mesma escala */
+.ai-multiplos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px 28px; }
+.ai-multiplos.dois { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.ai-multiplo { min-width: 0; }
+.ai-multiplo-tit { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.ai-multiplo-tit .muted { font-weight: 400; font-size: 12px; }
+.ai-multiplo .ai-fonte { display: block; margin-top: 4px; }
+/* Observação: linha de preço e régua de 52 semanas */
+.ai-ativo-val { display: inline-flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.ai-spark { display: block; }
+.ai-52 { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+.ai-52-num { font-variant-numeric: tabular-nums; }
+.ai-52-trilho { position: relative; width: 64px; height: 4px; border-radius: 2px; background: #333A48; }
+.ai-52-ponto { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--s1, #3987e5); box-shadow: 0 0 0 2px var(--panel); }
+@media (max-width: 720px) {
+  .ai-spark { width: 64px; }
+  .aion .ai-pq-abrir { min-height: 44px; }
+  .aion .ai-alvo-porque { display: inline-flex; align-items: center; min-height: 44px; }
+  .aion .mt-barra-val.ai-alvo-porque { display: flex; flex-wrap: wrap; }
+}
