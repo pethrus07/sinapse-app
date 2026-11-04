@@ -3,13 +3,15 @@ import type { Financeiro, Lancamento, Note, TipoLancamento } from '../types';
 import { dataCurta, hojeYmd, rotuloRelativo } from '../lib/agenda';
 import {
   aReceberPorCliente, brl, CATEGORIAS, agruparPorMes, clientesConhecidos, rotuloCategoria,
-  contarSaidas, estaAberto, foraDaProjecao, projetar, resumir, rotuloStatus,
+  estaAberto, resumir, rotuloStatus,
 } from '../lib/financeiro';
-import { MetisPronoia, MetisVisao } from './MetisPaginas';
+import { focoPadrao } from '../lib/financeiroModelo';
+import { MetisEntradas, MetisGastos, MetisPatrimonio, MetisPlano, MetisPronoia, MetisVisao, SeletorMes } from './MetisPaginas';
 import { FilaClassificar } from './FinanceiroAnalises';
 
 // Métis: o módulo financeiro do Sinapse (por dentro segue "financeiro": rota, pasta e formato).
-// Abas: Visão (o mês e o que já aconteceu), Pronoia (o que vem pela frente) e Lançamentos.
+// Abas no topo, cada uma com rota própria (#/financeiro/<aba>): Visão, Gastos, Entradas,
+// Patrimônio, Pronoia, Plano e Lançamentos. O mês em foco é um só para as abas que olham um mês.
 
 interface Props {
   financeiro: Financeiro;
@@ -19,10 +21,21 @@ interface Props {
   onAcao: (acao: 'liquidar' | 'reabrir' | 'remover', mes: string, id: string) => Promise<void>;
   onClassificar: (mes: string, id: string, categoria: string, lembrar: boolean) => Promise<{ lembrou: boolean; motivo?: string } | null>;
   onPontual: (mes: string, id: string, valor: boolean) => Promise<void>;
+  onNatureza: (mes: string, id: string, valor: string) => Promise<void>;
+  onOrcamento: (tetos: Record<string, string>, meta: string) => Promise<void>;
 }
 
 type Filtro = 'abertos' | 'todos';
-type Aba = 'visao' | 'pronoia' | 'lancamentos';
+type Aba = 'visao' | 'gastos' | 'entradas' | 'patrimonio' | 'pronoia' | 'plano' | 'lancamentos';
+const ABAS: { aba: Aba; rotulo: string; titulo: string; mes: boolean }[] = [
+  { aba: 'visao', rotulo: 'Visão', titulo: 'O mês num relance', mes: true },
+  { aba: 'gastos', rotulo: 'Gastos', titulo: 'Para onde foi o dinheiro', mes: true },
+  { aba: 'entradas', rotulo: 'Entradas', titulo: 'O que entra e até quando', mes: true },
+  { aba: 'patrimonio', rotulo: 'Patrimônio', titulo: 'A reserva e o investido', mes: false },
+  { aba: 'pronoia', rotulo: 'Pronoia', titulo: 'O que vem pela frente', mes: false },
+  { aba: 'plano', rotulo: 'Plano', titulo: 'Tetos e meta da reserva', mes: true },
+  { aba: 'lancamentos', rotulo: 'Lançamentos', titulo: 'Entra, sai e o que falta receber', mes: false },
+];
 const CLASSES = ['cripto', 'CDB', 'FII', 'Ação', 'outro'];
 
 const MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -47,14 +60,17 @@ const VAZIO = {
   data: '',
 };
 
-export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, onClassificar, onPontual }: Props) {
+export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, onClassificar, onPontual, onNatureza, onOrcamento }: Props) {
   const hoje = hojeYmd();
   const [form, setForm] = useState({ ...VAZIO });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('abertos');
-  // #/financeiro abre na Visão; #/financeiro/pronoia na projeção; #/financeiro/lancamentos na lista
-  const abaDoHash = (): Aba => (location.hash.includes('lancamentos') ? 'lancamentos' : location.hash.includes('pronoia') ? 'pronoia' : 'visao');
+  // #/financeiro abre na Visão; #/financeiro/<aba> abre direto na aba
+  const abaDoHash = (): Aba => {
+    const k = location.hash.replace(/^#\/financeiro\/?/, '').split(/[/?]/)[0];
+    return (ABAS.find((a) => a.aba === k)?.aba) || 'visao';
+  };
   const [aba, setAbaEstado] = useState<Aba>(abaDoHash);
   // link direto (#/financeiro/pronoia) com a Métis já aberta: segue o endereço
   useEffect(() => {
@@ -66,14 +82,21 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
     setAbaEstado(a);
     history.replaceState(null, '', a === 'visao' ? '#/financeiro' : `#/financeiro/${a}`);
   };
+  const [foco, setFoco] = useState(() => focoPadrao(financeiro.lancamentos, hoje.slice(0, 7)));
+  const [editarTetos, setEditarTetos] = useState(false);
+  const info = ABAS.find((a) => a.aba === aba)!;
+  // no celular as abas rolam de lado: a ativa precisa estar à vista
+  useEffect(() => {
+    const el = document.querySelector('.mt-abas [aria-selected="true"]') as HTMLElement | null;
+    const pai = el?.parentElement;
+    if (el && pai && (el.offsetLeft < pai.scrollLeft || el.offsetLeft + el.offsetWidth > pai.scrollLeft + pai.clientWidth))
+      pai.scrollLeft = el.offsetLeft - 16;
+  }, [aba]);
 
   const temNota = useMemo(() => new Set(notes.map((n) => n.id)), [notes]);
   const resumo = useMemo(() => resumir(financeiro.lancamentos, hoje), [financeiro.lancamentos, hoje]);
   const clientes = useMemo(() => clientesConhecidos(financeiro.lancamentos), [financeiro.lancamentos]);
   const porCliente = useMemo(() => aReceberPorCliente(financeiro.lancamentos), [financeiro.lancamentos]);
-  const projecao = useMemo(() => projetar(financeiro.lancamentos, hoje.slice(0, 7)), [financeiro.lancamentos, hoje]);
-  const contagem = useMemo(() => contarSaidas(financeiro.lancamentos), [financeiro.lancamentos]);
-  const fora = useMemo(() => foraDaProjecao(financeiro.lancamentos), [financeiro.lancamentos]);
   // categorias para a fila "a classificar": as que já existem no razão primeiro
   const categoriasUsadas = useMemo(() => {
     const cont = new Map<string, number>();
@@ -111,94 +134,28 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
 
   const eh = (l: Lancamento) => (l.tipo === 'saida' ? 'saida' : l.tipo === 'reserva' ? 'reserva' : l.tipo === 'investimento' ? 'saldo' : 'entrada');
   const seta = (k: string) => (k === 'saida' ? '↑' : k === 'reserva' ? '→' : k === 'saldo' ? '=' : '↓');
-  const tab = (a: Aba, rotulo: string, title?: string) => (
-    <button role="tab" aria-selected={aba === a} className={'proj-tab' + (aba === a ? ' active' : '')} onClick={() => setAba(a)} title={title}>{rotulo}</button>
-  );
 
+  const props = { financeiro, hoje, foco };
   return (
     <div className="pad-scroll metis">
-      <div className="ag-hero">
-        <div>
-          <div className="eyebrow-mono">Métis{aba === 'pronoia' ? ' › Pronoia' : ''}</div>
-          <h1 className="rm-title">{aba === 'pronoia' ? 'O que vem pela frente' : 'Entra, sai e o que falta receber'}</h1>
-          <p className="muted">
-            {aba === 'pronoia'
-              ? 'A renda que segue, a reserva que se forma e as faturas que já estão assumidas.'
-              : 'Direto do banco, atualizado todo dia às 17h. O que tem data aparece sozinho na agenda.'}
-          </p>
-        </div>
-        <div className="ag-tabs" role="tablist">
-          {tab('visao', 'Visão')}
-          {tab('pronoia', 'Pronoia', 'Pronoia: o que vem pela frente')}
-          {tab('lancamentos', 'Lançamentos')}
-        </div>
+      <div className="mt-topo">
+        <div className="eyebrow-mono">Métis{aba !== 'visao' ? ` › ${info.rotulo}` : ''}</div>
+        <h1 className="rm-title">{info.titulo}</h1>
+        <nav className="mt-abas" role="tablist" aria-label="Páginas da Métis">
+          {ABAS.map((a) => (
+            <button key={a.aba} role="tab" aria-selected={aba === a.aba} className={'proj-tab' + (aba === a.aba ? ' active' : '')}
+              onClick={() => { setEditarTetos(false); setAba(a.aba); }} title={a.aba === 'pronoia' ? 'Pronoia: o que vem pela frente' : undefined}>{a.rotulo}</button>
+          ))}
+        </nav>
+        {info.mes && <SeletorMes {...props} onFoco={setFoco} />}
       </div>
 
-      {aba === 'visao' && <MetisVisao financeiro={financeiro} hoje={hoje} onClassificar={() => setAba('lancamentos')} />}
-
-      {aba === 'pronoia' && (<>
-        <MetisPronoia financeiro={financeiro} hoje={hoje} />
-
-        <section className="fin-bloco mt-proj">
-          <h3>Projeção mês a mês</h3>
-          {contagem.saidas <= 1 ? (
-            <p className="fin-nota alerta">
-              <b>Esta projeção é otimista por construção.</b> Existem{' '}
-              <b>{contagem.entradas} entradas</b> e <b>{contagem.saidas} saída(s)</b> lançadas, ou seja,
-              o lado do gasto praticamente não existe aqui. Cartão, contas, transporte e assinaturas
-              não estão no sistema, então o acumulado abaixo é <b>teto</b>, não previsão. Não decidir
-              adiantamento de cartão com este número.
-            </p>
-          ) : (
-            <p className="muted small">
-              Só o que está <b>aberto</b>: o que já foi pago ou recebido saiu do futuro. Item <b>sem dia</b> (marcado
-              <span className="fin-semdia">sem dia</span>) conta no mês do arquivo onde vive: cartão sem
-              dia ainda é cartão daquele mês. <b>Guarda</b> não é gasto, é destinação: sai do
-              disponível e vira reserva.
-            </p>
-          )}
-          {fora.itens > 0 && (
-            <p className="muted small">
-              <b>Fora da projeção:</b> {fora.itens} item(ns) sem cronograma,{' '}
-              {brl(fora.receber)} a receber e {brl(fora.pagar)} a pagar. Não pertencem a mês nenhum
-              (dívida sem prazo, valor ou data ainda a combinar), então não distorcem o fluxo.
-            </p>
-          )}
-          <div className="mt-rolagem">
-            <table className="fin-tabela fin-proj">
-              <thead>
-                <tr>
-                  <th>mês</th>
-                  <th className="num">entra</th>
-                  <th className="num">sai</th>
-                  <th className="num">guarda</th>
-                  <th className="num">sobra</th>
-                  <th className="num">reserva acum.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projecao.map((l) => (
-                  <tr key={l.mes} className={l.mes === hoje.slice(0, 7) ? 'hoje' : ''}>
-                    <td className="ag-td-data">
-                      {rotuloMes(l.mes)}
-                      <span className="muted"> {l.itens}</span>
-                      {l.semDia > 0 && <span className="fin-semdia" title="itens sem dia definido, projetados no mês do arquivo">{l.semDia} sem dia</span>}
-                    </td>
-                    <td className="num entrada">{l.entra ? brl(l.entra) : '—'}</td>
-                    <td className="num saida">{l.sai ? brl(l.sai) : '—'}</td>
-                    <td className="num guarda">{l.guarda ? brl(l.guarda) : '—'}</td>
-                    <td className={'num ' + (l.sobra >= 0 ? 'entrada' : 'saida')}>{brl(l.sobra)}</td>
-                    <td className="num forte">{brl(l.reservaAcum)}</td>
-                  </tr>
-                ))}
-                {!projecao.length && (
-                  <tr><td colSpan={6} className="muted">Nada aberto com data à frente.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </>)}
+      {aba === 'visao' && <MetisVisao {...props} onClassificar={() => setAba('lancamentos')} />}
+      {aba === 'gastos' && <MetisGastos {...props} onNatureza={(l, v) => onNatureza(l.mes, l.id, v)} onPlano={() => { setEditarTetos(true); setAba('plano'); }} />}
+      {aba === 'entradas' && <MetisEntradas {...props} />}
+      {aba === 'patrimonio' && <MetisPatrimonio {...props} />}
+      {aba === 'pronoia' && <MetisPronoia {...props} />}
+      {aba === 'plano' && <MetisPlano key={String(editarTetos)} {...props} onOrcamento={onOrcamento} editarAoAbrir={editarTetos} />}
 
       {aba === 'lancamentos' && (<>
 

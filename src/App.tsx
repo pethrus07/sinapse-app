@@ -20,7 +20,7 @@ import { SkillTreeView } from './components/SkillTreeView';
 import { AgendaView } from './components/AgendaView';
 import { FinanceiroView } from './components/FinanceiroView';
 import { NoteEditor } from './components/NoteEditor';
-import { acaoFinanceiro, buscarIndice, buscarVersao, classificarFinanceiro, criarDaily, lancarFinanceiro, pontualFinanceiro, setProgress } from './lib/api';
+import { acaoFinanceiro, buscarIndice, buscarVersao, classificarFinanceiro, criarDaily, lancarFinanceiro, pontualFinanceiro, naturezaFinanceiro, salvarOrcamento, setProgress } from './lib/api';
 import { corpoDaDaily, normalizar } from './lib/agenda';
 import { normalizarFin } from './lib/financeiro';
 import { areaLabel, colorForArea } from './lib/colors';
@@ -182,6 +182,19 @@ export default function App() {
     return (idx as { lembrete?: { lembrou: boolean; motivo?: string } }).lembrete || null;
   }
 
+  async function handleNatureza(mes: string, id: string, valor: string) {
+    try {
+      applyIndex(await naturezaFinanceiro(mes, id, valor));
+    } catch (e) {
+      alert('Nao deu pra salvar: ' + (e as Error).message);
+    }
+  }
+
+  // o erro sobe para o formulário de tetos mostrar (não usa alert)
+  async function handleOrcamento(tetos: Record<string, string>, meta: string) {
+    applyIndex(await salvarOrcamento(tetos, meta));
+  }
+
   async function handlePontual(mes: string, id: string, valor: boolean) {
     try {
       applyIndex(await pontualFinanceiro(mes, id, valor));
@@ -265,6 +278,8 @@ export default function App() {
         onAcao={handleAcaoFin}
         onClassificar={handleClassificar}
         onPontual={handlePontual}
+        onNatureza={handleNatureza}
+        onOrcamento={handleOrcamento}
       />
     );
   } else if (route.type === 'skills') {

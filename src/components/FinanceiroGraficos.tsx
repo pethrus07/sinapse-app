@@ -125,7 +125,8 @@ export function Cartao({ titulo, leitura, children, mais, className = '', id }: 
   );
 }
 
-export const COR = { entra: 'var(--s1)', sai: 'var(--s2)', guarda: 'var(--s3)' } as const;
+// guarda = violeta (slot 7): o verde (slot 3) é "pontual" nas páginas de gasto da Métis v2
+export const COR = { entra: 'var(--s1)', sai: 'var(--s2)', guarda: 'var(--s7)' } as const;
 export const SLOTS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
 export const LEVE = 0.38; // previsto / extrapolado: o mesmo tom, mais claro
 /**
@@ -137,95 +138,6 @@ export const fracoSvg = (cor: string, k: number = LEVE) => ({ fill: cor, fillOpa
 export const fracoCss = (cor: string, k: number = LEVE): React.CSSProperties => ({
   background: `color-mix(in srgb, ${cor} ${Math.round(k * 100)}%, transparent)`, boxShadow: `inset 0 0 0 1.5px ${cor}`,
 });
-
-/* ---------------------------------------------------------------- 1 · fluxo do mês */
-
-function FluxoGrafico({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: string }) {
-  const [ref, w] = useLargura<HTMLDivElement>();
-  const { d, mostrar, esconder } = useDica(ref);
-  const H = 230;
-  const tipos = ['entra', 'sai', 'guarda'] as const;
-  const nome = { entra: 'Entra', sai: 'Sai', guarda: 'Guarda' };
-  const max = Math.max(1, ...linhas.flatMap((l) => tipos.map((t) => l[t].realizado + l[t].previsto)));
-  const y = scaleLinear().domain([0, max]).nice(4).range([H - M.bottom, M.top]);
-  const x = scaleBand().domain(linhas.map((l) => l.mes)).range([M.left, Math.max(w - M.right, M.left + 1)]).paddingInner(0.28).paddingOuter(0.1);
-  const gap = 2;
-  const bw = Math.min(24, (x.bandwidth() - gap * 2) / 3);
-  const grupo = bw * 3 + gap * 2;
-  return (
-    <div ref={ref} className="fg-plot" onPointerLeave={esconder}>
-      {w > 0 && (
-        <svg width={w} height={H} role="img" aria-label="Entradas, saídas e reserva por mês, realizado e previsto">
-          <EixoY y={y} largura={w} />
-          {linhas.map((l, i) => {
-            const x0 = (x(l.mes) || 0) + (x.bandwidth() - grupo) / 2;
-            return (
-              <g key={l.mes}>
-                {tipos.map((t, k) => {
-                  const r = l[t].realizado, p = l[t].previsto;
-                  const bx = x0 + k * (bw + gap);
-                  const yR = y(r), yT = y(r + p);
-                  const info = { titulo: `${nome[t]} · ${curto(l.mes)}`, linhas: [
-                    { cor: COR[t], rotulo: 'realizado', valor: brl(r) },
-                    { cor: COR[t], rotulo: 'previsto', valor: brl(p), leve: true },
-                  ] };
-                  return (
-                    <g key={t} className="fg-hit" tabIndex={0} aria-label={`${nome[t]} em ${curto(l.mes)}: realizado ${brl(r)}, previsto ${brl(p)}`}
-                      onPointerMove={(e) => mostrar(e, null, info)} onFocus={(e) => mostrar(null, e.currentTarget, info)} onBlur={esconder}>
-                      <rect x={bx - 1} y={M.top} width={bw + 2} height={H - M.top - M.bottom} fill="transparent" />
-                      {/* previsto em cima do realizado; o vão de 2 px é a cor do fundo */}
-                      <path d={r > 0 ? colunaPath(bx, yR, bw, y(0) - yR, p > 0 ? 0 : 4) : ''} fill={COR[t]} />
-                      <path d={p > 0 ? colunaPath(bx, yT, bw, Math.max(0, yR - yT - (r > 0 ? gap : 0))) : ''} {...fracoSvg(COR[t])} />
-                    </g>
-                  );
-                })}
-                <text className={'fg-xtick' + (l.mes === hojeMes ? ' hoje' : '')} x={(x(l.mes) || 0) + x.bandwidth() / 2} y={H - 8} textAnchor="middle">{tick(l.mes, i)}</text>
-              </g>
-            );
-          })}
-        </svg>
-      )}
-      <Dica d={d} largura={w} />
-    </div>
-  );
-}
-
-export function Fluxo({ linhas, hojeMes }: { linhas: LinhaFluxo[]; hojeMes: string }) {
-  const agora = linhas.find((l) => l.mes === hojeMes);
-  const soma = (p: { realizado: number; previsto: number }) => p.realizado + p.previsto;
-  const sobra = agora ? soma(agora.entra) - soma(agora.sai) - soma(agora.guarda) : 0;
-  return (
-    <Cartao id="fluxo" className="largo" titulo="Fluxo do mês"
-      leitura={agora
-        ? <>Em {longo(hojeMes)} entram <b>{brl(soma(agora.entra))}</b>, saem <b>{brl(soma(agora.sai))}</b> e {brl(soma(agora.guarda))} vão para a reserva. Sobra <b>{brl(sobra)}</b>.</>
-        : 'Nada lançado no mês de hoje.'}
-      mais={
-        <>
-          <p className="fg-explica">O que já foi pago ou recebido conta no mês em que o dinheiro mexeu; o que segue aberto conta no mês do vencimento. Item sem cronograma fica fora.</p>
-          <table className="fg-tabela">
-            <thead><tr><th>mês</th><th>entra</th><th>sai</th><th>guarda</th></tr></thead>
-            <tbody>
-              {linhas.map((l) => (
-                <tr key={l.mes} className={l.mes === hojeMes ? 'hoje' : ''}>
-                  <td>{curto(l.mes)}</td>
-                  {(['entra', 'sai', 'guarda'] as const).map((t) => (
-                    <td key={t} className="num">{num(l[t].realizado)} <span className="muted">+ {num(l[t].previsto)}</span></td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="fg-explica">Em cada célula: realizado + previsto, em reais.</p>
-        </>
-      }>
-      <Legenda itens={[
-        { cor: COR.entra, rotulo: 'Entra' }, { cor: COR.sai, rotulo: 'Sai' }, { cor: COR.guarda, rotulo: 'Guarda' },
-        { cor: 'var(--soft)', rotulo: 'forte = realizado' }, { cor: 'var(--soft)', rotulo: 'fraco = previsto', leve: LEVE },
-      ]} />
-      <FluxoGrafico linhas={linhas} hojeMes={hojeMes} />
-    </Cartao>
-  );
-}
 
 /* ------------------------------------------------------ 2 · receita por cliente */
 
@@ -374,39 +286,6 @@ export function Reserva({ r, hojeMes }: { r: ReturnType<typeof reservaAcumulada>
         )}
         <Dica d={d} largura={w} />
       </div>
-    </Cartao>
-  );
-}
-
-/* ----------------------------------------------------------- 4 · a receber vencido */
-
-export function Vencido({ v }: { v: ReturnType<typeof aReceberVencido> }) {
-  const total = v.reduce((s, c) => s + c.total, 0);
-  const max = Math.max(1, ...v.map((c) => c.total));
-  return (
-    <Cartao id="vencido" titulo="A receber vencido"
-      leitura={v.length
-        ? <><span aria-hidden>⚠ </span><b>{brl(total)}</b> com vencimento passado e ainda aberto, de {v.length} {v.length === 1 ? 'origem' : 'origens'}. Se já entrou, é só marcar como recebido.</>
-        : 'Nada vencido em aberto.'}
-      mais={v.length ? (
-        <table className="fg-tabela">
-          <thead><tr><th>origem</th><th>o quê</th><th>venceu</th><th className="num">dias</th><th className="num">R$</th></tr></thead>
-          <tbody>{v.flatMap((c) => c.itens.map((i, k) => (
-            <tr key={c.cliente + k}><td>{k === 0 ? c.cliente : ''}</td><td>{i.descricao}</td><td>{i.vencimento.split('-').reverse().join('/')}</td><td className="num">{i.dias}</td><td className="num">{num(i.valor)}</td></tr>
-          )))}</tbody>
-        </table>
-      ) : undefined}>
-      {v.length > 0 && (
-        <ul className="fg-barras" aria-label="A receber vencido por origem">
-          {v.map((c) => (
-            <li key={c.cliente} tabIndex={0} title={`${c.cliente}: ${brl(c.total)}, há ${c.diasMax} dias`}>
-              <span className="fg-barra-nome">{c.cliente}</span>
-              <span className="fg-barra-trilho"><span className="fg-barra vencido" style={{ width: `${(c.total / max) * 100}%` }} /></span>
-              <span className="fg-barra-val"><b>{brl(c.total)}</b> <span className="muted">há {c.diasMax} {c.diasMax === 1 ? 'dia' : 'dias'}</span></span>
-            </li>
-          ))}
-        </ul>
-      )}
     </Cartao>
   );
 }

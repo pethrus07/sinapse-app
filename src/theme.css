@@ -930,3 +930,123 @@ button.fr-nome:hover { color: var(--accent); }
 .metis :is(button, a[href], summary, input, select, textarea, [tabindex="0"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .metis .fg-hit:focus-visible { outline: none; }
 .metis .fg-hit:focus-visible rect { stroke: var(--accent); stroke-width: 2; }
+
+/* ---------- Métis v2 (04/11/2026) ----------
+   Cores por papel, validadas com o script da skill dataviz contra o fundo do cartão #11141C:
+   natureza fixo/variável/pontual = --s1/--s2/--s3 (CVD 9,4, visão normal 26,5, >= 3:1);
+   mês anterior = cinza #666d7d (dE 16,1 do --s1, >= 3:1; cinza de propósito: é a ênfase);
+   "falta" = passo 600 da rampa azul #184f95 (trilho mais escuro do mesmo tom);
+   negativo = --s8 #e66767 (polaridade com o --s1: dE 29); estado (abaixo do piso, acima do teto)
+   sai com ícone + texto, nunca só a cor. */
+.metis {
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --mt-anterior: #666d7d; --mt-falta: #184f95; --mt-neg: #e66767;
+  --st-bom: #0ca30c; --st-alerta: #fab219; --st-serio: #ec835a;
+}
+.mt-topo { margin-bottom: 22px; max-width: 1280px; }
+.mt-topo .rm-title { margin: 6px 0 16px; }
+.mt-abas { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 2px; margin: 0 -2px 18px; }
+.mt-abas::-webkit-scrollbar { display: none; }
+.mt-abas .proj-tab { border-radius: 9px; border: 1px solid transparent; background: transparent; white-space: nowrap; flex-shrink: 0; margin: 0; }
+.mt-abas .proj-tab.active { background: var(--panel); border-color: var(--line); }
+.mt-seletor { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mt-seta { width: 34px; height: 34px; border-radius: 999px; border: none; background: var(--panel); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+.mt-seta:disabled { opacity: 0.35; cursor: default; }
+.mt-seletor-mes { font-size: 17px; font-weight: 600; min-width: 170px; text-align: center; }
+.mt-seletor-tag { font-size: 12.5px; color: var(--faint); margin-left: 6px; }
+.mt-numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; max-width: 1280px; margin: 0 0 24px; }
+.mt-numeros-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.mt-num { display: flex; flex-direction: column; gap: 6px; background: var(--panel); border-radius: 16px; padding: 22px 24px; min-width: 0; }
+.mt-numeros-2 .mt-num { background: transparent; padding: 0; }
+.mt-num-rot { font-size: 13px; color: var(--soft); }
+.mt-num-val { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; }
+.mt-num-sub { font-size: 12.5px; color: var(--faint); line-height: 1.4; }
+.mt-icone { color: var(--st-alerta); font-size: 0.7em; vertical-align: 0.15em; }
+.mt-medidor { height: 8px; border-radius: 999px; background: #1E2330; overflow: hidden; margin: 4px 0 2px; }
+.mt-medidor span { display: block; height: 100%; border-radius: 999px; background: var(--st-bom); }
+.mt-medidor.abaixo span { background: var(--st-alerta); }
+.mt-avisos { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; max-width: 1280px; }
+.mt-avisos .fg-aviso { margin: 0; }
+.mt-mais-avisos { margin-top: 0; }
+.mt-mais-avisos .mt-avisos { margin: 8px 0 0; }
+.mt-barras, .mt-pares, .mt-dif, .mt-tempo-linhas { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.mt-barra { width: 100%; display: grid; grid-template-columns: minmax(90px, 34%) 1fr; grid-template-areas: "nome val" "trilho trilho"; gap: 6px 12px; padding: 0; background: none; border: none; color: inherit; font: inherit; text-align: left; outline: none; }
+button.mt-barra { cursor: pointer; }
+.mt-barra-nome, .mt-dif-nome { grid-area: nome; font-size: 13px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-barra-val { grid-area: val; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0 8px; }
+.mt-barra-trilho { grid-area: trilho; position: relative; display: flex; gap: 2px; height: 10px; }
+.mt-seg { display: block; height: 10px; min-width: 0; }
+.mt-barra-trilho .mt-seg:last-of-type, .mt-par-trilho .mt-seg { border-radius: 0 4px 4px 0; }
+.mt-marcador { position: absolute; top: -4px; width: 2px; height: 18px; background: var(--ink); border-radius: 1px; transform: translateX(-1px); }
+.mt-barra:hover .mt-seg, .mt-barra:focus-visible .mt-seg, .mt-pares li:hover .mt-seg, .mt-pares li:focus .mt-seg, .mt-tempo-linhas li:hover .mt-tempo-barra { filter: brightness(1.18); }
+.mt-estado { color: var(--st-serio); font-size: 12.5px; }
+.mt-pares li { display: grid; grid-template-columns: 90px 1fr; grid-template-rows: auto auto; gap: 4px 14px; outline: none; }
+.mt-par-nome { grid-row: span 2; font-size: 13px; color: var(--soft); align-self: center; }
+.mt-par-linha { display: grid; grid-template-columns: 1fr 112px; gap: 10px; align-items: center; }
+.mt-par-trilho { display: block; height: 10px; }
+.mt-par-linha.fraca .mt-par-trilho, .mt-par-linha.fraca .mt-seg { height: 6px; }
+.mt-par-val { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mt-par-linha.fraca .mt-par-val { color: var(--faint); font-size: 12px; }
+.mt-dif-eixo { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin: 0 0 6px; }
+.mt-dif li { display: grid; grid-template-columns: minmax(90px, 34%) 1fr; grid-template-areas: "nome val" "trilho trilho"; gap: 6px 12px; outline: none; }
+.mt-dif-val { grid-area: val; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mt-dif-trilho { grid-area: trilho; position: relative; height: 10px; background: linear-gradient(#333A48, #333A48) center / 1px 100% no-repeat; }
+.mt-dif-barra { position: absolute; top: 0; height: 10px; background: var(--soft); }
+.mt-dif-barra.mais { border-radius: 0 4px 4px 0; }
+.mt-dif-barra.menos { border-radius: 4px 0 0 4px; }
+.mt-dif li:hover .mt-dif-barra, .mt-dif li:focus .mt-dif-barra { background: var(--ink); }
+.mt-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 22px 32px; }
+.mt-grupo-tit { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--soft); }
+.mt-grupo-tit b { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+.mt-cat-grupo summary { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; cursor: pointer; list-style: none; font-size: 13.5px; border-top: 1px solid var(--line-soft); }
+.mt-cat-grupo summary::-webkit-details-marker { display: none; }
+.mt-cat-grupo summary b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.mt-cat-grupo[open] summary { color: var(--ink); }
+.mt-itens { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mt-itens li { display: grid; grid-template-columns: 44px 1fr auto; grid-template-areas: "dia desc val" ". nat nat"; gap: 2px 10px; font-size: 12.5px; align-items: baseline; }
+.mt-itens li > :nth-child(1) { grid-area: dia; }
+.mt-itens li > :nth-child(2) { grid-area: desc; }
+.mt-itens li > :nth-child(3) { grid-area: val; font-variant-numeric: tabular-nums; font-weight: 500; }
+.mt-itens select { grid-area: nat; justify-self: start; background: var(--panel2); border: none; color: var(--soft); border-radius: 8px; padding: 3px 6px; font: inherit; font-size: 12px; }
+.mt-tempo-eixo { position: relative; height: 16px; margin: 0 0 8px; }
+.mt-tempo-eixo span { position: absolute; font-size: 11px; color: var(--faint); white-space: nowrap; }
+.mt-tempo-eixo span.hoje { color: var(--ink); font-weight: 700; }
+.mt-tempo-linhas li { display: grid; grid-template-columns: minmax(90px, 34%) 1fr; grid-template-areas: "nome val" "trilho trilho"; gap: 6px 12px; outline: none; }
+.mt-tempo-trilho { grid-area: trilho; position: relative; height: 10px; background: linear-gradient(90deg, #1E2330, #1E2330) 0 50% / 100% 1px no-repeat; }
+.mt-tempo-barra { position: absolute; top: 0; height: 10px; background: var(--s1); border-radius: 4px; }
+.mt-tempo-barra.segue { border-radius: 4px 0 0 4px; }
+.mt-ver { margin-top: 12px; display: inline-block; }
+.mt-semteto { margin-top: 14px; }
+.mt-embreve .fg-leitura { margin-bottom: 4px; color: var(--soft); }
+.mt-tag { font-size: 11px; font-weight: 600; color: var(--faint); background: var(--panel2); border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+.mt-botao { margin-top: 16px; font: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 10px; border: none; background: rgba(44,212,192,0.12); color: var(--ink); cursor: pointer; }
+.mt-botao:hover { background: rgba(44,212,192,0.2); }
+.mt-botao.fraco { background: var(--panel2); font-weight: 500; }
+.mt-botao:disabled { opacity: 0.6; }
+.mt-editor-lista { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px 32px; }
+.mt-editor-lista li { display: grid; grid-template-columns: 1fr 120px; grid-template-areas: "rot input" "ref input"; gap: 0 12px; align-items: center; }
+.mt-editor-lista label { grid-area: rot; font-size: 13.5px; }
+.mt-editor-ref { grid-area: ref; font-size: 12px; }
+.mt-editor-lista input, .mt-editor-linha input, .mt-editor-meta input { grid-area: input; background: var(--panel2); border: 1px solid var(--line); color: var(--ink); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13.5px; width: 100%; min-width: 0; text-align: right; }
+.mt-editor-linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.mt-editor-linha input { width: 200px; text-align: left; }
+.mt-editor-linha .mt-botao { margin-top: 0; }
+.mt-editor-meta { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: center; font-size: 13.5px; margin-top: 18px; max-width: 520px; }
+.mt-fila.vazia h3 { margin-bottom: 2px; }
+@media (max-width: 1100px) { .mt-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .mt-numeros { gap: 12px; }
+  .mt-numeros-2 { grid-template-columns: 1fr; gap: 20px; }
+  .mt-num { padding: 16px; border-radius: 14px; }
+  .mt-num-val { font-size: 21px; }
+  .mt-seletor-mes { min-width: 0; flex: 1; font-size: 16px; }
+  .metis .mt-seta { width: 44px; height: 44px; }
+  .mt-seletor-tag { width: 100%; margin: 0; text-align: center; }
+  .mt-pares li { grid-template-columns: 1fr; }
+  .mt-par-nome { grid-row: auto; }
+  .mt-par-linha { grid-template-columns: 1fr 96px; }
+  .metis .mt-itens select { min-height: 44px; }
+  .mt-editor-meta { grid-template-columns: 1fr; }
+  .metis .mt-cat-grupo summary { min-height: 44px; align-items: center; }
+}
