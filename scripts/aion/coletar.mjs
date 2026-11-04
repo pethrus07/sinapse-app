@@ -17,7 +17,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, append
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  buscarCopom, buscarCotacoes, buscarCripto, buscarCvm, buscarFocus, buscarSgs, decisoesDaSelic, ipca12m, limitador, proximaReuniao, semSegredo, SERIES,
+  buscarCopom, buscarCotacoes, buscarCripto, buscarCvm, buscarFocus, buscarFocusHistorico, buscarSgs, decisoesDaSelic, ipca12m, limitador, mensalDeDiaria, proximaReuniao, semSegredo, SERIES,
 } from './fontes.mjs';
 import { BASE_AION, lerChave } from './credencial.mjs';
 
@@ -97,8 +97,8 @@ export async function coletar({ pegar = fetch, anterior = null, hoje = hojeSP(),
         const s = await buscarSgs(pegar, lim, k);
         const ult = s.pontos[s.pontos.length - 1];
         const base = { fonte: s.fonte, nome: s.nome, url: s.url, em: agora };
-        if (k === 'selicMeta') m.bcb.selicMeta = { ...base, valor: ult?.valor ?? null, data: ult?.data || '', decisoes: decisoesDaSelic(s.pontos).slice(-12) };
-        else if (k === 'ipcaMensal') m.bcb.ipca = { ...base, mensal: s.pontos.slice(-24), doze: ipca12m(s.pontos), ultimo: ult || null };
+        if (k === 'selicMeta') m.bcb.selicMeta = { ...base, valor: ult?.valor ?? null, data: ult?.data || '', decisoes: decisoesDaSelic(s.pontos).slice(-24), mensal: mensalDeDiaria(s.pontos).slice(-60) };
+        else if (k === 'ipcaMensal') m.bcb.ipca = { ...base, mensal: s.pontos.slice(-72), doze: ipca12m(s.pontos), ultimo: ult || null };
         else if (k === 'cdiMensal') m.bcb.cdiMensal = { ...base, pontos: s.pontos.slice(-72) };
         else if (k === 'cdiAnual') m.bcb.cdi = { ...base, valor: ult?.valor ?? null, data: ult?.data || '' };
         else if (k === 'dolar') m.bcb.dolar = { ...base, valor: ult?.valor ?? null, data: ult?.data || '', pontos: s.pontos.slice(-30) };
@@ -106,7 +106,9 @@ export async function coletar({ pegar = fetch, anterior = null, hoje = hojeSP(),
     }
   }
   if (quer('focus')) {
-    try { m.focus = { ...(await buscarFocus(pegar, lim, Number(hoje.slice(0, 4)))), em: agora }; } catch (e) { falhou('focus', e); }
+    try { m.focus = { ...(m.focus || {}), ...(await buscarFocus(pegar, lim, Number(hoje.slice(0, 4)))), em: agora }; } catch (e) { falhou('focus', e); }
+    // a evolução semana a semana (IPCA e Selic, ano corrente e o próximo); falhou: fica a de antes
+    try { if (m.focus) m.focus.historico = { ...(await buscarFocusHistorico(pegar, lim, hoje)), em: agora }; } catch (e) { falhou('focus:historico', e); }
   }
   if (quer('copom')) {
     try {
@@ -152,7 +154,8 @@ function resumo(m) {
   if (m.copom) l.push(`Copom: última ${m.copom.decisoes[0]?.numero}ª (${m.copom.decisoes[0]?.data}) "${m.copom.decisoes[0]?.titulo}"; próxima ${m.copom.proxima.numero}ª ${m.copom.proxima.dias || '(data não cadastrada)'}`);
   if (m.cotacoes) l.push(`cotações: ${Object.keys(m.cotacoes.porCodigo).join(', ') || 'nenhuma'}${m.cotacoes.semToken.length ? ` · sem token da brapi: ${m.cotacoes.semToken.join(', ')}` : ''}`);
   if (m.cripto) l.push(`cripto: ${Object.keys(m.cripto.porCodigo).join(', ')} (${m.cripto.citar})`);
-  if (m.cvm) l.push(`CVM: ${m.cvm.fatos.length} fatos relevantes desde 120 dias · sem empresa: ${m.cvm.semEmpresa.join(', ') || 'nenhum'}`);
+  if (m.focus?.historico) l.push(`Focus semana a semana desde ${m.focus.historico.desde}: ${Object.values(m.focus.historico.porIndicador || {}).flatMap((x) => Object.values(x)).map((s) => s.length).join('/')} semanas`);
+  if (m.cvm) l.push(`CVM: ${m.cvm.fatos.length} fatos relevantes desde 120 dias · ${(m.cvm.resultados || []).length} resultados · ${Object.keys(m.cvm.fiis || {}).length} FII com informe · sem empresa: ${m.cvm.semEmpresa.join(', ') || 'nenhum'}`);
   for (const e of m.erros) l.push(`ERRO ${e.fonte}: ${e.erro}`);
   return l.join('\n');
 }

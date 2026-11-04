@@ -24,7 +24,7 @@ export const BRAPI_SEM_TOKEN = ['PETR4', 'MGLU3', 'VALE3', 'ITUB4'];
 
 /* SGS: os códigos que o Aion usa (conferidos em 04/11/2026 contra a API do BC). */
 export const SERIES = {
-  selicMeta: { codigo: 432, nome: 'Selic meta (% a.a.)', dias: 800 },
+  selicMeta: { codigo: 432, nome: 'Selic meta (% a.a.)', dias: 1900 }, // ~5 anos: o gráfico da Economia
   cdiAnual: { codigo: 4389, nome: 'CDI anualizado base 252 (% a.a.)', dias: 15 },
   cdiMensal: { codigo: 4391, nome: 'CDI acumulado no mês (%)', dias: 2200 },
   ipcaMensal: { codigo: 433, nome: 'IPCA mensal (%)', dias: 2200 },
@@ -112,7 +112,49 @@ export function ipca12m(pontos) {
   return Math.round((ult.reduce((f, p) => f * (1 + p.valor / 100), 1) - 1) * 10000) / 100;
 }
 
+/** Série diária → mensal: o último valor de cada mês (data = AAAA-MM-01). Para o gráfico da Selic. */
+export function mensalDeDiaria(pontos) {
+  const porMes = new Map();
+  for (const p of pontos || []) porMes.set(p.data.slice(0, 7), p.valor);
+  return [...porMes.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([m, valor]) => ({ data: `${m}-01`, valor }));
+}
+
 const INDICADORES_FOCUS = ['IPCA', 'Selic', 'PIB Total', 'Câmbio'];
+
+/** Segunda-feira da semana de uma data AAAA-MM-DD (chave da semana). */
+const semanaDe = (d) => { const t = new Date(d + 'T12:00:00Z'); const k = (t.getUTCDay() + 6) % 7; return new Date(t.getTime() - k * 86400000).toISOString().slice(0, 10); };
+
+/**
+ * Histórico semanal das medianas do Focus: para cada indicador e ano de referência, o último valor
+ * publicado em cada semana (o Focus sai às segundas com o dado da sexta; a API tem um por dia útil).
+ * { IPCA: { '2030': [{ data, mediana }] } }, do mais velho para o mais novo.
+ */
+export function semanalDoFocus(valores, indicadores, anos) {
+  const out = {};
+  const ultimo = new Map();
+  for (const v of valores || []) {
+    if (!indicadores.includes(v.Indicador) || !anos.includes(String(v.DataReferencia)) || Number(v.baseCalculo || 0) !== 0) continue;
+    const mediana = num(v.Mediana);
+    if (mediana === null || !v.Data) continue;
+    const chave = `${v.Indicador}|${v.DataReferencia}|${semanaDe(v.Data)}`;
+    const ja = ultimo.get(chave);
+    if (!ja || v.Data > ja.data) ultimo.set(chave, { ind: v.Indicador, ano: String(v.DataReferencia), data: v.Data, mediana });
+  }
+  for (const x of ultimo.values()) ((out[x.ind] = out[x.ind] || {})[x.ano] = out[x.ind][x.ano] || []).push({ data: x.data, mediana: x.mediana });
+  for (const ind of Object.values(out)) for (const ano of Object.keys(ind)) ind[ano].sort((a, b) => a.data.localeCompare(b.data));
+  return out;
+}
+
+/** Medianas do Focus (IPCA e Selic, ano corrente e o próximo) semana a semana, no último ano. */
+export async function buscarFocusHistorico(pegar, lim, hoje) {
+  const ano = Number(hoje.slice(0, 4));
+  const anos = [String(ano), String(ano + 1)];
+  const desde = `${ano - 1}${hoje.slice(4, 10)}`;
+  const filtro = `(Indicador eq 'IPCA' or Indicador eq 'Selic') and baseCalculo eq 0 and Data ge '${desde}' and (${anos.map((a) => `DataReferencia eq '${a}'`).join(' or ')})`;
+  const url = `${URL_OLINDA}/ExpectativasMercadoAnuais?$top=2000&$orderby=Data%20desc&$format=json&$select=Indicador,Data,DataReferencia,Mediana,baseCalculo&$filter=${encodeURIComponent(filtro)}`;
+  const j = await json(pegar, lim, url);
+  return { desde, anos, porIndicador: semanalDoFocus(j.value, ['IPCA', 'Selic'], anos) };
+}
 
 /** Mediana do Focus por indicador e ano, da data mais recente publicada (base de cálculo 0 = todos os respondentes). */
 export function lerFocusAnual(valores, anos) {
@@ -305,15 +347,96 @@ export function fatosRelevantes(linhasIpe, mapa, hoje, dias = 120) {
     .slice(0, 40);
 }
 
+/**
+ * Divulgação de resultado (IPE, "Dados Econômico-Financeiros" › "Press-release"): o dia em que a
+ * companhia contou o resultado do trimestre. Vira marcador no gráfico de preço. Mais novo primeiro.
+ */
+export function resultadosDivulgados(linhasIpe, mapa, hoje, dias = 400) {
+  const porCnpj = new Map(Object.entries(mapa).map(([t, v]) => [v.cnpj, t]));
+  const desde = new Date(Date.parse(hoje + 'T12:00:00Z') - dias * 86400000).toISOString().slice(0, 10);
+  const vistos = new Set();
+  return linhasIpe
+    .filter((l) => l.Categoria === 'Dados Econômico-Financeiros' && /press.?release/i.test(l.Tipo || '') && porCnpj.has(l.CNPJ_Companhia) && String(l.Data_Entrega) >= desde)
+    .map((l) => ({ codigo: porCnpj.get(l.CNPJ_Companhia), data: String(l.Data_Entrega).slice(0, 10), assunto: String(l.Assunto || 'Resultado').slice(0, 200), url: String(l.Link_Download || '') }))
+    .filter((r) => { const k = `${r.codigo}|${r.data}`; if (vistos.has(k)) return false; vistos.add(k); return true; })
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .slice(0, 40);
+}
+
+/** O que a companhia faz, pelo formulário cadastral (FCA geral): setor e descrição da atividade. */
+export function perfilDasEmpresas(linhasGeral, mapa) {
+  const porCnpj = new Map(Object.entries(mapa).map(([t, v]) => [v.cnpj, t]));
+  const out = {};
+  for (const l of linhasGeral) {
+    const t = porCnpj.get(l.CNPJ_Companhia);
+    if (!t) continue;
+    out[t] = { setor: String(l.Setor_Atividade || '').trim(), atividade: String(l.Descricao_Atividade || '').trim().slice(0, 300) };
+  }
+  return out;
+}
+
+/**
+ * FII: o informe mensal da CVM (geral + complemento) liga o código de negociação pelo ISIN (as 4
+ * letras do código: ABCD11 → BRABCDCTF...). Do mês mais recente: nome, segmento de atuação, valor
+ * patrimonial da cota e o dividend yield do mês (que a CVM dá em fração; aqui em %).
+ */
+export function perfilDosFiis(linhasGeral, linhasComplemento, tickers) {
+  const quero = new Map(tickers.filter((t) => /^[A-Z]{4}11[A-Z]?$/.test(t)).map((t) => [t.slice(0, 4), t]));
+  const out = {};
+  const recente = new Map();
+  for (const l of linhasGeral) {
+    const isin = String(l.Codigo_ISIN || '').toUpperCase();
+    const m = /^BR([A-Z]{4})CTF/.exec(isin);
+    if (!m || !quero.has(m[1])) continue;
+    const t = quero.get(m[1]);
+    if ((recente.get(t)?.Data_Referencia || '') > l.Data_Referencia) continue;
+    recente.set(t, l);
+  }
+  const compl = new Map();
+  for (const l of linhasComplemento) {
+    const k = `${l.CNPJ_Fundo_Classe}|${l.Data_Referencia}`;
+    compl.set(k, l);
+  }
+  const pct = (v) => { const x = Number(String(v ?? '').replace(',', '.')); return v !== '' && Number.isFinite(x) ? Math.round(x * 10000) / 100 : null; };
+  for (const [t, l] of recente) {
+    const c = compl.get(`${l.CNPJ_Fundo_Classe}|${l.Data_Referencia}`) || {};
+    out[t] = {
+      nome: String(l.Nome_Fundo_Classe || '').trim(), segmento: String(l.Segmento_Atuacao || '').trim(), mandato: String(l.Mandato || '').trim(),
+      gestao: String(l.Tipo_Gestao || '').trim(), mes: String(l.Data_Referencia || '').slice(0, 7),
+      vpCota: num(c.Valor_Patrimonial_Cotas), dyMes: pct(c.Percentual_Dividend_Yield_Mes),
+    };
+  }
+  return out;
+}
+
+export const URL_CVM_FII = 'https://dados.cvm.gov.br/dados/FII/DOC/INF_MENSAL/DADOS';
+
 export async function buscarCvm(pegar, lim, tickers, hoje) {
   const ano = hoje.slice(0, 4);
-  const fca = lerDoZip(await binario(pegar, lim, `${URL_CVM}/FCA/DADOS/fca_cia_aberta_${ano}.zip`), `valor_mobiliario_${ano}.csv`);
+  const zipFca = await binario(pegar, lim, `${URL_CVM}/FCA/DADOS/fca_cia_aberta_${ano}.zip`);
+  const fca = lerDoZip(zipFca, `valor_mobiliario_${ano}.csv`);
   const mapa = fca ? cnpjPorTicker(lerCsvCvm(fca), tickers) : {};
+  const geral = Object.keys(mapa).length ? lerDoZip(zipFca, `fca_cia_aberta_geral_${ano}.csv`) : null;
   const ipe = Object.keys(mapa).length ? lerDoZip(await binario(pegar, lim, `${URL_CVM}/IPE/DADOS/ipe_cia_aberta_${ano}.zip`), `ipe_cia_aberta_${ano}.csv`) : null;
+  const linhasIpe = ipe ? lerCsvCvm(ipe) : [];
+  // FII: só os códigos que não são de companhia e têm cara de cota (4 letras + 11)
+  const candidatosFii = tickers.map((t) => t.toUpperCase()).filter((t) => !mapa[t] && /^[A-Z]{4}11[A-Z]?$/.test(t));
+  let fiis = {};
+  if (candidatosFii.length) {
+    try {
+      const z = await binario(pegar, lim, `${URL_CVM_FII}/inf_mensal_fii_${ano}.zip`);
+      const g = lerDoZip(z, `inf_mensal_fii_geral_${ano}.csv`), c = lerDoZip(z, `inf_mensal_fii_complemento_${ano}.csv`);
+      fiis = g ? perfilDosFiis(lerCsvCvm(g), c ? lerCsvCvm(c) : [], candidatosFii) : {};
+    } catch { fiis = {}; }
+  }
   return {
-    fonte: 'CVM, dados abertos (IPE: fatos relevantes; FCA: código de negociação)', url: 'https://dados.cvm.gov.br/dataset/cia_aberta-doc-ipe',
-    nota: 'A CVM atualiza os dados abertos uma vez por semana: serve para histórico, não para alerta na hora.',
-    empresas: mapa, fatos: ipe ? fatosRelevantes(lerCsvCvm(ipe), mapa, hoje) : [],
+    fonte: 'CVM, dados abertos (IPE: fatos relevantes e resultados; FCA: código e atividade; informe mensal de FII)', url: 'https://dados.cvm.gov.br/dataset/cia_aberta-doc-ipe',
+    nota: 'A CVM atualiza os dados abertos uma vez por semana (o informe de FII, uma vez por mês): serve para histórico, não para alerta na hora.',
+    empresas: mapa, fatos: fatosRelevantes(linhasIpe, mapa, hoje),
+    resultados: resultadosDivulgados(linhasIpe, mapa, hoje),
+    perfis: geral ? perfilDasEmpresas(lerCsvCvm(geral), mapa) : {},
+    fiis,
+    // sem companhia na CVM = sem fato relevante ligado (o FII com perfil continua aqui: o IPE de fundo não está ligado)
     semEmpresa: tickers.filter((t) => !mapa[t.toUpperCase()]),
   };
 }

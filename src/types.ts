@@ -292,17 +292,29 @@ export interface Mercado {
   versao: number;
   geradoEm: string;
   bcb?: {
-    selicMeta?: Fonte & { nome: string; valor: number | null; data: string; decisoes: { desde: string; de: number; para: number }[] };
+    selicMeta?: Fonte & { nome: string; valor: number | null; data: string; decisoes: { desde: string; de: number; para: number }[]; mensal?: PontoSerie[] };
     cdi?: Fonte & { nome: string; valor: number | null; data: string };
     cdiMensal?: Fonte & { nome: string; pontos: PontoSerie[] };
     ipca?: Fonte & { nome: string; mensal: PontoSerie[]; doze: number | null; ultimo: PontoSerie | null };
     dolar?: Fonte & { nome: string; valor: number | null; data: string; pontos: PontoSerie[] };
   };
-  focus?: Fonte & { data: string; medianas: Record<string, Record<string, number>>; selicPorReuniao: { reuniao: string; mediana: number | null }[] };
+  focus?: Fonte & {
+    data: string; medianas: Record<string, Record<string, number>>; selicPorReuniao: { reuniao: string; mediana: number | null }[];
+    /** a evolução das medianas semana a semana (IPCA e Selic, ano corrente e o próximo) */
+    historico?: { desde: string; anos: string[]; porIndicador: Record<string, Record<string, { data: string; mediana: number }[]>>; em?: string };
+  };
   copom?: Fonte & { decisoes: { numero: number; data: string; titulo: string; trecho?: string }[]; proxima: { numero: number; dias: string; decisao: string; fonteData: string } };
   cotacoes?: Fonte & { porCodigo: Record<string, Cotacao>; semToken: string[]; comToken: boolean };
   cripto?: Fonte & { porCodigo: Record<string, Cotacao>; citar: string; comChave: boolean };
-  cvm?: Fonte & { nota: string; fatos: { codigo: string; data: string; assunto: string; url: string }[]; empresas: Record<string, { cnpj: string; nome: string }>; semEmpresa: string[] };
+  cvm?: Fonte & {
+    nota: string; fatos: { codigo: string; data: string; assunto: string; url: string }[]; empresas: Record<string, { cnpj: string; nome: string }>; semEmpresa: string[];
+    /** dia em que a companhia divulgou o resultado (press-release no IPE) */
+    resultados?: { codigo: string; data: string; assunto: string; url: string }[];
+    /** o que a companhia faz (FCA): setor e atividade */
+    perfis?: Record<string, { setor: string; atividade: string }>;
+    /** FII pelo informe mensal da CVM: segmento, valor patrimonial da cota, dividend yield do mês (%) */
+    fiis?: Record<string, { nome: string; segmento: string; mandato: string; gestao: string; mes: string; vpCota: number | null; dyMes: number | null }>;
+  };
   ativos?: { bolsa: string[]; cripto: string[] };
   erros: { fonte: string; erro: string; em: string }[];
 }

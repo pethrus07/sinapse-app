@@ -181,3 +181,35 @@ test('trilha: a tabela de blocos da nota vira lista; investimento da API traz c�
   const l = lerCotacaoBrapi({ symbol: 'test3', historicalDataPrice: [] }, '2030-01-01');
   assert.equal(l.codigo, 'TEST3');
 });
+
+test('Selic mensal: o último valor de cada mês; Focus semana a semana: o último dia de cada semana, só base 0', async () => {
+  const { mensalDeDiaria, semanalDoFocus } = await import('./fontes.mjs');
+  assert.deepEqual(mensalDeDiaria([{ data: '2030-01-02', valor: 10 }, { data: '2030-01-31', valor: 10.5 }, { data: '2030-02-01', valor: 10.5 }]), [{ data: '2030-01-01', valor: 10.5 }, { data: '2030-02-01', valor: 10.5 }]);
+  const v = [
+    { Indicador: 'IPCA', Data: '2030-01-07', DataReferencia: '2030', Mediana: 4.1, baseCalculo: 0 }, // segunda
+    { Indicador: 'IPCA', Data: '2030-01-11', DataReferencia: '2030', Mediana: 4.2, baseCalculo: 0 }, // sexta da mesma semana: vence
+    { Indicador: 'IPCA', Data: '2030-01-11', DataReferencia: '2030', Mediana: 9, baseCalculo: 1 }, // outra base: fora
+    { Indicador: 'IPCA', Data: '2030-01-14', DataReferencia: '2030', Mediana: 4.3, baseCalculo: 0 },
+    { Indicador: 'PIB Total', Data: '2030-01-14', DataReferencia: '2030', Mediana: 2, baseCalculo: 0 }, // indicador não pedido
+  ];
+  assert.deepEqual(semanalDoFocus(v, ['IPCA', 'Selic'], ['2030', '2031']), { IPCA: { 2030: [{ data: '2030-01-11', mediana: 4.2 }, { data: '2030-01-14', mediana: 4.3 }] } });
+});
+
+test('CVM: resultado (press-release) e atividade da companhia; FII pelo ISIN do informe mensal', async () => {
+  const { resultadosDivulgados, perfilDasEmpresas, perfilDosFiis } = await import('./fontes.mjs');
+  const mapa = { TEST3: { cnpj: '11', nome: 'EMPRESA TESTE S.A.' } };
+  const ipe = [
+    { CNPJ_Companhia: '11', Categoria: 'Dados Econômico-Financeiros', Tipo: 'Press-release', Data_Entrega: '2030-01-20', Assunto: 'Resultado 4T29', Link_Download: 'https://cvm/r' },
+    { CNPJ_Companhia: '11', Categoria: 'Dados Econômico-Financeiros', Tipo: 'Press-release', Data_Entrega: '2030-01-20', Assunto: 'Outro do mesmo dia', Link_Download: '' },
+    { CNPJ_Companhia: '11', Categoria: 'Dados Econômico-Financeiros', Tipo: 'Demonstrações Financeiras', Data_Entrega: '2030-01-21', Assunto: 'DF', Link_Download: '' },
+  ];
+  assert.deepEqual(resultadosDivulgados(ipe, mapa, '2030-02-01'), [{ codigo: 'TEST3', data: '2030-01-20', assunto: 'Resultado 4T29', url: 'https://cvm/r' }]);
+  assert.deepEqual(perfilDasEmpresas([{ CNPJ_Companhia: '11', Setor_Atividade: 'Energia', Descricao_Atividade: 'Geração' }], mapa), { TEST3: { setor: 'Energia', atividade: 'Geração' } });
+  const geral = [
+    { CNPJ_Fundo_Classe: '22', Data_Referencia: '2030-01-01', Codigo_ISIN: 'BRFUNDCTF000', Nome_Fundo_Classe: 'FUNDO TESTE FII', Segmento_Atuacao: 'Logística', Mandato: '', Tipo_Gestao: 'Ativa' },
+    { CNPJ_Fundo_Classe: '22', Data_Referencia: '2030-02-01', Codigo_ISIN: 'BRFUNDCTF000', Nome_Fundo_Classe: 'FUNDO TESTE FII', Segmento_Atuacao: 'Logística', Mandato: '', Tipo_Gestao: 'Ativa' },
+    { CNPJ_Fundo_Classe: '33', Data_Referencia: '2030-02-01', Codigo_ISIN: 'BROUTRCTF000', Nome_Fundo_Classe: 'OUTRO', Segmento_Atuacao: 'Shoppings' },
+  ];
+  const compl = [{ CNPJ_Fundo_Classe: '22', Data_Referencia: '2030-02-01', Valor_Patrimonial_Cotas: '98.5', Percentual_Dividend_Yield_Mes: '0.0095' }];
+  assert.deepEqual(perfilDosFiis(geral, compl, ['FUND11', 'TEST3']), { FUND11: { nome: 'FUNDO TESTE FII', segmento: 'Logística', mandato: '', gestao: 'Ativa', mes: '2030-02', vpCota: 98.5, dyMes: 0.95 } });
+});
