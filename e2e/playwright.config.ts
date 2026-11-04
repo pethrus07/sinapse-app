@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { gravarBrutoFalso, gravarFinanceiroFalso } from './fixtures/financeiro-falso'
+import { gravarMercadoFalso } from './fixtures/aion-falso'
 
 // QA E2E do sinapse-app. A suíte inteira roda contra uma CÓPIA do vault em pasta temporária:
 // os testes que escrevem (agenda, financeiro, indice-vivo) nunca tocam o vault real.
@@ -33,6 +34,8 @@ if (!existsSync(VAULT)) {
   const vence = new Date(Date.now() + 20 * 86400000).toISOString()
   writeFileSync(join(TMP, 'financas', 'estado.json'), JSON.stringify({ ultimaSync: new Date().toISOString(), conexoes: [{ rotulo: 'MeuPluggy', status: 'UPDATED', autorizacaoVence: vence }] }))
   gravarBrutoFalso(join(TMP, 'financas'))
+  // Aion: cache de mercado FALSO na pasta temporária (o e2e nunca lê o %LOCALAPPDATA%\sinapse-aion real)
+  gravarMercadoFalso(join(TMP, 'aion'))
 }
 
 export default defineConfig({
@@ -64,6 +67,7 @@ export default defineConfig({
       PROJETOS_PATH: resolve(VAULT_REAL, '..'), // pastas de projeto reais, só para ler o git
       SINAPSE_ESTADO: join(TMP, 'estado'), // o "feito" das promessas não vai para ~/.sinapse
       SINAPSE_FINANCAS: join(TMP, 'financas'), // nunca lê o estado real da sincronização do banco
+      SINAPSE_AION: join(TMP, 'aion'), // cache de mercado e chaves do Aion: só os falsos
       VITE_CACHE_DIR: process.env.VITE_CACHE_DIR || resolve(APP, 'node_modules', '.vite-e2e'),
     },
   },

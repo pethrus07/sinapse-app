@@ -6,7 +6,8 @@ import statsData from './data/stats.json';
 import roadmapData from './data/roadmap.json';
 import agendaData from './data/agenda.json';
 import financeiroData from './data/financeiro.json';
-import type { Agenda, Compromisso, Financeiro, GraphData, Note, Stats } from './types';
+import aionData from './data/aion.json';
+import type { Agenda, Aion, Compromisso, Financeiro, GraphData, Note, Stats } from './types';
 import { GraphView } from './components/GraphView';
 import { NoteView } from './components/NoteView';
 import { ProjetoView } from './components/ProjetoView';
@@ -19,18 +20,25 @@ import { TreeView } from './components/TreeView';
 import { SkillTreeView } from './components/SkillTreeView';
 import { AgendaView } from './components/AgendaView';
 import { FinanceiroView } from './components/FinanceiroView';
+import { AionView } from './components/AionView';
 import { NoteEditor } from './components/NoteEditor';
-import { acaoFinanceiro, buscarIndice, buscarVersao, classificarFinanceiro, criarDaily, lancarFinanceiro, pontualFinanceiro, naturezaFinanceiro, salvarOrcamento, setProgress } from './lib/api';
+import { acaoFinanceiro, salvarAion, buscarIndice, buscarVersao, classificarFinanceiro, criarDaily, lancarFinanceiro, pontualFinanceiro, naturezaFinanceiro, salvarOrcamento, setProgress } from './lib/api';
 import { corpoDaDaily, normalizar } from './lib/agenda';
 import { normalizarFin } from './lib/financeiro';
 import { areaLabel, colorForArea } from './lib/colors';
+
+const AION_VAZIO: Aion = { mercado: null, observacao: null, regra: null, metas: null, estudo: null, trilha: { nota: '', rel: '', blocos: [] }, chaves: { brapi: false, coingecko: false }, erros: [] };
+function normalizarAion(a?: Partial<Aion> | null): Aion {
+  if (!a) return AION_VAZIO;
+  return { ...AION_VAZIO, ...a, trilha: a.trilha || AION_VAZIO.trilha, chaves: a.chaves || AION_VAZIO.chaves, erros: a.erros || [] };
+}
 
 function go(path: string) {
   window.location.hash = path;
 }
 
 type Route =
-  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'panorama' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' }
+  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'panorama' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' | 'aion' }
   | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
@@ -52,6 +60,7 @@ function useRoute(): Route {
   if (m.startsWith('skills')) return { type: 'skills' };
   if (m.startsWith('agenda')) return { type: 'agenda' };
   if (m.startsWith('financeiro')) return { type: 'financeiro' };
+  if (m.startsWith('aion')) return { type: 'aion' };
   if (m.startsWith('nova')) return { type: 'nova' };
   return { type: 'roadmap' };
 }
@@ -90,6 +99,7 @@ export default function App() {
   const [stats, setStats] = useState(statsData as unknown as Stats);
   const [agenda, setAgenda] = useState<Agenda>(() => normalizar(agendaData as unknown as Agenda));
   const [financeiro, setFinanceiro] = useState<Financeiro>(() => normalizarFin(financeiroData as unknown as Financeiro));
+  const [aion, setAion] = useState<Aion>(() => normalizarAion(aionData as unknown as Aion));
   // dado de reunião: só vem do servidor local (/api/indice), nunca do JSON empacotado
   const [compromissos, setCompromissos] = useState<Compromisso[]>([]);
 
@@ -102,6 +112,7 @@ export default function App() {
     if (idx?.stats) setStats(idx.stats as Stats);
     if (idx?.agenda) setAgenda(normalizar(idx.agenda as Agenda));
     if (idx?.financeiro) setFinanceiro(normalizarFin(idx.financeiro as Financeiro));
+    if (idx?.aion) setAion(normalizarAion(idx.aion as Aion));
     if (idx?.compromissos) setCompromissos((idx.compromissos.itens || []) as Compromisso[]);
   }
 
@@ -195,6 +206,11 @@ export default function App() {
     applyIndex(await salvarOrcamento(tetos, meta));
   }
 
+  // o erro sobe para a tela do Aion mostrar (formulários com mensagem própria)
+  async function handleAion(payload: Record<string, unknown>) {
+    applyIndex(await salvarAion(payload));
+  }
+
   async function handlePontual(mes: string, id: string, valor: boolean) {
     try {
       applyIndex(await pontualFinanceiro(mes, id, valor));
@@ -282,6 +298,8 @@ export default function App() {
         onOrcamento={handleOrcamento}
       />
     );
+  } else if (route.type === 'aion') {
+    main = <AionView aion={aion} financeiro={financeiro} onSalvar={handleAion} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'skills') {
     main = <SkillTreeView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'graph') {
@@ -327,6 +345,9 @@ export default function App() {
           </a>
           <a className={'nav-item' + (route.type === 'financeiro' ? ' active' : '')} href="#/financeiro">
             <span className="nav-text">💰 Métis</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'aion' ? ' active' : '')} href="#/aion">
+            <span className="nav-text">⏳ Aion</span>
           </a>
           <a className={'nav-item' + (route.type === 'projetos' ? ' active' : '')} href="#/projetos">
             <span className="nav-text">🚀 Projetos</span>

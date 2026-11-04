@@ -10,10 +10,12 @@
     "build": "npm run index && vite build",
     "preview": "vite preview",
     "reindex": "node scripts/index-vault.mjs",
-    "test": "node --test src/lib/financeiroGraficos.test.ts src/lib/financeiroAnalise.test.ts src/lib/financeiroModelo.test.ts scripts/financas/financas.test.mjs scripts/destinos-desenhos.test.mjs",
+    "test": "node --test src/lib/financeiroGraficos.test.ts src/lib/financeiroAnalise.test.ts src/lib/financeiroModelo.test.ts src/lib/aion.test.ts src/lib/aionSimular.test.ts src/lib/aionPorques.test.ts scripts/financas/financas.test.mjs scripts/destinos-desenhos.test.mjs scripts/aion/aion.test.mjs",
     "financas:testar": "node scripts/financas/sincronizar.mjs --testar",
     "financas:simular": "node scripts/financas/sincronizar.mjs --simular",
-    "financas:gravar": "node scripts/financas/sincronizar.mjs --gravar"
+    "financas:gravar": "node scripts/financas/sincronizar.mjs --gravar",
+    "aion:simular": "node scripts/aion/coletar.mjs --simular",
+    "aion:gravar": "node scripts/aion/coletar.mjs --gravar"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.17.6",

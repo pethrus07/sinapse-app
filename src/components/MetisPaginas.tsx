@@ -340,8 +340,8 @@ export function MetisPatrimonio({ financeiro, hoje }: PaginaProps) {
         )}
       </Cartao>
       <section className="fg-card largo mt-embreve" data-grafico="investimentos">
-        <h3 className="fg-titulo">Investimentos <span className="mt-tag">em breve</span></h3>
-        <p className="fg-leitura muted">Carteira por tipo, evolução, estudo, projeção e simulação vão ganhar um módulo próprio.</p>
+        <h3 className="fg-titulo">Investimentos</h3>
+        <p className="fg-leitura muted">Carteira por tipo, porquês, estudo, projeção e simulação estão no Aion. <a className="linkbtn" href="#/aion">Abrir o Aion</a></p>
       </section>
     </div>
   );

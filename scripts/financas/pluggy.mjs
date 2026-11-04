@@ -260,7 +260,27 @@ export function normalizarInvestimento(i, hoje, { banco = '' } = {}) {
     vencimentoTitulo,
     data: hoje,
     ativo: !i.status || i.status === 'ACTIVE',
+    // para o Aion (investimentos): código de negociação, quantidade, quanto foi aplicado, desde
+    // quando e o indexador ("115% CDI"). Nenhum é segredo; o que a API não manda fica de fora.
+    ...detalhesDoInvestimento(i, bolsa),
   };
+}
+
+/** Campos do Aion a partir do investimento da API (só os que vierem preenchidos). */
+export function detalhesDoInvestimento(i, bolsa = i.type === 'EQUITY') {
+  const out = {};
+  const cod = String(i.code || '').toUpperCase().trim();
+  if (bolsa && /^[A-Z0-9]{4,12}$/.test(cod)) out.codigo = cod;
+  const q = Number(i.quantity);
+  if (Number.isFinite(q) && q > 0) out.quantidade = Math.round(q * 1e6) / 1e6;
+  const ap = Number(i.amountOriginal);
+  if (Number.isFinite(ap) && ap > 0) out.aportado = Math.round(ap * 100) / 100;
+  const desde = String(i.purchaseDate || i.issueDate || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(desde)) out.desde = desde;
+  const taxa = Number(i.rate);
+  if (Number.isFinite(taxa) && taxa > 0 && i.rateType) out.indexador = `${String(taxa).replace('.', ',')}% ${String(i.rateType).toUpperCase()}`;
+  else if (Number.isFinite(Number(i.fixedAnnualRate)) && Number(i.fixedAnnualRate) > 0) out.indexador = `pré ${String(i.fixedAnnualRate).replace('.', ',')}% a.a.`;
+  return out;
 }
 
 /** fetch falso que responde de uma pasta de JSONs no formato da API (testes e --fixture). */

@@ -203,12 +203,14 @@ test('Pronoia: sobra estimada, receita por cliente, reserva, cartão e a projeç
   expect(erros, erros.join('\n')).toEqual([])
 })
 
-test('Patrimônio enxuto: reserva × piso, total investido e "Investimentos em breve"', async ({ page }) => {
+test('Patrimônio enxuto: reserva × piso, total investido e o caminho para o Aion', async ({ page }) => {
   const erros = coletarErros(page)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/#/financeiro/patrimonio')
   await expect(page.locator('[data-grafico="reserva-piso"] .fg-leitura')).toContainText('Nenhuma posição')
-  await expect(page.locator('[data-grafico="investimentos"]')).toContainText('em breve')
+  // desde 04/11/2026 os investimentos têm módulo próprio (Aion): o cartão leva para lá
+  await expect(page.locator('[data-grafico="investimentos"]')).toContainText('estão no Aion')
+  await expect(page.locator('[data-grafico="investimentos"] a[href="#/aion"]')).toBeVisible()
 
   const d = new Date()
   const hoje = ymdLocal(d)

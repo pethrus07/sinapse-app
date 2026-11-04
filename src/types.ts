@@ -234,6 +234,12 @@ export interface Lancamento {
   /** Previsto pago em varios Pix: os fitids de todos; e o valor combinado quando o real foi outro. */
   fitids?: string[];
   valorPrevisto?: number;
+  /** Investimento, para o Aion (gravados pela sincronização quando a API manda; cripto à mão pode ter `codigo` e `quantidade`). */
+  codigo?: string;
+  quantidade?: number;
+  aportado?: number;
+  desde?: string;
+  indexador?: string;
   mes: string;             // preenchido pelo indexador
   rel: string;
 }
@@ -267,4 +273,60 @@ export interface Conexao {
   ultimaAtualizacao?: string;
   autorizacaoVence?: string;
   erro?: string;
+}
+
+/* ---------- Aion (investimentos) ----------
+   Vem de scripts/aion/indice.mjs: o cache local do coletor (mercado, só dado público) e os blocos
+   JSON de 04-NEGOCIO/financeiro/aion-*.md (observação, regra, metas, estudo). As posições vêm do
+   razão da Métis (Financeiro.lancamentos, tipo investimento). Formato em docs/aion-formato.md. */
+export interface Fonte { fonte: string; url: string; em?: string }
+export interface PontoSerie { data: string; valor: number }
+export interface Cotacao {
+  codigo: string; nome?: string; preco: number | null; variacaoDia: number | null; fechamentoAnterior?: number | null; em: string;
+  min52?: number | null; max52?: number | null; pl?: number | null; lpa?: number | null;
+  historico?: { data: string; fechamento: number }[];
+  proventos?: { tipo: string; valor: number; pagamento: string; aprovado: string; dataCom: string; dataEx: string }[];
+  id?: string;
+}
+export interface Mercado {
+  versao: number;
+  geradoEm: string;
+  bcb?: {
+    selicMeta?: Fonte & { nome: string; valor: number | null; data: string; decisoes: { desde: string; de: number; para: number }[] };
+    cdi?: Fonte & { nome: string; valor: number | null; data: string };
+    cdiMensal?: Fonte & { nome: string; pontos: PontoSerie[] };
+    ipca?: Fonte & { nome: string; mensal: PontoSerie[]; doze: number | null; ultimo: PontoSerie | null };
+    dolar?: Fonte & { nome: string; valor: number | null; data: string; pontos: PontoSerie[] };
+  };
+  focus?: Fonte & { data: string; medianas: Record<string, Record<string, number>>; selicPorReuniao: { reuniao: string; mediana: number | null }[] };
+  copom?: Fonte & { decisoes: { numero: number; data: string; titulo: string; trecho?: string }[]; proxima: { numero: number; dias: string; decisao: string; fonteData: string } };
+  cotacoes?: Fonte & { porCodigo: Record<string, Cotacao>; semToken: string[]; comToken: boolean };
+  cripto?: Fonte & { porCodigo: Record<string, Cotacao>; citar: string; comChave: boolean };
+  cvm?: Fonte & { nota: string; fatos: { codigo: string; data: string; assunto: string; url: string }[]; empresas: Record<string, { cnpj: string; nome: string }>; semEmpresa: string[] };
+  ativos?: { bolsa: string[]; cripto: string[] };
+  erros: { fonte: string; erro: string; em: string }[];
+}
+export type TipoAtivo = 'acao' | 'fii' | 'etf' | 'bdr' | 'cripto';
+export interface AtivoObservado { codigo: string; tipo: TipoAtivo; nota: string; desde: string }
+export type TipoCarteira = 'reserva' | 'renda-fixa' | 'fii' | 'acao' | 'cripto' | 'outros';
+export interface RegraAion {
+  reservaMinima: number | null;
+  alocacao: Partial<Record<Exclude<TipoCarteira, 'reserva'>, { alvo: number; tolerancia: number }>>;
+  aportes: string[];
+  naoFazer: string[];
+  revisarEm: string;
+  escritaEm: string;
+  rel?: string;
+}
+export interface MetasAion { reserva: number | null; carteira: number | null; meta3: { nome: string; valor: number | null }; rel?: string }
+export interface BlocoTrilha { n: number; titulo: string; aprender: string; material: string }
+export interface Aion {
+  mercado: Mercado | null;
+  observacao: { ativos: AtivoObservado[]; rel?: string } | null;
+  regra: RegraAion | null;
+  metas: MetasAion | null;
+  estudo: { blocos: Record<string, string>; atualizado?: string; rel?: string } | null;
+  trilha: { nota: string; rel: string; blocos: BlocoTrilha[] };
+  chaves: { brapi: boolean; coingecko: boolean };
+  erros: { arquivo: string; erro: string }[];
 }

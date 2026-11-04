@@ -58,6 +58,9 @@ Uma posição por aplicação por mês, com o saldo naquela data:
 - `classe`: `CDB`, `RDB`, `FII`, `Ação`, `ETF`, `Tesouro`, `cripto`…
 - `reserva: true` faz a posição contar como saldo de partida da reserva no gráfico "Reserva acumulada".
 - Investimento não entra em fluxo, projeção, agenda nem nos totais a receber/pagar.
+- Para o Aion, a sincronização grava também, quando a API manda: `codigo` (ação, FII), `quantidade`,
+  `aportado` (valor aplicado), `desde` (data da aplicação) e `indexador` ("115% CDI"). Cripto à mão
+  pode ter `codigo` ("BTC") e `quantidade`. Ver `docs/aion-formato.md`.
 
 ## As abas da Métis (v2, 04/11/2026)
 
@@ -81,9 +84,8 @@ e vale para Visão, Gastos, Entradas e Plano; o padrão é o último mês fechad
    vencido em aberto, e a linha do tempo dos contratos de renda que se repete (`contratosDeRenda`):
    início, fim (ou "segue") e o mês em que a renda cai (`rendaRecorrente`).
 4. **Patrimônio** (`#/financeiro/patrimonio`): só a reserva contra o piso de R$ 5.000 (ou a meta do
-   orçamento) e o total investido. Carteira, evolução e simulação vão para um módulo próprio de
-   investimentos (ainda sem nome); a lógica de posições (`posicoesAtuais`, `patrimonio`,
-   `investimentos`) fica em `src/lib` para ele reaproveitar.
+   orçamento) e o total investido. Carteira, evolução, estudo e simulação ficam no **Aion**, o módulo
+   de investimentos (`#/aion`, `docs/aion-formato.md`), que reaproveita `posicoesAtuais` e `patrimonio`.
 5. **Pronoia** (`#/financeiro/pronoia`): o que sobra por mês daqui pra frente (renda que se repete −
    gasto que se repete), receita por cliente, reserva acumulada, cartão parcelado e a projeção mês a
    mês (tabela em "Mais opções").

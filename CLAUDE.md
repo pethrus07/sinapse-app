@@ -2,7 +2,8 @@
 
 App web local (Vite + React + TypeScript, d3, marked, gray-matter) que **lê o vault markdown do
 Sinapse** e mostra grafo, notas com wikilinks/backlinks, busca, Roadmap de estudo, Projetos,
-Skill Tree, Agenda e Financeiro. O markdown é a fonte da verdade; o app é uma lente por cima.
+Skill Tree, Agenda, Financeiro (Métis) e Investimentos (Aion). O markdown é a fonte da verdade; o
+app é uma lente por cima.
 
 ## Relação com o vault
 
@@ -34,8 +35,8 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   `PROJETOS_PATH` (pastas reais, só leitura do git) e `SINAPSE_ESTADO`; `e2e/global-setup.ts` guarda o
   `git status` do vault real e `e2e/global-teardown.ts` confere que não mudou e apaga a cópia. Se
   outra sessão mexer no vault real durante a suíte, o teardown acusa (falso alarme: rodar de novo).
-  Teste unitário: `npm test` (node --test: gráficos do financeiro, sincronizador do banco, plano de
-  publicação dos desenhos). Não há CI.
+  Teste unitário: `npm test` (node --test: gráficos do financeiro, sincronizador do banco, Aion
+  (carteira, simulação, porquês, coletor e escrita), plano de publicação dos desenhos). Não há CI.
 - **Métis** = o módulo financeiro (nome visível desde 03/11/2026; por dentro segue `financeiro`: rota, pasta, bloco, `scripts/financas/`). Métis v2 (04/11/2026, branch `metis-v2`): abas Visão, Gastos, Entradas, Patrimônio (enxuto: reserva × piso e total investido; investimentos ganham módulo próprio), **Pronoia** (projeção), Plano (orçamento) e Lançamentos, rota `#/financeiro/<aba>`; páginas em `src/components/MetisPaginas.tsx`, gráficos em `MetisGraficos.tsx`, modelo em `src/lib/financeiroModelo.ts` + `financeiroAnalise.ts` (natureza fixo/variável/pontual: `NATUREZA_POR_CATEGORIA`; gasto que se repete: `gastoQueSeRepete`). Orçamento em `04-NEGOCIO/financeiro/orcamento.md` (bloco ```financeiro-orcamento), só o Pedro define os tetos. Gráficos base (`src/components/FinanceiroGraficos.tsx`, lógica
   em `src/lib/financeiroGraficos.ts`) e sincronização só leitura pelo Meu Pluggy
   (`scripts/financas/`). Formato, regras e passo a passo em `docs/financeiro-formato.md`. **Repo
@@ -49,6 +50,33 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   à mão com cara de documento/conta/chave Pix é recusado (marcador de teste sem número longo). No e2e,
   com `INDEX_OUT` o `vite.config.ts` aponta `./data/*.json` para lá (o primeiro paint não mostra mais
   o src/data real) e `VITE_CACHE_DIR` separa o cache de dependências do :5173.
+- **Aion** = o módulo de investimentos (04/11/2026, branch `aion-v1`), item próprio no menu ao lado da
+  Métis, rota `#/aion/<tela>` (Carteira, Porquês, Observação, Simular, Metas, Economia, Estudo, Minha
+  regra). **Não recomenda**: dado, fonte e data; separa causa conhecida, fato, opinião, estimativa,
+  hipótese e "sem notícia" (`src/lib/aionPorques.ts`, camada `FontePorque`; a fonte de notícia em tempo
+  real ainda não foi escolhida e entra como mais uma fonte). O porquê é pop-up em todas as telas
+  (`ComPorque` em `src/components/AionPorque.tsx`, alvo em `data-porque`). Modelo em `src/lib/aion.ts`,
+  simulação em `src/lib/aionSimular.ts` (premissas na tela, IR regressivo por lote, valor real pelo
+  Focus), telas em `AionPaginas.tsx`, gráficos em `AionGraficos.tsx`. Dado de mercado: `scripts/aion/coletar.mjs`
+  (`npm run aion:simular` / `aion:gravar`) → cache LOCAL `%LOCALAPPDATA%\sinapse-aion\mercado.json`
+  (`SINAPSE_AION`); o índice lê o cache (`scripts/aion/indice.mjs`), o navegador nunca chama a rede de
+  mercado. Fontes permitidas: BCB SGS/Olinda/Copom, brapi, CoinGecko (citar "Data provided by
+  CoinGecko"), CVM. **Proibido**: site da B3, Yahoo/yfinance, Status Invest, Fundamentus. Chaves (brapi,
+  CoinGecko) só pelo `scripts/aion/aion-chave.ps1` (DPAPI, o Pedro digita). Tarefa `Aion-Coletar`
+  (`scripts/aion/instalar-tarefa.ps1`) **não instalada**: é com o Pedro. Escrita no vault por
+  `POST /api/aion` (`scripts/aion/escrita.mjs`): `04-NEGOCIO/financeiro/aion-observacao.md`,
+  `aion-regra.md`, `aion-metas.md`, `aion-estudo.md`, caminho fixo, validação, 409 com JSON quebrado.
+  A sincronização da Métis grava agora `codigo`, `quantidade`, `aportado`, `desde`, `indexador` na
+  posição (rendimento × CDI precisa do `aportado`). Calendário do Copom é constante em
+  `scripts/aion/fontes.mjs` (`CALENDARIO_COPOM`, o BC não tem API): atualizar todo ano. Formato e
+  regras em `docs/aion-formato.md`.
+  `SINAPSE_SO_LEITURA=1` faz o dev server recusar toda escrita (403): para olhar o vault real em outra
+  porta sem risco (as telas do Aion foram revistas assim, :5176, `INDEX_OUT` fora de `src/data`).
+  e2e: `tests/aion.spec.ts` usa mercado falso (`fixtures/aion-falso.ts`, `SINAPSE_AION` na pasta
+  temporária) e grava posições falsas num arquivo próprio da cópia, apagado no `afterAll` (a Métis não
+  vê); bloqueia e conta chamadas a BCB/brapi/CoinGecko/CVM. Armadilhas: o Chromium dá caixa a filho de
+  `<details>` fechado (a conferência de alvo de toque pula); `getByLabel('… bloco 1')` casa 10 e 11
+  (usar `exact`); a heredoc do Git Bash comeu `\a` (virou BEL) num patch: patch com contrabarra por arquivo.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.

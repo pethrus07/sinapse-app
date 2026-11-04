@@ -7,6 +7,9 @@
 // GET  /api/ata/<id>  -> serve o ata.html local de uma reunião que tem compromisso no índice
 // POST /api/tarefa    -> muda o estado de uma tarefa "- [ ]" de nota de projeto, ou acrescenta uma
 // GET/POST /api/desenho?nota=<id> -> lê/grava o desenho Excalidraw (09-DESENHOS/<id>.excalidraw)
+// POST /api/aion      -> Aion (investimentos): lista de observação, minha regra, metas e progresso da
+//                        trilha, cada um num arquivo fixo de 04-NEGOCIO/financeiro (scripts/aion/escrita.mjs)
+// SINAPSE_SO_LEITURA=1 -> nenhuma escrita (todo POST responde 403): para olhar o vault real sem risco
 import { readFileSync, writeFileSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { resolve, join, dirname, basename, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +19,7 @@ import { caminhoAtas, lerFeitos, marcarFeito } from './compromissos.mjs';
 import { readdirSync } from 'node:fs';
 import { gravarMes as gravarMesRazao, hashId, pareceSensivel } from './financas/nucleo.mjs';
 import { criterioDaTransacao, hojeSP } from './financas/pluggy.mjs';
+import { gravarAion } from './aion/escrita.mjs';
 
 // Pasta local da Métis (fora do git): regras e bruto do banco. O endpoint de classificar lê o
 // bruto só para montar a regra "lembrar para os próximos"; nada dele volta para o app ou o vault.
@@ -227,6 +231,8 @@ export function vaultApi() {
           const url = req.url.split('?')[0];
           if (req.method !== 'GET' && req.method !== 'HEAD' && !postConfiavel(req))
             return sendJson(res, { error: 'escrita só pelo próprio app (JSON, origem local)' }, 403);
+          if (req.method !== 'GET' && req.method !== 'HEAD' && process.env.SINAPSE_SO_LEITURA === '1')
+            return sendJson(res, { error: 'servidor em modo só leitura (SINAPSE_SO_LEITURA=1): nada foi gravado' }, 403);
 
           // ---- GET /api/versao e /api/indice: indice VIVO ----
           // O JSON empacotado (src/data/*.json) esta em server.watch.ignored, entao o
@@ -401,6 +407,20 @@ export function vaultApi() {
             res.setHeader('content-type', 'text/html; charset=utf-8');
             res.setHeader('cache-control', 'no-store');
             return res.end(readFileSync(arq));
+          }
+
+          // ---- /api/aion: { acao: 'observacao' | 'regra' | 'metas' | 'estudo', ... } ----
+          // Caminho FIXO por ação (nada de caminho vem do navegador); validação em scripts/aion/escrita.mjs.
+          if (url === '/api/aion' && req.method === 'POST') {
+            const p = JSON.parse((await readBody(req)) || '{}');
+            try {
+              const r = gravarAion(VAULT, p, hojeSP());
+              const idx = reindex();
+              return sendJson(res, { ok: true, ...r, ...idx });
+            } catch (e) {
+              if (e && e.code) return sendJson(res, { error: e.message }, e.code);
+              throw e;
+            }
           }
 
           // ---- /api/financeiro: lançar, liquidar e remover no arquivo do mês ----

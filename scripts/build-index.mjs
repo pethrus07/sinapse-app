@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import matter from 'gray-matter';
 import { lerCompromissos } from './compromissos.mjs';
+import { lerAion } from './aion/indice.mjs';
 
 /* ---------- Frentes: movimento pelo git ----------
    "Último movimento" de uma frente = último commit nas pastas que a nota declara em
@@ -471,6 +472,8 @@ export function buildIndex(VAULT, OUT) {
   // "O que prometi": encaminhamentos do Pedro nas atas do Atas (só leitura; nada vai ao vault)
   const compromissos = lerCompromissos(outNotes.filter((n) => n.atividade));
   const roadmap = roadmaps[0] || { items: [] }; // 1 roadmap de sistema por vault (por ora)
+  // Aion (investimentos): cache de mercado local + arquivos aion-*.md do vault + a trilha de estudo
+  const aion = lerAion(VAULT, outNotes);
   // O financeiro alimenta o calendario: vencimento ABERTO vira data na agenda.
   // Sem isso a mesma data existiria em dois lugares e uma das duas envelheceria.
   //
@@ -528,8 +531,9 @@ export function buildIndex(VAULT, OUT) {
     writeFileSync(join(OUT, 'roadmap.json'), JSON.stringify(roadmap));
     writeFileSync(join(OUT, 'agenda.json'), JSON.stringify(agenda));
     writeFileSync(join(OUT, 'financeiro.json'), JSON.stringify(financeiro));
+    writeFileSync(join(OUT, 'aion.json'), JSON.stringify(aion));
     // gitignored como o resto de src/data; o app NÃO importa este arquivo (só o /api/indice o entrega)
     writeFileSync(join(OUT, 'compromissos.json'), JSON.stringify(compromissos));
   }
-  return { notes: outNotes, graph, stats, roadmap, agenda, financeiro, compromissos };
+  return { notes: outNotes, graph, stats, roadmap, agenda, financeiro, aion, compromissos };
 }

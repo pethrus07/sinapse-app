@@ -2,7 +2,7 @@
 
 [English](README.md) · Português
 
-App web local que lê o vault de notas em Markdown do Sinapse (o segundo cérebro do Pedro) e mostra grafo, notas com links e backlinks, Frentes, Agenda, Métis (financeiro), Panorama e a página de cada projeto. Também gera e publica os diagramas de arquitetura (UML, BPMN e C4) de todos os projetos.
+App web local que lê o vault de notas em Markdown do Sinapse (o segundo cérebro do Pedro) e mostra grafo, notas com links e backlinks, Frentes, Agenda, Métis (financeiro), Aion (investimentos), Panorama e a página de cada projeto. Também gera e publica os diagramas de arquitetura (UML, BPMN e C4) de todos os projetos.
 
 ## Status
 
@@ -19,6 +19,7 @@ O vault tem centenas de notas, dezenas de projetos e prazos espalhados. O Markdo
 - Frentes (`#/frentes`): no máximo 3 frentes em andamento; o resto fica em estados que não ocupam vaga. Mostra o último commit e as horas da semana de cada frente, e "o que prometi" lido das atas de reunião (só leitura).
 - Agenda (rotina, prazos e diário).
 - **Métis** (`#/financeiro`), o módulo financeiro, com o nome da deusa grega da sabedoria prática e da prudência. Um arquivo por mês no vault; sincronização só leitura com o banco pelo Open Finance (Meu Pluggy) todo dia às 17:00. Abas: **Visão** (fluxo, gastos por categoria contra a média de 3 meses, recorrente × pontual, patrimônio por classe com a reserva líquida contra o piso de R$ 5.000, clientes recebido × o que falta, avisos), **Pronoia** (previdência: renda futura por cliente, reserva projetada, cartão parcelado e a projeção mês a mês) e **Lançamentos** (fila "a classificar", formulário, lista). Por dentro continua `financeiro` (rota, pasta, formato de dados). Formato em `docs/financeiro-formato.md`.
+- **Aion** (`#/aion`), o módulo de investimentos (o tempo longo dos gregos, o dos juros compostos): acompanhar, estudar, projetar e simular, sem recomendar nada. Oito telas: **Carteira** (por tipo contra a sua regra, rendimento × CDI e IPCA com a base dita, renda passiva do mês), **Porquês** (por que cada coisa se mexeu, com fonte, data e o tipo: causa conhecida, fato, opinião, estimativa, hipótese ou "sem notícia"), **Observação**, **Simular** ("e se" e cenários ruim/base/bom em 1, 3 e 5 anos, em reais de hoje e líquidos de imposto), **Metas** (pela média real de aporte), **Economia** (Selic, CDI, IPCA, dólar, Focus, Copom), **Estudo** (a trilha de 11 blocos com progresso) e **Minha regra**. O porquê aparece em todas as telas como pop-up ao passar o mouse ou tocar. Dado de mercado só de fontes que os termos permitem (Banco Central, brapi, CoinGecko, CVM), coletado por `scripts/aion/` para um cache local; o navegador nunca chama a rede de mercado. Formato em `docs/aion-formato.md`.
 - Página do projeto com abas Visão geral, História (commits das pastas do projeto), Tarefas (as caixas `- [ ]` da nota) e Desenho.
 - Panorama (`#/panorama`): quadro por status e a linha do ano.
 - Desenhos: de uma especificação em JSON no vault saem três diagramas em notação padrão, medidos por um QA antes de ir para o repositório de cada projeto.
@@ -52,7 +53,15 @@ npm run reindex      # regenera o índice quando uma nota mudou fora do app
 VAULT_PATH=/caminho/do/vault npm run dev   # vault em outro lugar (padrão: ../sinapse)
 ```
 
-O índice vai para `src/data/*.json` (fora do git). As escritas no vault (nota, tarefa, vaga, diário, financeiro, desenho) só existem com o dev server no ar.
+O índice vai para `src/data/*.json` (fora do git). As escritas no vault (nota, tarefa, vaga, diário, financeiro, Aion, desenho) só existem com o dev server no ar. `SINAPSE_SO_LEITURA=1` sobe o dev server recusando toda escrita.
+
+Aion (dado de mercado num cache local, fora do git e do vault):
+
+```bash
+npm run aion:simular   # busca e mostra o resumo, não grava
+npm run aion:gravar    # grava %LOCALAPPDATA%\sinapse-aion\mercado.json
+powershell -ExecutionPolicy Bypass -File scripts\aion\aion-chave.ps1 -Servico brapi   # token da brapi, cifrado (DPAPI)
+```
 
 ## Testes
 
@@ -63,6 +72,8 @@ cd e2e
 npm install
 npm test
 ```
+
+Testes de unidade (`npm test` na raiz, `node --test`): gráficos e modelo da Métis, sincronizador do banco, Aion (carteira, simulação, porquês, coletor com fetch falso) e o plano de publicação dos desenhos.
 
 A suíte inteira roda contra uma cópia do vault numa pasta temporária, com um Vite próprio na porta 5175. No fim ela confere que o `git status` do vault real não mudou e apaga a cópia. O teste das Frentes sobe outro Vite (porta 5174) com um Atas falso.
 
@@ -85,6 +96,8 @@ Ver [docs/arquitetura/](docs/arquitetura/).
 - O Markdown é a fonte da verdade. O app nunca reescreve o frontmatter inteiro: cada endpoint troca só a linha que precisa (vaga, tarefa).
 - Dado de reunião (as promessas) não vai para o vault nem para o bundle: vem só do servidor local e o "feito" fica em `~/.sinapse/`.
 - Sem produção e sem login: o app pressupõe a máquina do dono. Publicar em algum lugar exigiria autenticação antes.
+- O Aion não recomenda: mostra dado, fonte e data, e separa fato de opinião e de estimativa. Sem notícia que explique um movimento, ele diz isso. A simulação é conta com premissas à vista, nunca promessa de retorno.
+- Sem raspagem: o site da B3, Yahoo Finance, Status Invest e Fundamentus ficam de fora pelos termos de uso. A fonte de notícia em tempo real ainda não foi escolhida; a camada de "fontes de porquê" já está pronta para ela.
 - O vocabulário de `status` e `progresso` vem da régua do vault (`../sinapse/scripts/saude-vault.py`); valor novo muda nos dois lados.
 
 ## Licença

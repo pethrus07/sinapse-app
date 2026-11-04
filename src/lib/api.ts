@@ -67,6 +67,11 @@ export function salvarOrcamento(tetos: Record<string, number | string>, metaRese
   return post('/api/financeiro', { acao: 'orcamento', tetos, metaReserva });
 }
 
+/** Aion: { acao: 'observacao' | 'regra' | 'metas' | 'estudo', ... } (arquivos fixos em 04-NEGOCIO/financeiro). */
+export function salvarAion(payload: Record<string, unknown>) {
+  return post('/api/aion', payload);
+}
+
 /** Muda o estado de uma tarefa da nota de projeto (a linha é a chave). */
 export function mudarTarefa(rel: string, linha: string, estado: string) {
   return post('/api/tarefa', { rel, linha, estado });

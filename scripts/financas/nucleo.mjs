@@ -514,6 +514,9 @@ export function planejarFaturas(faturas, razao, hoje) {
   return { acoes, relatorio: rel };
 }
 
+/** Campos que o Aion (módulo de investimentos) lê da posição, quando a API manda. */
+export const CAMPOS_AION = ['codigo', 'quantidade', 'aportado', 'desde', 'indexador'];
+
 /**
  * Posição de investimento: uma por aplicação por mês (a última sincronização do mês vence).
  * `inv` normalizado: { idFonte, fonte, nome, instituicao, tipoFonte, saldo, vencimentoTitulo, data }.
@@ -533,6 +536,8 @@ export function planejarInvestimentos(invs, razao, regrasBrutas = {}) {
       instituicao: sanear(regra.instituicao || i.instituicao || ''),
       liquidez: regra.liquidez || i.liquidez || (i.vencimentoTitulo ? 'no-vencimento' : ''),
       ...(i.classe ? { classe: i.classe } : {}),
+      // Aion: código, quantidade, aplicado, desde e indexador (vêm da API; só os preenchidos)
+      ...Object.fromEntries(CAMPOS_AION.filter((c) => i[c] !== undefined && i[c] !== '').map((c) => [c, i[c]])),
       data: i.data,
       valor: Math.round(n(i.saldo) * 100) / 100,
       status: 'posicao',
@@ -546,7 +551,7 @@ export function planejarInvestimentos(invs, razao, regrasBrutas = {}) {
     const k = razao[mes].lista.findIndex((l) => l.fitid === fitid);
     if (k >= 0) {
       const velho = razao[mes].lista[k];
-      const igual = ['descricao', 'instituicao', 'liquidez', 'classe', 'reserva', 'obs'].every((c) => (velho[c] ?? '') === (lanc[c] ?? ''));
+      const igual = ['descricao', 'instituicao', 'liquidez', 'classe', 'reserva', 'obs', ...CAMPOS_AION].every((c) => (velho[c] ?? '') === (lanc[c] ?? ''));
       if (velho.data >= lanc.data && n(velho.valor) === lanc.valor && igual) continue; // nada mudou
       razao[mes].lista[k] = { ...velho, ...lanc, id: velho.id };
       acoes.push({ acao: 'posicao', mes, lancamento: razao[mes].lista[k] });

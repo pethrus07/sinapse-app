@@ -1053,3 +1053,112 @@ button.mt-barra { cursor: pointer; }
 .fg-leg-nota { color: var(--faint); }
 .mt-pares.sem-anterior li { grid-template-rows: auto; }
 .mt-semcomp { margin-top: 12px; color: var(--faint); }
+
+/* ---------- Aion (investimentos, 04/11/2026) ----------
+   Mesma paleta e tokens da Métis (a raiz é ".metis.aion"). Cor por papel: uma série só = --s1;
+   referência (CDI, IPCA, "antes") = --mt-anterior; faixa da regra e faixa dos cenários = o mesmo azul,
+   claro (fundo de trilho, não é série nova); estado (fora da faixa, abaixo do piso) sempre com ícone
+   e texto. O pop-up do porquê é neutro: o tipo da explicação vai em texto, nunca só em cor. */
+.aion { --ai-faixa: rgba(57,135,229,0.24); }
+.ai-topo-nota { margin: -4px 0 0; font-size: 12.5px; color: var(--faint); }
+.ai-num-alvo { display: flex; min-width: 0; }
+.ai-num-alvo > .mt-num { flex: 1; }
+.ai-pq-alvo { cursor: help; outline: none; border-radius: 10px; }
+.ai-pq-alvo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+li.ai-pq-alvo:hover, .ai-ativo.ai-pq-alvo:hover { background: rgba(255,255,255,0.025); }
+.ai-num-alvo:hover > .mt-num { background: var(--panel2); }
+.ai-pq-pop {
+  position: fixed; z-index: 60; overflow-y: auto; background: #1B202B; border-radius: 12px; padding: 12px 14px 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.55); font-size: 13px; line-height: 1.5; color: var(--ink);
+}
+.ai-pq-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; margin-bottom: 6px; }
+.ai-pq-x { background: none; border: none; color: var(--soft); font-size: 18px; line-height: 1; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; }
+.ai-pq-x:hover { background: var(--panel2); color: var(--ink); }
+.ai-pq-item { padding: 8px 0; border-top: 1px solid #262c39; }
+.ai-pq-item:first-of-type { border-top: none; padding-top: 2px; }
+.ai-pq-meta { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--faint); margin-bottom: 3px; }
+.ai-tag { font-size: 11px; font-weight: 600; color: var(--soft); background: var(--panel2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.ai-tag.causa { color: var(--ink); }
+.ai-tag.hipotese, .ai-tag.sem-noticia { color: var(--faint); font-weight: 500; }
+.ai-pq-tit { display: block; font-size: 13px; font-weight: 650; }
+.ai-pq-txt { margin: 3px 0 0; color: var(--soft); font-size: 12.5px; }
+.ai-pq-fonte { margin: 4px 0 0; font-size: 11.5px; color: var(--faint); }
+.ai-pq-fonte a { color: var(--soft); text-decoration: underline; text-underline-offset: 2px; }
+.ai-pq-bloco { margin-top: 4px; font-size: 12px; }
+.ai-pq-sem { margin: 6px 0 0; color: var(--ink); font-size: 12.5px; }
+.ai-pq-falta { margin: 8px 0 0; font-size: 11.5px; color: var(--faint); }
+.ai-faixa-regra { position: absolute; top: -3px; height: 16px; background: var(--ai-faixa); border-radius: 3px; }
+.ai-tipos .mt-barra { padding: 8px 6px; margin: 0 -6px; width: auto; }
+.ai-ativos { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; }
+.ai-ativo { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "nome val" "var var" "ind ind"; gap: 2px 12px; padding: 10px 6px; border-top: 1px solid var(--line-soft); min-height: 44px; align-items: baseline; }
+.ai-ativos > .ai-ativo:first-child, .ai-obs-linha:first-child .ai-ativo { border-top: none; }
+.ai-ativo-nome { grid-area: nome; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+.ai-ativo-nome .muted { font-size: 12px; }
+.ai-ativo-val { grid-area: val; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ai-ativo-var { grid-area: var; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ai-ativo-ind { grid-area: ind; font-size: 12px; }
+.ai-obs-linha { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.ai-obs-linha .fin-mini { align-self: center; }
+.ai-form { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin-top: 18px; }
+.ai-form .fin-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--soft); min-width: 140px; }
+.ai-form .fin-campo.grande { flex: 1 1 260px; }
+.ai-form input, .ai-form select, .ai-form textarea, .ai-controles input, .ai-controles select {
+  background: var(--panel2); border: 1px solid var(--line); color: var(--ink); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13.5px; min-width: 0; width: 100%;
+}
+.ai-form textarea { resize: vertical; }
+.ai-form .mt-botao { margin-top: 0; }
+.ai-controles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 12px 16px; margin: 4px 0 18px; }
+.ai-e-se { margin: -6px 0 16px; }
+.ai-tipos .mt-barra-nome { white-space: normal; }
+.ai-controles .fin-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--soft); }
+.ai-aloc { border: none; margin: 0; padding: 0; display: flex; gap: 10px; flex: 1 1 260px; }
+.ai-aloc legend { font-size: 13px; color: var(--ink); margin-bottom: 4px; padding: 0; }
+.ai-aloc .fin-campo { flex: 1; min-width: 0; }
+.ai-linha-botoes { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; }
+.ai-linha-botoes .mt-botao { margin-top: 0; }
+.ai-como { margin-top: 10px; }
+.ai-passos { margin: 6px 0 8px; padding-left: 20px; font-size: 13px; color: var(--soft); line-height: 1.6; }
+.ai-cmd { font-family: var(--mono); font-size: 12px; background: var(--bg); border-radius: 6px; padding: 2px 6px; word-break: break-all; color: var(--ink); }
+.ai-fonte { font-size: 11.5px; color: var(--faint); }
+.ai-filtros { margin: 0 0 14px; }
+.ai-lista-pq { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 4px 32px; }
+.ai-lista-pq .ai-pq-item { border-top: 1px solid var(--line-soft); padding: 12px 0; }
+.ai-fontes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.ai-fontes li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.ai-fontes .fg-explica { width: 100%; margin: 0; }
+.ai-bloco-alvo { display: block; }
+.ai-horizontes { margin-top: 14px; }
+.ai-meta-num { background: transparent; padding: 0; }
+.ai-de { font-size: 15px; font-weight: 500; }
+.ai-dica-txt { font-size: 13px; color: var(--soft); display: inline-flex; align-items: center; min-height: 32px; }
+.ai-blocos { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; }
+.ai-bloco { display: grid; grid-template-columns: 34px 1fr auto; gap: 4px 14px; align-items: start; padding: 14px 6px; border-top: 1px solid var(--line-soft); border-radius: 10px; }
+.ai-bloco:first-child { border-top: none; }
+.ai-bloco.foco { background: rgba(44,212,192,0.07); }
+.ai-bloco-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--panel2); color: var(--soft); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ai-bloco[data-progresso="dominado"] .ai-bloco-n { color: var(--ink); background: rgba(12,163,12,0.22); }
+.ai-bloco[data-progresso="estudando"] .ai-bloco-n, .ai-bloco[data-progresso="revisar"] .ai-bloco-n { color: var(--ink); background: rgba(57,135,229,0.22); }
+.ai-bloco-corpo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ai-bloco-aprender { font-size: 13px; color: var(--soft); }
+.ai-bloco-mat summary { cursor: pointer; font-size: 12.5px; color: var(--faint); list-style: none; padding: 2px 0; }
+.ai-bloco-mat summary::-webkit-details-marker { display: none; }
+.ai-bloco-mat p { margin: 4px 0 0; font-size: 12.5px; color: var(--soft); }
+.ai-bloco select { background: var(--panel2); border: none; color: var(--ink); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 12.5px; }
+.ai-sub { margin: 16px 0 6px; font-size: 13px; color: var(--soft); font-weight: 600; }
+.ai-regras { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.6; }
+.ai-regra-tab { max-width: 520px; }
+.ai-rodape { margin: 28px 0 0; font-size: 11.5px; color: var(--faint); max-width: 1280px; }
+.ai-premissas .fg-tabela { margin: 4px 0 12px; }
+@media (max-width: 720px) {
+  .ai-bloco { grid-template-columns: 30px 1fr; }
+  .ai-bloco select { grid-column: 2; justify-self: start; }
+  .aion .ai-bloco-mat summary, .aion .ai-pq-x { min-height: 44px; min-width: 44px; display: flex; align-items: center; }
+  .aion .ai-pq-bloco { min-height: 44px; }
+  .aion .ai-dica-txt { min-height: 44px; }
+  .aion [data-porque] { min-height: 44px; }
+  /* link de fonte no meio do texto: a área de toque cresce para 44 px sem mudar a linha */
+  .aion .ai-pq-fonte a, .ai-pq-pop .ai-pq-fonte a { display: inline-block; padding: 15px 0; margin: -15px 0; }
+  .ai-aloc { flex-basis: 100%; }
+  .ai-form .fin-campo { flex: 1 1 100%; }
+}
+.aion .fg-mais > summary::before { margin-right: 0.3em; }

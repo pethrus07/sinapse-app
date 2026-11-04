@@ -349,7 +349,12 @@ export function grupoDe(p: { classe?: string; liquidez?: string; descricao?: str
   return 'Outros';
 }
 
-export interface PosicaoAtual { chave: string; instituicao: string; descricao: string; grupo: Grupo; liquidez: string; valor: number; data: string; manual: boolean; reserva: boolean }
+export interface PosicaoAtual {
+  chave: string; instituicao: string; descricao: string; grupo: Grupo; liquidez: string; valor: number; data: string; manual: boolean; reserva: boolean;
+  /** Só para o Aion, e só quando o razão tem: classe, código, quantidade, aplicado, desde e indexador. */
+  classe?: string; codigo?: string; quantidade?: number; aportado?: number; desde?: string; indexador?: string;
+}
+const CAMPOS_AION = ['classe', 'codigo', 'quantidade', 'aportado', 'desde', 'indexador'] as const;
 
 /**
  * Posição de hoje de cada aplicação. As do banco valem só se vieram na sincronização mais
@@ -369,6 +374,7 @@ export function posicoesAtuais(ls: Lancamento[]): PosicaoAtual[] {
   return [...ultima.entries()].map(([chave, l]) => ({
     chave, instituicao: l.instituicao || '', descricao: l.descricao, grupo: grupoDe(l), liquidez: l.liquidez || '',
     valor: n(l.valor), data: dataDe(l), manual: !l.origem, reserva: !!l.reserva,
+    ...Object.fromEntries(CAMPOS_AION.filter((c) => (l as unknown as Record<string, unknown>)[c] != null && (l as unknown as Record<string, unknown>)[c] !== '').map((c) => [c, (l as unknown as Record<string, unknown>)[c]])),
   })).sort((a, b) => GRUPOS.indexOf(a.grupo) - GRUPOS.indexOf(b.grupo) || b.valor - a.valor);
 }
 
