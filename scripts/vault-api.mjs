@@ -553,6 +553,61 @@ export function vaultApi() {
               return sendJson(res, { ok: true, acao, id: p.id, mes, lembrete, ...idx });
             }
 
+            // natureza: sobrescreve fixo/variável/pontual de um gasto ('' volta ao mapa da categoria)
+            if (acao === 'natureza') {
+              const mes = (p.mes || '').slice(0, 7);
+              const st = mes ? lerMes(mes) : null;
+              if (!st || !st.existe) return sendJson(res, { error: 'mês não encontrado: ' + mes }, 404);
+              if (!st.lista.some((x) => x.id === p.id)) return sendJson(res, { error: 'lançamento não encontrado: ' + p.id }, 404);
+              const valor = String(p.valor || '');
+              if (!['', 'fixo', 'variavel', 'pontual'].includes(valor)) return sendJson(res, { error: 'natureza inválida: ' + valor }, 400);
+              const lista = st.lista.map((x) => {
+                if (x.id !== p.id) return x;
+                const { natureza, ...resto } = x;
+                return valor ? { ...resto, natureza: valor } : resto;
+              });
+              gravarMes(st, lista);
+              const idx = reindex();
+              return sendJson(res, { ok: true, acao, id: p.id, mes, ...idx });
+            }
+
+            // orçamento: { tetos: { categoria: valor }, metaReserva? } -> 04-NEGOCIO/financeiro/orcamento.md.
+            // Caminho FIXO (nada vem do navegador). Teto vazio ou 0 sai do arquivo. Só o bloco é trocado.
+            if (acao === 'orcamento') {
+              const tetos = {};
+              const entrada = p.tetos && typeof p.tetos === 'object' && !Array.isArray(p.tetos) ? p.tetos : null;
+              if (!entrada) return sendJson(res, { error: 'tetos ausentes' }, 400);
+              for (const [c, v] of Object.entries(entrada)) {
+                const k = String(c).trim().toLowerCase();
+                if (!/^[\p{L}\p{N} ._-]{1,40}$/u.test(k)) return sendJson(res, { error: 'categoria inválida: ' + k.slice(0, 40) }, 400);
+                if (v === '' || v == null) continue;
+                const valor = valorBR(v);
+                if (!Number.isFinite(valor) || valor < 0) return sendJson(res, { error: `teto inválido em ${k}` }, 400);
+                if (valor > 0) tetos[k] = valor;
+              }
+              let meta;
+              if (p.metaReserva !== undefined && p.metaReserva !== '' && p.metaReserva !== null) {
+                meta = valorBR(p.metaReserva);
+                if (!Number.isFinite(meta) || meta <= 0) return sendJson(res, { error: 'meta da reserva inválida' }, 400);
+              }
+              const rel = '04-NEGOCIO/financeiro/orcamento.md';
+              const full = dentroDoVault(VAULT, rel);
+              const json = JSON.stringify({ tetos, ...(meta ? { metaReserva: meta } : {}) }, null, 2);
+              const BLOCO_ORC = /```financeiro-orcamento\s*\n[\s\S]*?```/;
+              let texto;
+              if (existsSync(full)) {
+                const atual = readFileSync(full, 'utf8');
+                const eol = atual.includes('\r\n') ? '\r\n' : '\n';
+                const bloco = ('```financeiro-orcamento\n' + json + '\n```').replace(/\n/g, eol);
+                texto = BLOCO_ORC.test(atual) ? atual.replace(BLOCO_ORC, () => bloco) : atual.replace(/\s*$/, eol + eol + bloco + eol);
+              } else {
+                texto = `---\ntipo: financeiro\narea: negocio\ntags:\n  - financeiro\n  - orcamento\ncriado: '${hoje}'\n---\n\n# Orçamento · teto mensal por categoria\n\n> Definido pelo Pedro na Métis (aba Plano). O app compara o gasto de cada mês com o teto; a\n> categoria sem teto aparece como "sem teto definido".\n\n\`\`\`financeiro-orcamento\n${json}\n\`\`\`\n`;
+              }
+              writeFileSync(full, texto, 'utf8');
+              const idx = reindex();
+              return sendJson(res, { ok: true, acao, rel, ...idx });
+            }
+
             return sendJson(res, { error: 'ação desconhecida: ' + acao }, 400);
             } catch (e) {
               if (e && e.code) return sendJson(res, { error: e.message }, e.code);

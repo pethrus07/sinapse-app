@@ -57,6 +57,16 @@ export function pontualFinanceiro(mes: string, id: string, valor: boolean) {
   return post('/api/financeiro', { acao: 'pontual', mes, id, valor });
 }
 
+/** Natureza do gasto: 'fixo' | 'variavel' | 'pontual'; '' volta ao mapa da categoria. */
+export function naturezaFinanceiro(mes: string, id: string, valor: string) {
+  return post('/api/financeiro', { acao: 'natureza', mes, id, valor });
+}
+
+/** Grava o orçamento (teto por categoria e meta da reserva) em 04-NEGOCIO/financeiro/orcamento.md. */
+export function salvarOrcamento(tetos: Record<string, number | string>, metaReserva?: number | string) {
+  return post('/api/financeiro', { acao: 'orcamento', tetos, metaReserva });
+}
+
 /** Muda o estado de uma tarefa da nota de projeto (a linha é a chave). */
 export function mudarTarefa(rel: string, linha: string, estado: string) {
   return post('/api/tarefa', { rel, linha, estado });

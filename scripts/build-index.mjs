@@ -225,7 +225,7 @@ export function buildIndex(VAULT, OUT) {
   // `tipo: diario` (ou o antigo `daily`) alimenta o link do dia na grade.
   const agenda = { blocos: [], semanal: [], mensal: [], datas: [], dailys: [], fonte: '' };
   // Financeiro: um arquivo por mes (`tipo: financeiro`) com bloco JSON de lancamentos.
-  const financeiro = { lancamentos: [], meses: [], retratos: [] };
+  const financeiro = { lancamentos: [], meses: [], retratos: [], orcamento: null };
 
   for (const file of files) {
     const rel = relative(VAULT, file).replace(/\\/g, '/');
@@ -283,6 +283,19 @@ export function buildIndex(VAULT, OUT) {
           for (const r of Array.isArray(p.retratos) ? p.retratos : []) {
             if (r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.data))) financeiro.retratos.push({ data: r.data, total: Number(r.total) || 0, diaria: Number(r.diaria) || 0, porGrupo: r.porGrupo || {} });
           }
+        } catch { /* JSON invalido -> ignora */ }
+      }
+      // orçamento (04-NEGOCIO/financeiro/orcamento.md): teto mensal por categoria, definido pelo Pedro
+      const mo = content.match(/```financeiro-orcamento\s*\n([\s\S]*?)```/);
+      if (mo && !financeiro.orcamento) {
+        try {
+          const p = JSON.parse(mo[1]);
+          const tetos = {};
+          for (const [c, v] of Object.entries(p && typeof p.tetos === 'object' && p.tetos ? p.tetos : {})) {
+            const k = String(c).trim().toLowerCase();
+            if (k && Number(v) > 0) tetos[k] = Number(v);
+          }
+          financeiro.orcamento = { tetos, rel, ...(Number(p.metaReserva) > 0 ? { metaReserva: Number(p.metaReserva) } : {}) };
         } catch { /* JSON invalido -> ignora */ }
       }
     }

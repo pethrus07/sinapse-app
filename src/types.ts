@@ -227,6 +227,8 @@ export interface Lancamento {
   fatura?: string;         // AAAA-MM da fatura em que a compra cai
   /** Gasto que nao se repete (emprestimo, compra grande): fica fora do "gasto recorrente". */
   pontual?: boolean;
+  /** Natureza do gasto, sobrescrevendo o mapa da categoria (NATUREZA_POR_CATEGORIA em financeiroAnalise.ts). */
+  natureza?: 'fixo' | 'variavel' | 'pontual';
   /** Investimento: CDB, FII, Acao, cripto... (o grupo do patrimonio sai daqui). */
   classe?: string;
   /** Previsto pago em varios Pix: os fitids de todos; e o valor combinado quando o real foi outro. */
@@ -246,6 +248,16 @@ export interface Financeiro {
   ultimaFalha?: { em: string; mensagem: string } | null;
   /** Retratos do patrimonio, um por dia de sincronizacao (04-NEGOCIO/financeiro/patrimonio.md). */
   retratos?: { data: string; total: number; diaria: number; porGrupo: Record<string, number> }[];
+  /** Orçamento (04-NEGOCIO/financeiro/orcamento.md, bloco ```financeiro-orcamento). null = o Pedro não definiu. */
+  orcamento?: Orcamento | null;
+}
+
+export interface Orcamento {
+  /** Teto mensal por categoria (id gravado no razão, ex.: "alimentacao"). */
+  tetos: Record<string, number>;
+  /** Meta da reserva; sem ela vale o piso de R$ 5.000. */
+  metaReserva?: number;
+  rel?: string;
 }
 
 export interface Conexao {

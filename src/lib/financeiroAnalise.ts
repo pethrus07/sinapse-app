@@ -24,8 +24,109 @@ export function ehGasto(l: Lancamento): boolean {
   if (ehCartao(l) && !l.viaCartao) return false;
   return true;
 }
-export const ehPontual = (l: Lancamento) => !!l.pontual;
-const categoriaDe = (l: Lancamento) => (l.categoria || '').trim() || SEM_CATEGORIA;
+export const ehPontual = (l: Lancamento) => naturezaDe(l) === 'pontual';
+export const categoriaDe = (l: Lancamento) => (l.categoria || '').trim().toLowerCase() || SEM_CATEGORIA;
+
+/* ------------------------------------------------------- natureza do gasto */
+
+export type Natureza = 'fixo' | 'variavel' | 'pontual';
+export const NATUREZAS: readonly Natureza[] = ['fixo', 'variavel', 'pontual'];
+export const ROTULO_NATUREZA: Record<Natureza, string> = { fixo: 'Fixo', variavel: 'Variável', pontual: 'Pontual' };
+
+/**
+ * A natureza de cada categoria de gasto, num lugar só (testado em financeiroAnalise.test.ts).
+ *  - fixo: vem todo mês, com valor parecido (moradia/contribuição, energia, água, internet,
+ *    impostos/DAS, assinatura, parcela, educação);
+ *  - variável: depende do mês (comida, mercado, transporte, pix a pessoa física, compras...);
+ *  - pontual: não se repete (empréstimo, equipamento).
+ * Categoria fora do mapa (ou "a classificar") é variável: o lado seguro é não chamar de fixo o
+ * que não se sabe. O lançamento pode sobrescrever com `natureza` (ou `pontual: true`).
+ */
+export const NATUREZA_POR_CATEGORIA: Readonly<Record<string, Natureza>> = {
+  moradia: 'fixo', casa: 'fixo', aluguel: 'fixo', condominio: 'fixo', energia: 'fixo', luz: 'fixo', agua: 'fixo',
+  internet: 'fixo', telefone: 'fixo', celular: 'fixo', imposto: 'fixo', impostos: 'fixo', das: 'fixo',
+  assinatura: 'fixo', parcela: 'fixo', educacao: 'fixo', seguro: 'fixo', infra: 'fixo', plano: 'fixo',
+  alimentacao: 'variavel', 'comida fora': 'variavel', delivery: 'variavel', mercado: 'variavel', transporte: 'variavel',
+  'pix a pessoa física': 'variavel', vestuario: 'variavel', lazer: 'variavel', compras: 'variavel', farmacia: 'variavel',
+  saude: 'variavel', doacao: 'variavel', familia: 'variavel', outro: 'variavel', [A_CLASSIFICAR]: 'variavel', [SEM_CATEGORIA]: 'variavel',
+  emprestimo: 'pontual', equipamento: 'pontual',
+};
+
+/**
+ * Natureza de um gasto. Ordem: `natureza` do lançamento > `pontual: true` > `recorrente: true`
+ * (saída marcada "repete todo mês" é fixo) > mapa da categoria > variável.
+ */
+export function naturezaDe(l: Lancamento): Natureza {
+  if (l.natureza === 'fixo' || l.natureza === 'variavel' || l.natureza === 'pontual') return l.natureza;
+  if (l.pontual) return 'pontual';
+  if (l.tipo === 'saida' && l.recorrente) return 'fixo';
+  return NATUREZA_POR_CATEGORIA[categoriaDe(l)] || 'variavel';
+}
+
+export const mediana = (vs: number[]) => {
+  if (!vs.length) return 0;
+  const s = [...vs].sort((a, b) => a - b);
+  const k = Math.floor(s.length / 2);
+  return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2;
+};
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+/** Fixo, variável e pontual de um mês (gasto = ehGasto, no mês em que o dinheiro mexeu). */
+export function naturezaDoMes(ls: Lancamento[], mes: string): Record<Natureza, number> & { total: number } {
+  const o = { fixo: 0, variavel: 0, pontual: 0, total: 0 };
+  for (const l of ls) {
+    if (!ehGasto(l) || mesRealizado(l) !== mes) continue;
+    o[naturezaDe(l)] += n(l.valor);
+    o.total += n(l.valor);
+  }
+  return { fixo: r2(o.fixo), variavel: r2(o.variavel), pontual: r2(o.pontual), total: r2(o.total) };
+}
+
+/** Meses completos (o banco cobria o mês inteiro), do mais recente para trás, até `max`. */
+export function mesesCompletos(ls: Lancamento[], hojeMes: string, max = 6): string[] {
+  const parciais = mesesParciais(ls, hojeMes);
+  const temBanco = ls.some((l) => l.origem && l.liquidadoEm);
+  const out: string[] = [];
+  for (let m = somarMes(hojeMes, -1); out.length < max && m >= somarMes(hojeMes, -24); m = somarMes(m, -1)) {
+    if (parciais.has(m)) continue;
+    // sem banco nenhum, só vale mês com gasto lançado
+    if (!temBanco && !ls.some((l) => ehGasto(l) && mesRealizado(l) === m)) continue;
+    out.push(m);
+  }
+  return out;
+}
+
+export interface EstimativaGasto {
+  fixo: number;
+  variavel: number;
+  total: number;                 // gasto que se repete: fixo + variável estimado
+  base: 'mediana' | 'teto' | 'nenhum';
+  meses: string[];               // meses completos usados (mais recente primeiro)
+  fraca: boolean;                // menos de 3 meses completos na mediana
+  tetoVariavel: number | null;   // soma dos tetos das categorias variáveis (null = sem teto)
+}
+
+/**
+ * Gasto que se repete, de um jeito honesto:
+ *  - fixo = mediana do fixo dos meses completos;
+ *  - variável = mediana do variável dos meses completos, se houver 3 ou mais; com menos, o teto
+ *    do orçamento das categorias variáveis (se o Pedro definiu); sem teto, a mediana do que houver,
+ *    marcada como fraca. Pontual nunca entra.
+ * A tela diz qual base usou e com quantos meses.
+ */
+export function gastoQueSeRepete(ls: Lancamento[], hojeMes: string, tetos?: Record<string, number> | null): EstimativaGasto {
+  const meses = mesesCompletos(ls, hojeMes);
+  const por = meses.map((m) => naturezaDoMes(ls, m));
+  const fixo = r2(mediana(por.map((p) => p.fixo)));
+  const varMed = r2(mediana(por.map((p) => p.variavel)));
+  const variaveis = Object.entries(tetos || {}).filter(([c, v]) => v > 0 && (NATUREZA_POR_CATEGORIA[c] || 'variavel') === 'variavel');
+  const tetoVariavel = variaveis.length ? r2(variaveis.reduce((s, [, v]) => s + v, 0)) : null;
+  let base: EstimativaGasto['base'] = 'mediana';
+  let variavel = varMed;
+  if (!meses.length && tetoVariavel === null) base = 'nenhum';
+  else if (meses.length < 3 && tetoVariavel !== null) { base = 'teto'; variavel = tetoVariavel; }
+  return { fixo, variavel, total: r2(fixo + variavel), base, meses, fraca: base === 'mediana' && meses.length < 3, tetoVariavel };
+}
 
 /**
  * Meses em que o banco ainda não cobria o mês inteiro: o primeiro mês com lançamento do banco,
@@ -145,31 +246,35 @@ export function entradaRecorrente(l: Lancamento, ls: Lancamento[]): boolean {
   return meses.size >= 2;
 }
 
-/** Gasto pontual: `pontual: true`. Todo o resto do gasto (cartão, casa, ônibus) se repete. */
+/** Gasto pontual: natureza pontual (`pontual: true`, `natureza: "pontual"` ou categoria pontual). */
 export const gastoPontual = (l: Lancamento) => ehPontual(l);
 
 export interface RecorrenteMes {
   mes: string;
   gasto: number;               // tudo que foi gasto no mês
-  pontual: number;             // marcado `pontual: true` (empréstimo, compra grande que não se repete)
-  gastoRecorrente: number;     // gasto − pontual
+  pontual: number;             // natureza pontual (empréstimo, compra grande que não se repete)
+  fixo: number;                // natureza fixo
+  variavel: number;            // natureza variável
+  gastoRecorrente: number;     // gasto − pontual (= fixo + variável do mês)
   entradasRecorrentes: number; // renda que se repete prevista para o mês (recebida ou não)
   sobraRecorrente: number;     // entradas recorrentes − gasto recorrente
   pontuais: { descricao: string; valor: number }[];
 }
 
 export function recorrenteDoMes(ls: Lancamento[], mes: string): RecorrenteMes {
-  let gasto = 0, pontual = 0, entradas = 0;
+  let gasto = 0, pontual = 0, fixo = 0, entradas = 0;
   const pontuais: RecorrenteMes['pontuais'] = [];
   for (const l of ls) {
     if (ehGasto(l) && mesRealizado(l) === mes) {
       gasto += n(l.valor);
-      if (gastoPontual(l)) { pontual += n(l.valor); pontuais.push({ descricao: l.descricao, valor: n(l.valor) }); }
+      const nat = naturezaDe(l);
+      if (nat === 'pontual') { pontual += n(l.valor); pontuais.push({ descricao: l.descricao, valor: n(l.valor) }); }
+      if (nat === 'fixo') fixo += n(l.valor);
     }
     if (l.tipo === 'entrada' && mesDaEntrada(l) === mes && entradaRecorrente(l, ls)) entradas += n(l.valor);
   }
-  const r = (v: number) => Math.round(v * 100) / 100;
-  return { mes, gasto: r(gasto), pontual: r(pontual), gastoRecorrente: r(gasto - pontual), entradasRecorrentes: r(entradas), sobraRecorrente: r(entradas - (gasto - pontual)), pontuais };
+  const r = r2;
+  return { mes, gasto: r(gasto), pontual: r(pontual), fixo: r(fixo), variavel: r(gasto - pontual - fixo), gastoRecorrente: r(gasto - pontual), entradasRecorrentes: r(entradas), sobraRecorrente: r(entradas - (gasto - pontual)), pontuais };
 }
 
 /** Mês de uma entrada: o que entrou conta quando entrou; o aberto, quando vence. Sem prazo aberto: nenhum. */
@@ -182,8 +287,9 @@ function mesDaEntrada(l: Lancamento): string {
 export interface RendaRecorrente {
   meses: string[];             // do mês de hoje até o mês depois do fim do razão
   entradas: number[];          // renda que se repete por mês
-  gastoBase: number;           // gasto recorrente de referência (média dos meses completos)
-  baseMeses: string[];         // os meses que entraram na base
+  gastoBase: number;           // gasto que se repete de referência (fixo + variável estimado)
+  baseMeses: string[];         // os meses completos que entraram na estimativa
+  estimativa: EstimativaGasto; // como o gastoBase foi estimado (mediana ou teto, com quantos meses)
   sobra: number[];             // entradas − gastoBase
   ateQuando: string;           // último mês antes da queda ('' = não cai até o fim do razão)
   caiEm: string;               // o mês da queda
@@ -196,11 +302,10 @@ export interface RendaRecorrente {
  * Até quando a renda que se repete se sustenta. Para cada mês, de hoje em diante, soma a renda
  * recorrente prevista; no mês depois do fim do razão sobra só a que não tem data de fim
  * (`recorrente` sem `ate`, que vale para sempre). A queda é o primeiro mês em que a renda cai
- * 20% ou mais em relação ao mês de hoje. O gasto de referência é a média do gasto recorrente
- * dos meses completos (até 3) antes de hoje; sem nenhum, o último mês.
+ * 20% ou mais em relação ao mês de hoje. O gasto de referência é o gasto que se repete
+ * (gastoQueSeRepete: fixo + variável pela mediana ou pelo teto; nunca o pontual).
  */
-export function rendaRecorrente(ls: Lancamento[], hojeMes: string): RendaRecorrente {
-  const parciais = mesesParciais(ls, hojeMes);
+export function rendaRecorrente(ls: Lancamento[], hojeMes: string, tetos?: Record<string, number> | null): RendaRecorrente {
   const doRazao = [...new Set(ls.filter((l) => l.mes).map((l) => l.mes.slice(0, 7)))].sort();
   const ultimo = doRazao[doRazao.length - 1] || hojeMes;
   const depois = somarMes(ultimo, 1);
@@ -214,16 +319,15 @@ export function rendaRecorrente(ls: Lancamento[], hojeMes: string): RendaRecorre
     }
     return rec.filter((l) => mesDaEntrada(l) === m).reduce((s, l) => s + n(l.valor), 0);
   });
-  const baseMeses: string[] = [];
-  for (let m = somarMes(hojeMes, -1); baseMeses.length < 3 && m >= somarMes(hojeMes, -12); m = somarMes(m, -1)) if (!parciais.has(m)) baseMeses.push(m);
-  const gastoMes = (m: string) => recorrenteDoMes(ls, m).gastoRecorrente;
-  const gastoBase = baseMeses.length ? baseMeses.reduce((s, m) => s + gastoMes(m), 0) / baseMeses.length : gastoMes(somarMes(hojeMes, -1));
+  const estimativa = gastoQueSeRepete(ls, hojeMes, tetos);
+  const baseMeses = estimativa.meses;
+  const gastoBase = estimativa.total;
   const r = (v: number) => Math.round(v * 100) / 100;
   const antes = entradas[0] || 0;
   const iQueda = entradas.findIndex((v, i) => i > 0 && antes > 0 && v <= antes * 0.8);
   const semFim = entradas[entradas.length - 1] || 0;
   return {
-    meses, entradas: entradas.map(r), gastoBase: r(gastoBase), baseMeses, sobra: entradas.map((v) => r(v - gastoBase)),
+    meses, entradas: entradas.map(r), gastoBase: r(gastoBase), baseMeses, estimativa, sobra: entradas.map((v) => r(v - gastoBase)),
     ateQuando: iQueda > 0 ? meses[iQueda - 1] : '', caiEm: iQueda > 0 ? meses[iQueda] : '', antes: r(antes), depois: r(iQueda > 0 ? entradas[iQueda] : antes), semFim: r(semFim),
   };
 }
@@ -245,7 +349,7 @@ export function grupoDe(p: { classe?: string; liquidez?: string; descricao?: str
   return 'Outros';
 }
 
-export interface PosicaoAtual { chave: string; instituicao: string; descricao: string; grupo: Grupo; liquidez: string; valor: number; data: string; manual: boolean }
+export interface PosicaoAtual { chave: string; instituicao: string; descricao: string; grupo: Grupo; liquidez: string; valor: number; data: string; manual: boolean; reserva: boolean }
 
 /**
  * Posição de hoje de cada aplicação. As do banco valem só se vieram na sincronização mais
@@ -264,7 +368,7 @@ export function posicoesAtuais(ls: Lancamento[]): PosicaoAtual[] {
   }
   return [...ultima.entries()].map(([chave, l]) => ({
     chave, instituicao: l.instituicao || '', descricao: l.descricao, grupo: grupoDe(l), liquidez: l.liquidez || '',
-    valor: n(l.valor), data: dataDe(l), manual: !l.origem,
+    valor: n(l.valor), data: dataDe(l), manual: !l.origem, reserva: !!l.reserva,
   })).sort((a, b) => GRUPOS.indexOf(a.grupo) - GRUPOS.indexOf(b.grupo) || b.valor - a.valor);
 }
 
@@ -291,7 +395,7 @@ export interface Patrimonio {
   atuais: PosicaoAtual[];
   porGrupo: { grupo: Grupo; valor: number }[];
   total: number;
-  reservaLiquida: number;      // só liquidez diária
+  reservaLiquida: number;      // a reserva: posição com `reserva: true` ou de liquidez diária (a caixinha)
   piso: number;
   falta: number;               // quanto falta para o piso (0 se passou)
   serie: Retrato[];            // retratos gravados + o de hoje (calculado do razão)
@@ -302,7 +406,8 @@ export function patrimonio(ls: Lancamento[], retratos: Retrato[], hoje: string, 
   const r = retratoDe(atuais, hoje);
   const porGrupo = GRUPOS.filter((g) => (r.porGrupo[g] || 0) > 0).map((g) => ({ grupo: g, valor: r.porGrupo[g]! }));
   const serie = atuais.length ? comRetrato(retratos || [], r) : [...(retratos || [])].sort((a, b) => a.data.localeCompare(b.data));
-  return { atuais, porGrupo, total: r.total, reservaLiquida: r.diaria, piso, falta: Math.max(0, Math.round((piso - r.diaria) * 100) / 100), serie };
+  const reserva = Math.round(atuais.filter((a) => a.reserva || a.liquidez === 'diaria').reduce((s, a) => s + a.valor, 0) * 100) / 100;
+  return { atuais, porGrupo, total: r.total, reservaLiquida: reserva, piso, falta: Math.max(0, Math.round((piso - reserva) * 100) / 100), serie };
 }
 
 /* --------------------------------------------- clientes: realizado × previsto */
