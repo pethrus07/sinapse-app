@@ -57,9 +57,12 @@ export function razaoFalso(hoje = new Date()): Record<string, object[]> {
     id: `${mes}-gasto-${categoria}-${dia}`, tipo: 'saida', descricao: `Gasto falso · ${categoria}`, valor,
     vencimento: `${mes}-${dia}`, status: 'pago', liquidadoEm: `${mes}-${dia}`, categoria, origem: 'teste', conta: 'Banco Falso · conta', ...extra,
   })
-  porMes[meses[0]].push(g(meses[0], '01', 'mercado', 400), g(meses[0], '08', 'transporte', 200))
+  // natureza (Métis v2): moradia e assinatura são fixo; mercado, transporte e alimentação, variável;
+  // a compra grande é pontual. Fixo 540 nos dois meses; variável 600 → 1.102,50.
+  porMes[meses[0]].push(g(meses[0], '01', 'mercado', 400), g(meses[0], '08', 'transporte', 200), g(meses[0], '12', 'assinatura', 40))
   porMes[meses[1]].push(
-    g(meses[1], '03', 'mercado', 700), g(meses[1], '09', 'transporte', 210),
+    g(meses[1], '03', 'mercado', 700), g(meses[1], '09', 'transporte', 210), g(meses[1], '12', 'assinatura', 40),
+    g(meses[1], '18', 'alimentacao', 150, { descricao: 'Comida fora falsa' }),
     g(meses[1], '15', 'casa', 1500, { descricao: 'Compra grande falsa', pontual: true }),
     // o que a sincronização não reconheceu: o bruto falso (playwright.config) tem a transação
     g(meses[1], '20', 'a classificar', 42.5, { id: `${meses[1]}-pix-falso`, descricao: 'Compra no débito', origem: 'pluggy', fitid: FITID_A_CLASSIFICAR }),

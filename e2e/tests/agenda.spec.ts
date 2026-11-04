@@ -58,7 +58,9 @@ test('Agenda: um marco do painel abre a nota de origem', async ({ page }) => {
   const erros = coletarErros(page)
   await page.goto('/#/agenda')
   await page.getByRole('button', { name: /Painel/ }).click()
-  await page.locator('.ag-marco').first().click()
+  // marco do financeiro ("Pagar/Receber R$ …" do razão falso) não tem nota: quando a fatura falsa
+  // vence antes de qualquer marco de nota, o primeiro marco não abria nada e o teste quebrava
+  await page.locator('.ag-marco').filter({ hasNotText: /(Pagar|Receber) R\$/ }).first().click()
   await expect(page).toHaveURL(/#\/note\//)
   await expect(page.locator('.main')).toBeVisible()
   expect(erros, erros.join('\n')).toEqual([])

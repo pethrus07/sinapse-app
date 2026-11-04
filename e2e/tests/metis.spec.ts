@@ -24,7 +24,8 @@ test('Fila "a classificar": um toque na categoria, e "lembrar" grava a regra só
   const erros = coletarErros(page)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/#/financeiro')
-  // o aviso da Visão leva para a fila
+  // o aviso da Visão leva para a fila (fica em "Mais N avisos": a fatura vem antes)
+  await page.getByText(/Mais \d avisos?/).click()
   await page.locator('[data-aviso="a-classificar"]').getByRole('button', { name: 'Classificar' }).click()
   await expect(page.getByRole('tab', { name: 'Lançamentos' })).toHaveAttribute('aria-selected', 'true')
   const fila = page.locator('.mt-fila')
@@ -35,7 +36,7 @@ test('Fila "a classificar": um toque na categoria, e "lembrar" grava a regra só
   await page.screenshot({ path: `${SHOTS}/24-metis-fila-1440.png` })
   await fila.locator('.mt-chip', { hasText: 'Mercado' }).click()
 
-  await expect(page.locator('.mt-fila')).toHaveCount(0) // fila vazia some
+  await expect(page.locator('.mt-fila.vazia')).toContainText('agora é Mercado') // fila vazia fica, com o recado
   const regras = JSON.parse(readFileSync(REGRAS, 'utf8'))
   expect(regras.regras[0].quando).toEqual({ texto: 'loja falsa e2e', direcao: 'saida' })
   expect(regras.regras[0].categoria).toBe('mercado')
@@ -62,13 +63,13 @@ test('Saldo à mão (cripto) entra no patrimônio; marcar um gasto como pontual 
   const linha = page.locator('.fin-tabela tr', { hasText: MARCA })
   await expect(linha.locator('.fin-tag.st-posicao')).toHaveText('saldo')
 
-  await page.getByRole('tab', { name: 'Visão' }).click()
-  const pat = page.locator('[data-grafico="patrimonio"]')
-  await expect(pat.locator('.fg-leitura')).toContainText('R$ 250,00')
-  await expect(pat.locator('.fg-legenda').first()).toContainText('Cripto')
+  await page.getByRole('tab', { name: 'Patrimônio' }).click()
+  const pat = page.locator('[data-grafico="reserva-piso"]')
+  await expect(pat.locator('[data-numero="investido"]')).toContainText('R$ 250,00')
 
-  // pontual: o gasto de transporte do mês passado vira pontual e sai do recorrente
-  const rec = page.locator('[data-grafico="recorrente"] .fg-numeros')
+  // pontual: o gasto de transporte do mês passado vira pontual (Visão: natureza do mês)
+  await page.getByRole('tab', { name: 'Visão' }).click()
+  const rec = page.locator('[data-grafico="natureza"] [data-natureza="pontual"]')
   const antes = await rec.innerText()
   await page.getByRole('tab', { name: 'Lançamentos' }).click()
   await page.locator('.fin-listahead .proj-tab', { hasText: 'todos' }).click()

@@ -30,6 +30,7 @@ test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   // projecao mes a mes mora na Pronoia (Métis › Pronoia)
   await page.getByRole('tab', { name: 'Pronoia' }).click()
   await expect(page.getByRole('heading', { name: /Projeção mês a mês/ })).toBeVisible()
+  await page.locator('[data-grafico="projecao"]').getByText('Mais opções').click()
   await expect(page.locator('.fin-proj tbody tr').first()).toBeVisible()
   // reserva e destinacao: aparece na projecao como coluna propria e NAO no calendario
   await expect(page.locator('.fin-proj td.num.guarda').first()).toBeVisible()
@@ -38,7 +39,7 @@ test('Financeiro: resumo, lista e o aviso de "sem data"', async ({ page }) => {
   await expect(page.getByText(/Reserva falsa/)).toHaveCount(0)
   await page.locator('a[href="#/financeiro"]').click()
   await page.getByRole('tab', { name: 'Pronoia' }).click()
-  await expect(page.locator('.fin-proj')).toBeVisible()
+  await expect(page.locator('[data-grafico="projecao"]')).toBeVisible()
 
   expect(erros, erros.join('\n')).toEqual([])
 })
