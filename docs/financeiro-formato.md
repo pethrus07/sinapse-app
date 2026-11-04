@@ -3,7 +3,7 @@
 > **Métis** é o nome do módulo financeiro do Sinapse (a deusa grega da sabedoria prática e da
 > prudência); a visão de projeção dentro dela é a **Pronoia** (previdência): "Métis › Pronoia".
 > O nome é só o que aparece na tela: pasta (`04-NEGOCIO/financeiro/`), bloco ` ```financeiro `,
-> `scripts/financas/`, rota (`#/financeiro`, `#/financeiro/pronoia`) e ids continuam como estão.
+> `scripts/financas/`, rota (`#/financeiro`, `#/financeiro/<aba>`) e ids continuam como estão.
 
 O razão vive no vault, um arquivo por mês em `04-NEGOCIO/financeiro/AAAA-MM.md`, com um bloco
 ` ```financeiro ` que contém `{ "lancamentos": [...] }`. O app lê, soma e desenha; quem escreve é o
@@ -31,6 +31,8 @@ formulário do app (`POST /api/financeiro`) ou o sincronizador do banco (`script
 | `conta` | rótulo da conta (`Nubank · conta`, `Nubank · cartão`, `Inter · conta`), nunca número |
 | `viaCartao`, `fatura` | compra no cartão e o mês da fatura em que cai. **Fica fora do fluxo e das somas**: o dinheiro sai quando a fatura é paga |
 | `faturaFitid` | no previsto do cartão: hash da fatura do banco que deu o valor medido |
+| `pontual` | gasto que não se repete (empréstimo, compra grande) |
+| `natureza` | `fixo`, `variavel` ou `pontual`: sobrescreve a natureza que vem da categoria (ver "Natureza do gasto") |
 
 ## Investimento
 
@@ -57,48 +59,90 @@ Uma posição por aplicação por mês, com o saldo naquela data:
 - `reserva: true` faz a posição contar como saldo de partida da reserva no gráfico "Reserva acumulada".
 - Investimento não entra em fluxo, projeção, agenda nem nos totais a receber/pagar.
 
-## As abas da Métis
+## As abas da Métis (v2, 04/11/2026)
 
-Lógica em `src/lib/financeiroGraficos.ts` e `src/lib/financeiroAnalise.ts` (testadas em
-`*.test.ts`); páginas em `src/components/MetisPaginas.tsx`.
+Lógica em `src/lib/financeiroModelo.ts`, `src/lib/financeiroAnalise.ts` e
+`src/lib/financeiroGraficos.ts` (testadas em `*.test.ts`); páginas em
+`src/components/MetisPaginas.tsx`, gráficos em `MetisGraficos.tsx` e `FinanceiroGraficos.tsx`.
+Cada aba tem rota própria (`#/financeiro/<aba>`). Regra de tela: poucas coisas à vista, o resto em
+"Mais opções" (onde mora a tabela de cada gráfico). O seletor de mês fica no topo, abaixo das abas,
+e vale para Visão, Gastos, Entradas e Plano; o padrão é o último mês fechado.
 
-**Visão** (o mês e o que já aconteceu), com os avisos no topo: fatura que vence nos próximos 5 dias,
-autorização do Open Finance perto de vencer, sincronização que falhou (`ultimaFalha` no
-`estado.json`) ou parou há mais de 3 dias, e lançamentos "a classificar".
-
-1. **Fluxo do mês**: entra, sai e guarda por mês; realizado (pelo `liquidadoEm`) forte, previsto fraco.
-2. **Gastos por categoria** (mês escolhido no seletor): saída paga + compra no cartão (a fatura paga
-   fica fora, senão dobraria), com a média dos 3 meses completos antes do mês (sem pontuais; o mês em
-   que o banco começou no meio fica fora) e o destaque do que fugiu (± R$ 50 e 30%). Clicar abre os
-   lançamentos da categoria.
-3. **Renda que se repete: até quando** (`rendaRecorrente`): a renda recorrente de cada mês, de hoje
-   até o mês depois do fim do razão (onde sobra só o que não tem data de fim), contra o gasto que se
-   repete (média dos meses completos), e o mês da queda (primeiro mês com 20% ou mais a menos que
-   hoje). Embaixo, o mês em foco: gasto que se repete, pontual e sobra.
-4. **Gastos por categoria** (ver 2), **Patrimônio**: posições por grupo (CDB liquidez diária, renda
-   fixa, FII, ação, cripto), reserva líquida (só `liquidez: diaria`) × piso de R$ 5.000 e a evolução
-   pelos retratos de `patrimonio.md`.
-5. **A receber vencido**: entrada aberta com vencimento passado, por origem, com dias de atraso.
-6. **Fontes de renda: recebido × o que falta**: recebido, quando, dias de atraso (vencimento ×
-   `liquidadoEm`) e o que falta até o fim; recorrente sem `ate` (salário) aparece como "sem fim".
+1. **Visão** (`#/financeiro`): quatro números (entrou, saiu, sobrou, reserva × piso com o total
+   investido), o gráfico "fixo, variável e pontual" do mês contra o mês anterior (cinza) e um aviso
+   só à vista; os outros em "Mais N avisos". Ordem dos avisos (`PRIORIDADE_AVISO`): sincronização que
+   falhou, autorização vencida, conexão com erro, fatura em até 5 dias, autorização perto de vencer,
+   sincronização parada há mais de 3 dias, lançamentos "a classificar".
+2. **Gastos** (`#/financeiro/gastos`): por categoria (barras ordenadas, cor = natureza, traço = teto
+   do orçamento, "⚠ acima do teto"), fixo/variável/pontual por mês (colunas empilhadas, mês
+   incompleto com "·"), comparado com o mês anterior (diferença por categoria) e a lista do mês
+   agrupada por natureza e categoria, onde cada gasto pode trocar de natureza (grava `natureza`).
+3. **Entradas** (`#/financeiro/entradas`): por cliente no mês (entrou × falta, pelo vencimento) com o
+   vencido em aberto, e a linha do tempo dos contratos de renda que se repete (`contratosDeRenda`):
+   início, fim (ou "segue") e o mês em que a renda cai (`rendaRecorrente`).
+4. **Patrimônio** (`#/financeiro/patrimonio`): só a reserva contra o piso de R$ 5.000 (ou a meta do
+   orçamento) e o total investido. Carteira, evolução e simulação vão para um módulo próprio de
+   investimentos (ainda sem nome); a lógica de posições (`posicoesAtuais`, `patrimonio`,
+   `investimentos`) fica em `src/lib` para ele reaproveitar.
+5. **Pronoia** (`#/financeiro/pronoia`): o que sobra por mês daqui pra frente (renda que se repete −
+   gasto que se repete), receita por cliente, reserva acumulada, cartão parcelado e a projeção mês a
+   mês (tabela em "Mais opções").
+6. **Plano** (`#/financeiro/plano`): orçamento do mês (teto × gasto) e a meta da reserva (quanto
+   falta, ritmo de aporte, quando chega, aporte do mês). Sem `orcamento.md` a tela diz "Sem teto
+   definido" e oferece "Definir tetos"; os campos nascem vazios (a referência ao lado é a mediana do
+   que já saiu, só texto).
+7. **Lançamentos** (`#/financeiro/lancamentos`): a fila "a classificar" sempre à vista (um toque escolhe a
+   categoria; "lembrar para os próximos" grava a regra no `regras.json` LOCAL), o formulário
+   (inclui **= Saldo**) e a lista (o botão **1×** marca/desmarca `pontual`).
 
 Rótulo de categoria na tela vem de `rotuloCategoria` (`src/lib/financeiro.ts`): o id gravado
 ("alimentacao") não muda, a tela mostra "Alimentação".
 
-**Pronoia** (previdência: o que vem pela frente; `#/financeiro/pronoia`):
+## Natureza do gasto: fixo, variável e pontual
 
-1. **Receita por cliente**: colunas empilhadas por cliente, uma coluna depois do fim do razão com
-   só o estável, e a linha da receita estável. Cor fixa por cliente (pelo total no razão).
-2. **Reserva acumulada**: guardado (pago) e programado (pago + aberto), com o piso de R$ 5.000.
-   Parte da última posição de investimento com `reserva: true`; sem ela, parte de zero e avisa.
-3. **Cartão parcelado**: faturas do mês de hoje em diante, tom pela `confianca`.
-4. **Projeção mês a mês** (tabela).
+Todo gasto (saída paga e compra no cartão; a fatura paga fica fora) tem uma natureza, decidida em
+`naturezaDe` (`src/lib/financeiroAnalise.ts`), nesta ordem:
 
-**Lançamentos**: a fila "a classificar" (um toque escolhe a categoria; "lembrar para os próximos"
-grava a regra no `regras.json` LOCAL pelo endpoint do dev server, a partir da transação crua do
-bruto, nunca no repo nem no vault), o formulário (inclui **= Saldo**: investimento lançado à mão,
-como cripto, com instituição livre e classe; o mais recente de cada nome vale) e a lista (o botão
-**1×** marca/desmarca `pontual`).
+1. o campo `natureza` do lançamento (`fixo`, `variavel` ou `pontual`), gravado pela lista de Gastos;
+2. `pontual: true`;
+3. saída com `recorrente: true` ("repete todo mês") é **fixo**;
+4. o mapa `NATUREZA_POR_CATEGORIA` (um lugar só, testado):
+   - **fixo**: moradia, casa, aluguel, condomínio, energia, luz, água, internet, telefone, celular,
+     imposto(s), das, assinatura, parcela, educação, seguro, infra, plano;
+   - **variável**: alimentação, comida fora, delivery, mercado, transporte, pix a pessoa física,
+     vestuário, lazer, compras, farmácia, saúde, doação, família, outro, "a classificar";
+   - **pontual**: empréstimo, equipamento;
+5. categoria fora do mapa: **variável** (não chamar de fixo o que não se sabe).
+
+**Gasto que se repete** (`gastoQueSeRepete`) = fixo + uma estimativa do variável, nunca o pontual:
+
+- fixo = mediana do fixo dos meses completos (até 6);
+- variável = mediana dos meses completos quando há 3 ou mais; com menos, a soma dos tetos das
+  categorias variáveis do orçamento (se houver); sem teto, a mediana do que houver, marcada como
+  **fraca**. Sem mês completo: "nenhum" (a tela diz que não dá para estimar).
+- Mês completo = o banco cobria o mês inteiro: fora o mês de hoje, o mês em que a sincronização
+  começou no meio e os meses antes dela (`mesesParciais`).
+- A tela sempre diz qual base usou e com quantos meses (`data-estimativa` no HTML).
+
+A Pronoia ("o que sobra por mês") e a "renda que se repete: até quando" usam esse número.
+
+## Orçamento (`orcamento.md`)
+
+`04-NEGOCIO/financeiro/orcamento.md` (`tipo: financeiro`), bloco ` ```financeiro-orcamento `:
+
+```json
+{ "tetos": { "alimentacao": 600, "transporte": 300 }, "metaReserva": 5000 }
+```
+
+- `tetos`: teto mensal por categoria (o id gravado no razão, em minúsculas). Categoria sem teto não
+  aparece aqui. **Quem define é o Pedro**: o app não sugere valor.
+- `metaReserva` (opcional): meta da reserva; sem ela vale o piso de R$ 5.000.
+- Gravado pelo botão "Salvar tetos" (aba Plano) via `POST /api/financeiro` `{ acao: "orcamento",
+  tetos, metaReserva }`: só `application/json` de origem local, caminho fixo (nada vem do
+  navegador), categoria até 40 letras/números, valor no formato brasileiro; teto vazio ou 0 sai do
+  arquivo. Se o arquivo existe, só o bloco é trocado.
+- `POST /api/financeiro` `{ acao: "natureza", mes, id, valor }` grava (ou tira, com `valor: ""`) o
+  campo `natureza` de um lançamento.
 
 ## Recorrente, pontual e retrato do patrimônio
 
@@ -107,9 +151,10 @@ como cripto, com instituição livre e classe; o mais recente de cada nome vale)
   (total > 1) ou a mesma série (cliente + descrição sem o número) em 2 meses ou mais. Fica de fora:
   `pontual: true`, entrega única (`projeto`, `artes`) e parcela solta. Conta no mês em que entrou
   (aberta: no do vencimento).
-- **Gasto recorrente**: todo gasto (cartão, casa, ônibus, contribuição) menos o `pontual: true`.
-- `pontual: true` num lançamento de saída: gasto que não se repete (empréstimo, compra grande). Fica
-  no gasto do mês, mas fora do gasto recorrente e da média das categorias.
+- **Pontual** num gasto (`pontual: true`, `natureza: "pontual"` ou categoria pontual): não se repete
+  (empréstimo, compra grande). Fica no gasto do mês, mas fora do gasto que se repete e da média das
+  categorias.
+- **Reserva** = posição de investimento com `reserva: true` ou de liquidez diária (a caixinha).
 - `04-NEGOCIO/financeiro/patrimonio.md`, bloco ` ```patrimonio `: `{ "retratos": [{ "data",
   "total", "diaria", "porGrupo": { "<grupo>": valor } }] }`, um por dia, gravado pelo `--gravar`
   (o do mesmo dia é trocado). Nenhum id nem nome de aplicação, só totais.
