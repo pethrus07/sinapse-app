@@ -39,6 +39,18 @@ export function focoPadrao(ls: Lancamento[], hojeMes: string): string {
   return meses.includes(anterior) ? anterior : hojeMes;
 }
 
+/**
+ * Com que mês comparar `mes`: o anterior, se for completo; senão o último mês COMPLETO antes dele
+ * (até 12 para trás); '' se não houver nenhum. Mês parcial (banco começou no meio, mês de hoje,
+ * meses antes do banco) nunca é comparação: o número dele parece um mês normal e engana.
+ */
+export function mesDeComparacao(ls: Lancamento[], hojeMes: string, mes: string): { mes: string; anteriorParcial: boolean } {
+  const parciais = mesesParciais(ls, hojeMes);
+  const anterior = somarMes(mes, -1);
+  for (let m = anterior; m >= somarMes(mes, -12); m = somarMes(m, -1)) if (!parciais.has(m)) return { mes: m, anteriorParcial: m !== anterior };
+  return { mes: '', anteriorParcial: parciais.has(anterior) };
+}
+
 /* ------------------------------------------------------------ visão do mês */
 
 export interface VisaoMes {
@@ -92,13 +104,13 @@ export interface CategoriaMes {
   total: number;
   porNatureza: Record<Natureza, number>;
   natureza: Natureza;          // a natureza que mais pesa na categoria neste mês
-  anterior: number;            // o mesmo no mês anterior
+  anterior: number;            // o mesmo no mês de comparação (o anterior, por padrão)
   teto: number | null;         // null = sem teto definido
   acima: number;               // quanto passou do teto (0 = dentro ou sem teto)
 }
 
-export function categoriasDoMes(ls: Lancamento[], mes: string, tetos?: Record<string, number> | null, comAnterior = false): CategoriaMes[] {
-  const ant = somarMes(mes, -1);
+export function categoriasDoMes(ls: Lancamento[], mes: string, tetos?: Record<string, number> | null, comAnterior = false, contra = somarMes(mes, -1)): CategoriaMes[] {
+  const ant = contra;
   const m = new Map<string, CategoriaMes>();
   const linha = (c: string) => {
     if (!m.has(c)) m.set(c, { categoria: c, total: 0, porNatureza: { fixo: 0, variavel: 0, pontual: 0 }, natureza: NATUREZA_POR_CATEGORIA[c] || 'variavel', anterior: 0, teto: null, acima: 0 });
@@ -122,9 +134,9 @@ export function categoriasDoMes(ls: Lancamento[], mes: string, tetos?: Record<st
     .sort((a, b) => b.total - a.total || (b.teto || 0) - (a.teto || 0) || a.categoria.localeCompare(b.categoria));
 }
 
-/** O que mudou de um mês para o outro, por categoria (maior diferença primeiro). */
-export function comparacaoCategorias(ls: Lancamento[], mes: string): { categoria: string; atual: number; anterior: number; delta: number }[] {
-  return categoriasDoMes(ls, mes, null, true)
+/** O que mudou de um mês para o outro (`contra`, por padrão o anterior), por categoria (maior diferença primeiro). */
+export function comparacaoCategorias(ls: Lancamento[], mes: string, contra = somarMes(mes, -1)): { categoria: string; atual: number; anterior: number; delta: number }[] {
+  return categoriasDoMes(ls, mes, null, true, contra)
     .filter((c) => c.total > 0 || c.anterior > 0)
     .map((c) => ({ categoria: c.categoria, atual: c.total, anterior: c.anterior, delta: r2(c.total - c.anterior) }))
     .filter((c) => c.delta !== 0)

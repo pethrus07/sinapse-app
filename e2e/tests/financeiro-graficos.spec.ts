@@ -35,7 +35,23 @@ async function fotoInteira(page: Page, arq: string, largura: number) {
   await page.mouse.move(0, 0)
   const alt = await page.evaluate(() => (document.querySelector('.pad-scroll') as HTMLElement).scrollHeight)
   await page.setViewportSize({ width: largura, height: Math.min(alt + 80, 7000) })
-  await page.screenshot({ path: `${SHOTS}/${arq}` })
+  await foto(page, `${SHOTS}/${arq}`)
+}
+
+/**
+ * O Chromium às vezes recusa a captura logo depois de redimensionar a janela ("Unable to capture
+ * screenshot"). A foto é só para a revisão por imagem: espera o quadro e tenta mais duas vezes.
+ */
+async function foto(page: Page, path: string) {
+  for (let i = 0; ; i++) {
+    try {
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+      return await page.screenshot({ path })
+    } catch (e) {
+      if (i >= 2) throw e
+      await page.waitForTimeout(600)
+    }
+  }
 }
 
 test.afterEach(() => {
@@ -51,7 +67,7 @@ test('as sete páginas abrem pela rota, sem erro de console (1440 e 390)', async
       await expect(page.locator('.mt-abas [role="tab"][aria-selected="true"]')).toHaveCount(1)
       await expect(page.locator('.pad-scroll h1')).toBeVisible()
       await page.waitForTimeout(150)
-      await page.screenshot({ path: `${SHOTS}/30-metis-${aba}-${larg}.png` })
+      await foto(page, `${SHOTS}/30-metis-${aba}-${larg}.png`)
       await fotoInteira(page, `30-metis-${aba}-${larg}-inteira.png`, larg)
     }
   }
@@ -96,6 +112,18 @@ test('Visão: quatro números, natureza contra o mês anterior e um aviso só à
   await page.getByRole('button', { name: 'Próximo mês' }).click()
   await expect(page.locator('.mt-seletor-tag')).toHaveText('em andamento')
   await page.getByRole('button', { name: 'Mês anterior' }).click()
+  await expect(nat.locator('.mt-par-linha.fraca')).toHaveCount(3)
+
+  // mês anterior INCOMPLETO (antes do banco) não vira comparação: texto apagado e sem barra cinza
+  await page.getByRole('button', { name: 'Mês anterior' }).click()
+  await expect(page.locator('[data-numero="saiu"] .mt-num-sub')).toContainText('incompleto')
+  await expect(nat.locator('.mt-par-linha.fraca')).toHaveCount(0)
+  await expect(nat.locator('.fg-legenda')).not.toContainText('mês anterior')
+  await expect(nat.locator('.mt-semcomp')).toContainText('sem mês completo')
+  // e Gastos não mostra o "Comparado com" sem um mês completo para comparar
+  await page.getByRole('tab', { name: 'Gastos' }).click()
+  await expect(page.locator('[data-grafico="categorias"]')).toBeVisible()
+  await expect(page.locator('[data-grafico="diferenca"]')).toHaveCount(0)
   expect(erros, erros.join('\n')).toEqual([])
 })
 

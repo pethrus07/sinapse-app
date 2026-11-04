@@ -90,7 +90,7 @@ export function colunaPath(x: number, y: number, w: number, h: number, raio = 4)
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
-export function Legenda({ itens }: { itens: { cor: string; rotulo: string; leve?: number; linha?: boolean; tracejada?: boolean }[] }) {
+export function Legenda({ itens, nota }: { itens: { cor: string; rotulo: string; leve?: number; linha?: boolean; tracejada?: boolean }[]; nota?: string }) {
   return (
     <div className="fg-legenda">
       {itens.map((i) => (
@@ -103,6 +103,7 @@ export function Legenda({ itens }: { itens: { cor: string; rotulo: string; leve?
           {i.rotulo}
         </span>
       ))}
+      {nota && <span className="fg-leg-nota">{nota}</span>}
     </div>
   );
 }

@@ -1050,3 +1050,6 @@ button.mt-barra { cursor: pointer; }
   .mt-editor-meta { grid-template-columns: 1fr; }
   .metis .mt-cat-grupo summary { min-height: 44px; align-items: center; }
 }
+.fg-leg-nota { color: var(--faint); }
+.mt-pares.sem-anterior li { grid-template-rows: auto; }
+.mt-semcomp { margin-top: 12px; color: var(--faint); }

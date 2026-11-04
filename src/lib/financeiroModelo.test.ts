@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import type { Lancamento } from '../types';
 import { gastoQueSeRepete, mediana, mesesCompletos, NATUREZA_POR_CATEGORIA, naturezaDe, naturezaDoMes, rendaRecorrente } from './financeiroAnalise.ts';
 import {
-  categoriasDoMes, categoriasParaTeto, comparacaoCategorias, contratosDeRenda, entradasPorCliente, focoPadrao, gastosAgrupados,
+  categoriasDoMes, categoriasParaTeto, comparacaoCategorias, mesDeComparacao, contratosDeRenda, entradasPorCliente, focoPadrao, gastosAgrupados,
   mesesDoSeletor, naturezaPorMes, orcamentoDoMes, ordenarAvisos, planoReserva, visaoDoMes,
 } from './financeiroModelo.ts';
 
@@ -89,6 +89,18 @@ test('mesesDoSeletor e focoPadrao: do primeiro mês com dinheiro até hoje; foco
   assert.deepEqual(s.parciais, ['2030-02', '2030-04']);
   assert.equal(focoPadrao(ls, '2030-04'), '2030-03');
   assert.equal(focoPadrao([], '2030-04'), '2030-04');
+});
+
+test('mesDeComparacao: anterior completo; parcial pula para o último completo; nenhum = vazio', () => {
+  // banco começa em 24/01: jan parcial; fev, mar completos; abr = hoje
+  const ls = [gasto('2030-01', '24', 'mercado', 10), gasto('2030-02', '03', 'mercado', 10), gasto('2030-03', '03', 'mercado', 10)];
+  assert.deepEqual(mesDeComparacao(ls, '2030-04', '2030-03'), { mes: '2030-02', anteriorParcial: false });
+  assert.deepEqual(mesDeComparacao(ls, '2030-04', '2030-02'), { mes: '', anteriorParcial: true });
+  const ls2 = [gasto('2030-01', '24', 'mercado', 10), gasto('2030-03', '03', 'mercado', 10)];
+  assert.deepEqual(mesDeComparacao([...ls2, gasto('2030-02', '20', 'lazer', 5)], '2030-05', '2030-04'), { mes: '2030-03', anteriorParcial: false });
+  // comparação contra um mês escolhido
+  const c = comparacaoCategorias([gasto('2030-03', '01', 'mercado', 300), gasto('2030-01', '01', 'mercado', 100), gasto('2030-02', '01', 'mercado', 999)], '2030-03', '2030-01');
+  assert.deepEqual(c.map((x) => [x.categoria, x.delta]), [['mercado', 200]]);
 });
 
 test('visaoDoMes: entrou, saiu (gasto), guardado e sobrou', () => {

@@ -13,12 +13,12 @@ import type { Financeiro, Lancamento } from '../types';
 import { brl, contarSaidas, foraDaProjecao, projetar, rotuloCategoria } from '../lib/financeiro';
 import { aReceberVencido, avisosConexao, cartaoFuturo, receitaPorCliente, reservaAcumulada, somarMes } from '../lib/financeiroGraficos';
 import {
-  avisosFinanceiro, clientesRealizado, gastoQueSeRepete, gastosPorCategoria, mediana, mesesCompletos, NATUREZAS, patrimonio,
+  avisosFinanceiro, clientesRealizado, gastoQueSeRepete, gastosPorCategoria, mediana, mesesCompletos, NATUREZAS, naturezaDoMes, patrimonio,
   rendaRecorrente, ROTULO_NATUREZA, type EstimativaGasto,
 } from '../lib/financeiroAnalise';
 import {
   categoriasDoMes, categoriasParaTeto, comparacaoCategorias, contratosDeRenda, entradasPorCliente, gastosAgrupados, mesesDoSeletor,
-  naturezaPorMes, orcamentoDoMes, ordenarAvisos, PISO_RESERVA, planoReserva, visaoDoMes,
+  mesDeComparacao, naturezaPorMes, orcamentoDoMes, ordenarAvisos, PISO_RESERVA, planoReserva, visaoDoMes,
 } from '../lib/financeiroModelo';
 import { Cartao5, Cartao, curto, Legenda, longo, num, Receita, Reserva } from './FinanceiroGraficos';
 import { BarrasH, COR_NAT, Diferencas, EditorTetos, LinhaDoTempo, ListaAgrupada, Medidor, NaturezaComparada, NaturezaNoTempo, Numero, SobraNoTempo, type LinhaBarra } from './MetisGraficos';
@@ -99,9 +99,14 @@ function textoEstimativa(e: EstimativaGasto) {
 export function MetisVisao({ financeiro, hoje, foco, onClassificar }: PaginaProps & { onClassificar: () => void }) {
   const ls = financeiro.lancamentos;
   const hojeMes = hoje.slice(0, 7);
-  const ant = somarMes(foco, -1);
+  const antReal = somarMes(foco, -1);
+  // mês parcial (banco começou no meio) nunca é comparação: vale o último mês COMPLETO, ou nenhum
+  const comp = useMemo(() => mesDeComparacao(ls, hojeMes, foco), [ls, hojeMes, foco]);
+  const ant = comp.mes;
   const v = useMemo(() => visaoDoMes(ls, foco), [ls, foco]);
-  const va = useMemo(() => visaoDoMes(ls, ant), [ls, ant]);
+  const va = useMemo(() => (ant ? visaoDoMes(ls, ant) : null), [ls, ant]);
+  const subComp = (k: 'entrou' | 'saiu') => (va ? `${curto(ant)}${comp.anteriorParcial ? ' (último completo)' : ''}: ${brl(va[k])}` : `${curto(antReal)} incompleto`);
+  const rotuloComp = ant ? (comp.anteriorParcial ? `${curto(ant)} (último mês completo; ${curto(antReal)} incompleto)` : `${curto(ant)} (mês anterior)`) : '';
   const pat = useMemo(() => patrimonio(ls, (financeiro.retratos || []) as never, hoje), [ls, financeiro.retratos, hoje]);
   const est = useMemo(() => gastoQueSeRepete(ls, hojeMes, financeiro.orcamento?.tetos), [ls, hojeMes, financeiro.orcamento]);
   if (!ls.length) return <p className="muted">Nada no razão ainda.</p>;
@@ -111,14 +116,14 @@ export function MetisVisao({ financeiro, hoje, foco, onClassificar }: PaginaProp
     <>
       <Avisos financeiro={financeiro} hoje={hoje} onClassificar={onClassificar} />
       <div className="mt-numeros">
-        <Numero id="entrou" rotulo="Entrou" valor={brl(v.entrou)} sub={`${curto(ant)}: ${brl(va.entrou)}`} />
-        <Numero id="saiu" rotulo="Saiu" valor={brl(v.saiu)} sub={`${curto(ant)}: ${brl(va.saiu)}`} />
+        <Numero id="entrou" rotulo="Entrou" valor={brl(v.entrou)} sub={subComp('entrou')} />
+        <Numero id="saiu" rotulo="Saiu" valor={brl(v.saiu)} sub={subComp('saiu')} />
         <Numero id="sobrou" rotulo="Sobrou" valor={brl(v.sobrou)} alerta={v.sobrou < 0} sub={v.guardado > 0 ? `${brl(v.guardado)} foram para a reserva` : 'entrou menos o que saiu'} />
         <div className="mt-num" data-numero="reserva">
           <span className="mt-num-rot">Reserva</span>
           <b className="mt-num-val">{pat.reservaLiquida < meta && <span className="mt-icone" aria-hidden>⚠ </span>}{brl(pat.reservaLiquida)}</b>
           <Medidor valor={pat.reservaLiquida} alvo={meta} rotulo={`Reserva em relação ${meta === PISO_RESERVA ? 'ao piso' : 'à meta'}`} />
-          <span className="mt-num-sub">{pat.reservaLiquida < meta ? `abaixo do piso de ${brl(meta)}` : `acima do piso de ${brl(meta)}`} · investido {brl(pat.total)}</span>
+          <span className="mt-num-sub">{pat.reservaLiquida < meta ? `abaixo do piso de ${brl(meta)}` : `acima do piso de ${brl(meta)}`}{pat.total - pat.reservaLiquida > 0.005 ? ` · mais ${brl(pat.total - pat.reservaLiquida)} investidos fora da reserva` : ''}</span>
         </div>
       </div>
       <div className="fg">
@@ -128,12 +133,13 @@ export function MetisVisao({ financeiro, hoje, foco, onClassificar }: PaginaProp
             <p className="fg-explica"><b>Fixo</b> vem todo mês (moradia, energia, impostos, assinatura, parcela). <b>Variável</b> muda com o mês (comida, mercado, transporte, Pix a pessoa física, compras). <b>Pontual</b> não se repete (empréstimo, compra grande). A natureza vem da categoria; um gasto pode ser trocado em Gastos, na lista do mês.</p>
             <p className="fg-explica" data-estimativa={est.base}><b>Gasto que se repete</b>: {brl(est.total)} por mês (fixo {brl(est.fixo)} + variável {brl(est.variavel)}; {textoEstimativa(est)}).</p>
             <table className="fg-tabela">
-              <thead><tr><th>natureza</th><th className="num">{curto(foco)}</th><th className="num">{curto(ant)}</th></tr></thead>
-              <tbody>{NATUREZAS.map((k) => <tr key={k}><td>{ROTULO_NATUREZA[k]}</td><td className="num">{num(nat[k])}</td><td className="num">{num(va.natureza[k])}</td></tr>)}
-                <tr className="forte"><td>total</td><td className="num">{num(nat.total)}</td><td className="num">{num(va.natureza.total)}</td></tr></tbody>
+              <thead><tr><th>natureza</th><th className="num">{curto(foco)}</th>{va && <th className="num">{curto(ant)}</th>}</tr></thead>
+              <tbody>{NATUREZAS.map((k) => <tr key={k}><td>{ROTULO_NATUREZA[k]}</td><td className="num">{num(nat[k])}</td>{va && <td className="num">{num(va.natureza[k])}</td>}</tr>)}
+                <tr className="forte"><td>total</td><td className="num">{num(nat.total)}</td>{va && <td className="num">{num(va.natureza.total)}</td>}</tr></tbody>
             </table>
           </>}>
-          <NaturezaComparada atual={nat} anterior={va.natureza} mes={foco} mesAnt={ant} />
+          <NaturezaComparada atual={nat} anterior={va ? va.natureza : null} mes={foco} mesAnt={ant} rotuloAnt={rotuloComp} />
+          {!va && <p className="fg-explica mt-semcomp">{curto(antReal)} incompleto: sem mês completo antes de {curto(foco)} para comparar.</p>}
         </Cartao>
       </div>
     </>
@@ -146,11 +152,13 @@ export function MetisGastos({ financeiro, hoje, foco, onNatureza, onPlano }: Pag
   const ls = financeiro.lancamentos;
   const hojeMes = hoje.slice(0, 7);
   const tetos = financeiro.orcamento?.tetos;
-  const ant = somarMes(foco, -1);
-  const cats = useMemo(() => categoriasDoMes(ls, foco, tetos), [ls, foco, tetos]);
+  const antReal = somarMes(foco, -1);
+  const comp = useMemo(() => mesDeComparacao(ls, hojeMes, foco), [ls, hojeMes, foco]);
+  const ant = comp.mes;
+  const cats = useMemo(() => categoriasDoMes(ls, foco, tetos, false, ant || antReal), [ls, foco, tetos, ant, antReal]);
   const medias = useMemo(() => new Map(gastosPorCategoria(ls, hojeMes, foco).linhas.map((l) => [l.categoria, l.media])), [ls, hojeMes, foco]);
   const tempo = useMemo(() => naturezaPorMes(ls, hojeMes), [ls, hojeMes]);
-  const dif = useMemo(() => comparacaoCategorias(ls, foco), [ls, foco]);
+  const dif = useMemo(() => (ant ? comparacaoCategorias(ls, foco, ant) : []), [ls, foco, ant]);
   const grupos = useMemo(() => gastosAgrupados(ls, foco), [ls, foco]);
   const completos = useMemo(() => mesesCompletos(ls, hojeMes), [ls, hojeMes]);
   const [todas, setTodas] = useState(false);
@@ -168,7 +176,7 @@ export function MetisGastos({ financeiro, hoje, foco, onNatureza, onPlano }: Pag
       marcador: c.teto ?? undefined,
       dica: { titulo: rotuloCategoria(c.categoria), linhas: [
         ...NATUREZAS.filter((k) => c.porNatureza[k] > 0).map((k) => ({ cor: COR_NAT[k], rotulo: ROTULO_NATUREZA[k].toLowerCase(), valor: brl(c.porNatureza[k]) })),
-        { rotulo: curto(ant), valor: brl(c.anterior) },
+        ...(ant ? [{ rotulo: curto(ant), valor: brl(c.anterior) }] : []),
         ...(media != null ? [{ rotulo: 'média de 3 meses', valor: brl(media) }] : []),
         { rotulo: 'teto', valor: c.teto === null ? 'sem teto' : brl(c.teto) },
       ] },
@@ -177,8 +185,8 @@ export function MetisGastos({ financeiro, hoje, foco, onNatureza, onPlano }: Pag
   const naturezasUsadas = NATUREZAS.filter((k) => comGasto.some((c) => c.porNatureza[k] > 0));
   const fixos = completos.map((m) => tempo.linhas[tempo.meses.indexOf(m)]?.fixo ?? 0);
   const subiu = dif.filter((d) => d.delta > 0)[0];
-  const totalAnt = cats.reduce((s, c) => s + c.anterior, 0) + dif.filter((d) => !cats.some((c) => c.categoria === d.categoria)).reduce((s, d) => s + d.anterior, 0);
-  const antParcial = tempo.parciais.includes(ant);
+  const totalAnt = ant ? naturezaDoMes(ls, ant).total : 0;
+  const misturada = visiveis.some((c) => NATUREZAS.filter((k) => c.porNatureza[k] > 0).length > 1);
   if (!ls.length) return <p className="muted">Nada no razão ainda.</p>;
   return (
     <div className="fg">
@@ -187,19 +195,20 @@ export function MetisGastos({ financeiro, hoje, foco, onNatureza, onPlano }: Pag
         mais={<>
           <p className="fg-explica">Gasto = saída paga, no mês em que o dinheiro saiu, mais a compra no cartão no mês da compra (a fatura paga não entra, senão contaria duas vezes). A cor diz a natureza; o traço vertical é o teto do orçamento.</p>
           <table className="fg-tabela">
-            <thead><tr><th>categoria</th><th className="num">{curto(foco)}</th><th className="num">{curto(ant)}</th><th className="num">teto</th></tr></thead>
-            <tbody>{cats.map((c) => <tr key={c.categoria}><td>{rotuloCategoria(c.categoria)}</td><td className="num">{num(c.total)}</td><td className="num">{num(c.anterior)}</td><td className="num">{c.teto === null ? 'sem teto' : num(c.teto)}</td></tr>)}</tbody>
+            <thead><tr><th>categoria</th><th className="num">{curto(foco)}</th>{ant && <th className="num">{curto(ant)}</th>}<th className="num">teto</th></tr></thead>
+            <tbody>{cats.map((c) => <tr key={c.categoria}><td>{rotuloCategoria(c.categoria)}</td><td className="num">{num(c.total)}</td>{ant && <td className="num">{num(c.anterior)}</td>}<td className="num">{c.teto === null ? 'sem teto' : num(c.teto)}</td></tr>)}</tbody>
           </table>
         </>}>
         {comGasto.length > 0 && <>
-          <Legenda itens={[...naturezasUsadas.map((k) => ({ cor: COR_NAT[k], rotulo: ROTULO_NATUREZA[k] })), ...(tetos ? [{ cor: 'var(--ink)', rotulo: 'teto', linha: true }] : [])]} />
+          <Legenda itens={[...naturezasUsadas.map((k) => ({ cor: COR_NAT[k], rotulo: ROTULO_NATUREZA[k] })), ...(tetos ? [{ cor: 'var(--ink)', rotulo: 'teto', linha: true }] : [])]}
+            nota={misturada ? 'barra de duas cores: cada parte é uma natureza (o valor de cada uma ao passar o mouse)' : undefined} />
           <BarrasH linhas={linhas} max={max} rotulo={`Gastos por categoria em ${curto(foco)}`} />
           {comGasto.length > MAX_LINHAS && <button className="linkbtn mt-ver" onClick={() => setTodas(!todas)}>{todas ? 'Ver só as maiores' : `Ver as ${comGasto.length} categorias`}</button>}
           {!tetos && <p className="fg-explica mt-semteto">Sem teto definido. <button className="linkbtn" onClick={onPlano}>Definir tetos</button></p>}
         </>}
       </Cartao>
 
-      <Cartao id="natureza-tempo" titulo="Fixo, variável e pontual por mês"
+      <Cartao id="natureza-tempo" className={ant ? '' : 'largo'} titulo="Fixo, variável e pontual por mês"
         leitura={completos.length >= 2
           ? <>O fixo fica perto de <b>{brl(mediana(fixos))}</b> por mês; o que muda de um mês para o outro é o variável.</>
           : <>Só {completos.length} {completos.length === 1 ? 'mês completo' : 'meses completos'} com o banco ligado: ainda não dá para dizer o que é normal.</>}
@@ -213,8 +222,8 @@ export function MetisGastos({ financeiro, hoje, foco, onNatureza, onPlano }: Pag
         <NaturezaNoTempo r={tempo} foco={foco} />
       </Cartao>
 
-      <Cartao id="diferenca" titulo={`Comparado com ${curto(ant)}`}
-        leitura={dif.length ? <>Saiu <b>{brl(Math.abs(total - totalAnt))}</b> a {total >= totalAnt ? 'mais' : 'menos'} que em {curto(ant)}{subiu ? <>; o que mais subiu foi <b>{rotuloCategoria(subiu.categoria)}</b> ({sinal(subiu.delta)})</> : ''}.{antParcial ? ` ${curto(ant)} está incompleto: a diferença exagera.` : ''}</> : 'Nada mudou de um mês para o outro.'}
+      {ant && <Cartao id="diferenca" titulo={`Comparado com ${curto(ant)}`}
+        leitura={dif.length ? <>Saiu <b>{brl(Math.abs(total - totalAnt))}</b> a {total >= totalAnt ? 'mais' : 'menos'} que em {curto(ant)}{comp.anteriorParcial ? ` (último mês completo; ${curto(antReal)} está incompleto)` : ''}{subiu ? <>; o que mais subiu foi <b>{rotuloCategoria(subiu.categoria)}</b> ({sinal(subiu.delta)})</> : ''}.</> : 'Nada mudou de um mês para o outro.'}
         mais={dif.length > 6 ? (
           <table className="fg-tabela">
             <thead><tr><th>categoria</th><th className="num">{curto(foco)}</th><th className="num">{curto(ant)}</th><th className="num">diferença</th></tr></thead>
@@ -222,7 +231,7 @@ export function MetisGastos({ financeiro, hoje, foco, onNatureza, onPlano }: Pag
           </table>
         ) : undefined}>
         {dif.length > 0 && <Diferencas itens={dif.slice(0, 6)} />}
-      </Cartao>
+      </Cartao>}
 
       <Cartao id="lista" className="largo" titulo={`Gastos de ${curto(foco)}`}
         leitura={grupos.length ? <>Agrupados por natureza e categoria. Um gasto que não é da natureza da categoria troca pela lista: vale só para ele.</> : 'Nada neste mês.'}>

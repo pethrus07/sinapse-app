@@ -98,36 +98,41 @@ export function BarrasH({ linhas, max, rotulo, onClique, aberta }: {
 
 /* ------------------------------------------------------------ Visão: natureza × mês anterior */
 
-export function NaturezaComparada({ atual, anterior, mes, mesAnt }: {
-  atual: Record<Natureza, number>; anterior: Record<Natureza, number>; mes: string; mesAnt: string;
+/** `anterior` null = não há mês completo para comparar: some a barra cinza (mês parcial engana). */
+export function NaturezaComparada({ atual, anterior, mes, mesAnt, rotuloAnt }: {
+  atual: Record<Natureza, number>; anterior: Record<Natureza, number> | null; mes: string; mesAnt: string; rotuloAnt: string;
 }) {
   const [ref, w] = useLargura<HTMLUListElement>();
   const { d, mostrar, esconder } = useDica(ref as unknown as React.RefObject<HTMLElement>);
-  const max = Math.max(1, ...NATUREZAS.flatMap((k) => [atual[k], anterior[k]]));
+  const max = Math.max(1, ...NATUREZAS.flatMap((k) => [atual[k], anterior ? anterior[k] : 0]));
   return (
     <>
-      <Legenda itens={[...legendaNatureza(), { cor: COR_ANTERIOR, rotulo: `${curto(mesAnt)} (mês anterior)` }]} />
+      <Legenda itens={[...legendaNatureza(), ...(anterior ? [{ cor: COR_ANTERIOR, rotulo: rotuloAnt }] : [])]} />
       <div className="fg-plot">
-        <ul ref={ref} className="mt-pares" aria-label={`Fixo, variável e pontual em ${curto(mes)} e ${curto(mesAnt)}`} onPointerLeave={esconder}>
+        <ul ref={ref} className="mt-pares" aria-label={`Fixo, variável e pontual em ${curto(mes)}${anterior ? ` e ${curto(mesAnt)}` : ''}`} onPointerLeave={esconder}>
           {NATUREZAS.map((k) => {
-            const dif = atual[k] - anterior[k];
+            const dif = anterior ? atual[k] - anterior[k] : 0;
             const info: InfoDica = { titulo: ROTULO_NATUREZA[k], linhas: [
               { cor: COR_NAT[k], rotulo: curto(mes), valor: brl(atual[k]) },
-              { cor: COR_ANTERIOR, rotulo: curto(mesAnt), valor: brl(anterior[k]) },
-              { rotulo: 'diferença', valor: (dif > 0 ? '+' : dif < 0 ? '−' : '') + brl(Math.abs(dif)) },
+              ...(anterior ? [
+                { cor: COR_ANTERIOR, rotulo: curto(mesAnt), valor: brl(anterior[k]) },
+                { rotulo: 'diferença', valor: (dif > 0 ? '+' : dif < 0 ? '−' : '') + brl(Math.abs(dif)) },
+              ] : []),
             ] };
             return (
-              <li key={k} tabIndex={0} data-natureza={k} aria-label={`${ROTULO_NATUREZA[k]}: ${brl(atual[k])} em ${curto(mes)}, ${brl(anterior[k])} em ${curto(mesAnt)}`}
+              <li key={k} tabIndex={0} data-natureza={k} aria-label={`${ROTULO_NATUREZA[k]}: ${brl(atual[k])} em ${curto(mes)}${anterior ? `, ${brl(anterior[k])} em ${curto(mesAnt)}` : ''}`}
                 onPointerMove={(e) => mostrar(e, null, info)} onFocus={(e) => mostrar(null, e.currentTarget, info)} onBlur={esconder}>
                 <span className="mt-par-nome">{ROTULO_NATUREZA[k]}</span>
                 <span className="mt-par-linha">
                   <span className="mt-par-trilho"><span className="mt-seg" style={{ width: pct(atual[k], max), background: COR_NAT[k] }} /></span>
                   <b className="mt-par-val">{brl(atual[k])}</b>
                 </span>
-                <span className="mt-par-linha fraca">
-                  <span className="mt-par-trilho"><span className="mt-seg" style={{ width: pct(anterior[k], max), background: COR_ANTERIOR }} /></span>
-                  <span className="mt-par-val">{brl(anterior[k])}</span>
-                </span>
+                {anterior && (
+                  <span className="mt-par-linha fraca">
+                    <span className="mt-par-trilho"><span className="mt-seg" style={{ width: pct(anterior[k], max), background: COR_ANTERIOR }} /></span>
+                    <span className="mt-par-val">{brl(anterior[k])}</span>
+                  </span>
+                )}
               </li>
             );
           })}
