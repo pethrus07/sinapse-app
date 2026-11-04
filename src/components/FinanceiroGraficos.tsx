@@ -201,7 +201,7 @@ export function Receita({ r, hojeMes }: { r: ReturnType<typeof receitaPorCliente
                   {(i === iHoje || i === nDepois) && (
                     <text className="fg-rot" x={bx + bw / 2} y={y(r.totais[i]) - 6} textAnchor="middle">{num(r.totais[i])}</text>
                   )}
-                  <text className={'fg-xtick' + (m === hojeMes ? ' hoje' : '')} x={(x(m) || 0) + x.bandwidth() / 2} y={H - 8} textAnchor="middle">{tick(m, i)}</text>
+                  <text className={'fg-xtick' + (m === hojeMes ? ' hoje' : '')} x={(x(m) || 0) + x.bandwidth() / 2} y={H - 8} textAnchor="middle">{w < 520 && i % 2 && m !== hojeMes ? '' : tick(m, i)}</text>
                 </g>
               );
             })}
