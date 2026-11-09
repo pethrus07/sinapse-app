@@ -94,6 +94,11 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   **Repo público, mais duro**: nenhum código de ativo que o Pedro tem em código, comentário, teste,
   fixture ou commit (exemplos: ABCD3, WXYZ11, TEST3). Antes de commitar, conferir o diff contra os
   códigos das posições do razão real (lendo na hora, sem gravar a lista em lugar nenhum).
+- **Lembretes na tela** (09/11/2026): `scripts/lembretes/avisar.mjs <id>` mostra um toast do Windows
+  (mesmo mecanismo do Hermes, PowerShell + WinRT, sem janela). O que avisar mora no vault,
+  `99-MOCS/LEMBRETES.md`, bloco ```lembretes (JSON); a tarefa do Agendador vem de
+  `scripts/lembretes/instalar-tarefa.ps1 -Lembrete <id>` (lê janela e intervalo do próprio bloco; o Pedro
+  instala). Primeiro lembrete: `agua`, dias úteis, 10h às 16h de hora em hora. Teste: `lembretes.test.mjs`.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.
