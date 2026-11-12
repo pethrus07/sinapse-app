@@ -1,13 +1,17 @@
+// uma cor por área, distintas entre si no fundo escuro (12/11/2026: Diário era cinza como Sistema e
+// Ideias era verde como Crescimento; pessoal e financas caíam na cor por hash)
 const AREA_COLORS: Record<string, string> = {
   estudo: '#2CD4C0',
   projetos: '#E8A33D',
   negocio: '#9A8CF0',
   pessoas: '#F2739D',
   fontes: '#4FA3F0',
-  ideias: '#7BE0A3',
+  ideias: '#F4D35E',
   crescimento: '#7FD858',
   sistema: '#9AA3B2',
-  diario: '#C0C7D4',
+  diario: '#E07A5F',
+  pessoal: '#C77DFF',
+  financas: '#B5E853',
 };
 
 // cor estável por hash — pra qualquer área NOVA sem cor fixa não cair no cinza
@@ -33,6 +37,8 @@ export function areaLabel(area: string): string {
     crescimento: '🌱 Crescimento',
     sistema: '⚙️ Sistema',
     diario: '🗓️ Diário',
+    pessoal: '👤 Pessoal',
+    financas: '💰 Finanças',
   };
   return map[area?.toLowerCase()] || area;
 }

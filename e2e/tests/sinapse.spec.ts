@@ -50,8 +50,8 @@ test('carrega e navega todas as views sem erro de runtime (+ screenshots)', asyn
 test('abre a área Crescimento e uma nota (wikilinks) sem erro', async ({ page }) => {
   const erros = coletarErros(page)
   await page.goto('/#/area/crescimento')
-  await expect(page.locator('.card').first()).toBeVisible()
-  await page.locator('.card').first().click()
+  await expect(page.locator('.area-card').first()).toBeVisible()
+  await page.locator('.area-card').first().click()
   await expect(page).toHaveURL(/#\/note\//)
   await expect(page.locator('.main')).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/5-nota.png`, fullPage: true })
@@ -64,5 +64,38 @@ test('busca funciona', async ({ page }) => {
   await page.locator('.search input').fill('fala')
   await page.waitForTimeout(600)
   await page.screenshot({ path: `${SHOTS}/6-busca.png`, fullPage: true })
+  expect(erros, erros.join('\n')).toEqual([])
+})
+
+test('legenda do grafo, área aberta na árvore e ficha da Skill Tree', async ({ page }) => {
+  const erros = coletarErros(page)
+  // grafo: legenda com uma linha por área; clique destaca e marca a área
+  await page.goto('/#/grafo')
+  await expect(page.locator('.graph-legenda')).toBeVisible()
+  const linhas = page.locator('.gl-area')
+  expect(await linhas.count()).toBeGreaterThan(3)
+  await linhas.first().click()
+  await expect(linhas.first()).toHaveClass(/on/)
+  await expect(linhas.nth(1)).toHaveClass(/off/)
+  await page.screenshot({ path: `${SHOTS}/8-grafo-legenda.png` })
+
+  // árvore: abre fechada (só áreas); clique numa área mostra os grupos por estado
+  await page.goto('/#/arvore')
+  await expect(page.locator('.tw-area').first()).toBeVisible()
+  expect(await page.locator('.tw-leaf').count()).toBe(0)
+  await page.locator('.tw-area', { hasText: 'Projetos' }).click()
+  await expect(page.locator('.tw-grupo').first()).toBeVisible()
+  expect(await page.locator('.tw-leaf').count()).toBeGreaterThan(0)
+  await page.screenshot({ path: `${SHOTS}/9-arvore-aberta.png` })
+
+  // skill tree: clique num domínio abre a ficha com as habilidades; o X fecha
+  await page.goto('/#/skills')
+  await page.locator('.sk-dom').first().click()
+  await expect(page.locator('.sk-ficha')).toBeVisible()
+  expect(await page.locator('.sk-item').count()).toBeGreaterThan(0)
+  await page.screenshot({ path: `${SHOTS}/10-skills-ficha.png` })
+  await page.getByRole('button', { name: 'Fechar' }).click()
+  await expect(page.locator('.sk-ficha')).toHaveCount(0)
+
   expect(erros, erros.join('\n')).toEqual([])
 })

@@ -8,8 +8,8 @@ interface Props {
 
 // Os 7 status do vault (ciclo de vida) — o mesmo vocabulário que a régua
 // `scripts/saude-vault.py` do Sinapse trava no commit. `progresso` é outro eixo (estudo).
-const STATUS_ORDER = ['em-producao', 'ativo', 'aguardando', 'pausado', 'ideia', 'concluido', 'arquivado', ''];
-const STATUS_META: Record<string, { label: string; cls: string }> = {
+export const STATUS_ORDER = ['em-producao', 'ativo', 'aguardando', 'pausado', 'ideia', 'concluido', 'arquivado', ''];
+export const STATUS_META: Record<string, { label: string; cls: string }> = {
   'em-producao': { label: 'em produção', cls: 'st-prod' },
   ativo: { label: 'ativo', cls: 'st-ativo' },
   aguardando: { label: 'aguardando', cls: 'st-wait' },

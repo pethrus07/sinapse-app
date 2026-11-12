@@ -17,6 +17,7 @@ import { RoadmapView } from './components/RoadmapView';
 import { ProjectsView } from './components/ProjectsView';
 import { FrentesView } from './components/FrentesView';
 import { TreeView } from './components/TreeView';
+import { AreaView } from './components/AreaView';
 import { SkillTreeView } from './components/SkillTreeView';
 import { AgendaView } from './components/AgendaView';
 import { FinanceiroView } from './components/FinanceiroView';
@@ -248,22 +249,13 @@ export default function App() {
       </div>
     );
   } else if (route.type === 'area') {
-    const list = notes
-      .filter((n) => n.area.toLowerCase() === route.arg.toLowerCase())
-      .sort((a, b) => b.degree - a.degree);
     main = (
-      <div className="pad-scroll">
-        <h2 className="page-title">{areaLabel(route.arg)}</h2>
-        <p className="muted small">{list.length} nota(s)</p>
-        <div className="cards">
-          {list.map((n) => (
-            <button key={n.id} className="card" onClick={() => go('/note/' + encodeURIComponent(n.id))}>
-              <div className="card-title">{n.title}</div>
-              <div className="card-sub">{n.degree} conexões</div>
-            </button>
-          ))}
-        </div>
-      </div>
+      <AreaView
+        key={route.arg}
+        area={route.arg}
+        notes={notes.filter((n) => n.area.toLowerCase() === route.arg.toLowerCase())}
+        onOpen={(id) => go('/note/' + encodeURIComponent(id))}
+      />
     );
   } else if (route.type === 'search') {
     main = <SearchView notes={notes} query={query} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
