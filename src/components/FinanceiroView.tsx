@@ -6,11 +6,12 @@ import {
   estaAberto, resumir, rotuloStatus,
 } from '../lib/financeiro';
 import { focoPadrao } from '../lib/financeiroModelo';
+import { MetisFluxo } from './MetisFluxo';
 import { MetisEntradas, MetisGastos, MetisPatrimonio, MetisPlano, MetisPronoia, MetisVisao, SeletorMes } from './MetisPaginas';
 import { FilaClassificar } from './FinanceiroAnalises';
 
 // Métis: o módulo financeiro do Sinapse (por dentro segue "financeiro": rota, pasta e formato).
-// Abas no topo, cada uma com rota própria (#/financeiro/<aba>): Visão, Gastos, Entradas,
+// Abas no topo, cada uma com rota própria (#/financeiro/<aba>): Visão, Gastos, Entradas, Fluxo,
 // Patrimônio, Pronoia, Plano e Lançamentos. O mês em foco é um só para as abas que olham um mês.
 
 interface Props {
@@ -26,11 +27,12 @@ interface Props {
 }
 
 type Filtro = 'abertos' | 'todos';
-type Aba = 'visao' | 'gastos' | 'entradas' | 'patrimonio' | 'pronoia' | 'plano' | 'lancamentos';
+type Aba = 'visao' | 'gastos' | 'entradas' | 'fluxo' | 'patrimonio' | 'pronoia' | 'plano' | 'lancamentos';
 const ABAS: { aba: Aba; rotulo: string; titulo: string; mes: boolean }[] = [
   { aba: 'visao', rotulo: 'Visão', titulo: 'O mês num relance', mes: true },
   { aba: 'gastos', rotulo: 'Gastos', titulo: 'Para onde foi o dinheiro', mes: true },
   { aba: 'entradas', rotulo: 'Entradas', titulo: 'O que entra e até quando', mes: true },
+  { aba: 'fluxo', rotulo: 'Fluxo', titulo: 'De onde vem e para onde vai', mes: true },
   { aba: 'patrimonio', rotulo: 'Patrimônio', titulo: 'A reserva e o investido', mes: false },
   { aba: 'pronoia', rotulo: 'Pronoia', titulo: 'O que vem pela frente', mes: false },
   { aba: 'plano', rotulo: 'Plano', titulo: 'Tetos e meta da reserva', mes: true },
@@ -153,6 +155,7 @@ export function FinanceiroView({ financeiro, notes, onOpen, onLancar, onAcao, on
       {aba === 'visao' && <MetisVisao {...props} onClassificar={() => setAba('lancamentos')} />}
       {aba === 'gastos' && <MetisGastos {...props} onNatureza={(l, v) => onNatureza(l.mes, l.id, v)} onPlano={() => { setEditarTetos(true); setAba('plano'); }} />}
       {aba === 'entradas' && <MetisEntradas {...props} />}
+      {aba === 'fluxo' && <MetisFluxo {...props} />}
       {aba === 'patrimonio' && <MetisPatrimonio {...props} />}
       {aba === 'pronoia' && <MetisPronoia {...props} />}
       {aba === 'plano' && <MetisPlano key={String(editarTetos)} {...props} onOrcamento={onOrcamento} editarAoAbrir={editarTetos} />}

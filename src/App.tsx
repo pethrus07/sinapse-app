@@ -18,6 +18,7 @@ import { ProjectsView } from './components/ProjectsView';
 import { FrentesView } from './components/FrentesView';
 import { TreeView } from './components/TreeView';
 import { AreaView } from './components/AreaView';
+import { ClientesView } from './components/ClientesView';
 import { SkillTreeView } from './components/SkillTreeView';
 import { AgendaView } from './components/AgendaView';
 import { FinanceiroView } from './components/FinanceiroView';
@@ -39,7 +40,7 @@ function go(path: string) {
 }
 
 type Route =
-  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'panorama' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' | 'aion' }
+  | { type: 'graph' | 'search' | 'roadmap' | 'frentes' | 'projetos' | 'clientes' | 'panorama' | 'arvore' | 'skills' | 'nova' | 'agenda' | 'financeiro' | 'aion' }
   | { type: 'note' | 'area'; arg: string };
 
 function useRoute(): Route {
@@ -56,6 +57,7 @@ function useRoute(): Route {
   if (m.startsWith('grafo')) return { type: 'graph' };
   if (m.startsWith('frentes')) return { type: 'frentes' };
   if (m.startsWith('projetos')) return { type: 'projetos' };
+  if (m.startsWith('clientes')) return { type: 'clientes' };
   if (m.startsWith('panorama')) return { type: 'panorama' };
   if (m.startsWith('arvore')) return { type: 'arvore' };
   if (m.startsWith('skills')) return { type: 'skills' };
@@ -263,6 +265,8 @@ export default function App() {
     main = <FrentesView notes={notes} compromissos={compromissos} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
   } else if (route.type === 'projetos') {
     main = <ProjectsView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
+  } else if (route.type === 'clientes') {
+    main = <ClientesView notes={notes} financeiro={financeiro} onOpen={(id) => go('/note/' + encodeURIComponent(id))} />;
   } else if (route.type === 'panorama') {
     main = <PanoramaView notes={notes} onOpen={(id) => go('/note/' + encodeURIComponent(id))} onIndex={applyIndex} />;
   } else if (route.type === 'arvore') {
@@ -343,6 +347,9 @@ export default function App() {
           </a>
           <a className={'nav-item' + (route.type === 'projetos' ? ' active' : '')} href="#/projetos">
             <span className="nav-text">🚀 Projetos</span>
+          </a>
+          <a className={'nav-item' + (route.type === 'clientes' ? ' active' : '')} href="#/clientes">
+            <span className="nav-text">🤝 Clientes</span>
           </a>
           <a className={'nav-item' + (route.type === 'panorama' ? ' active' : '')} href="#/panorama">
             <span className="nav-text">🧭 Panorama</span>

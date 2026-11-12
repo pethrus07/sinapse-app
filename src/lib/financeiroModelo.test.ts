@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import type { Lancamento } from '../types';
 import { gastoQueSeRepete, mediana, mesesCompletos, NATUREZA_POR_CATEGORIA, naturezaDe, naturezaDoMes, rendaRecorrente } from './financeiroAnalise.ts';
 import {
-  categoriasDoMes, categoriasParaTeto, comparacaoCategorias, mesDeComparacao, contratosDeRenda, entradasPorCliente, focoPadrao, gastosAgrupados,
+  categoriasDoMes, categoriasParaTeto, comparacaoCategorias, mesDeComparacao, contratosDeRenda, entradasPorCliente, fluxoDoMes, focoPadrao, gastosAgrupados,
   mesesDoSeletor, naturezaPorMes, orcamentoDoMes, ordenarAvisos, planoReserva, visaoDoMes,
 } from './financeiroModelo.ts';
 
@@ -199,4 +199,36 @@ test('planoReserva: quanto falta para a meta, ritmo de aporte e o aporte do mês
   assert.deepEqual([p.meta, p.falta, p.ritmo, p.ritmoMeses, p.chegaEm], [5000, 3000, 1000, 3, '2030-07']);
   assert.deepEqual(p.aporte, { mes: '2030-04', guardado: 300, programado: 1000 });
   assert.equal(planoReserva(ls, 6000, '2030-04', '2030-04').chegaEm, '');
+});
+
+test('fluxoDoMes: clientes → mês → natureza, reserva e sobra → categorias, com os dois lados fechando', () => {
+  const m = '2030-05';
+  const ls = [
+    entrada(m, '05', 3000, { cliente: 'Alfa' }), entrada(m, '20', 1000, { cliente: 'Beta' }),
+    entrada(m, '25', 999, { cliente: 'Alfa', status: 'a-receber', liquidadoEm: undefined }), // não entrou: fora
+    gasto(m, '06', 'moradia', 1000), gasto(m, '10', 'alimentacao', 800), gasto(m, '11', 'transporte', 40),
+    L({ tipo: 'reserva', valor: 500, vencimento: `${m}-07`, liquidadoEm: `${m}-07` }),
+  ];
+  const f = fluxoDoMes(ls, m);
+  const soma = (ids: string[]) => Math.round(f.ligacoes.filter((l) => ids.includes(l.de) || ids.includes(l.para)).reduce((s, l) => s + l.valor, 0) * 100) / 100;
+  assert.deepEqual([f.entrou, f.saiu, f.guardado, f.sobrou, f.doSaldo], [4000, 1840, 500, 1660, 0]);
+  assert.deepEqual(f.nos.filter((x) => x.coluna === 0).map((x) => [x.rotulo, x.valor]), [['Alfa', 3000], ['Beta', 1000]]);
+  // entra no mês o mesmo que sai dele
+  const entra = f.ligacoes.filter((l) => l.para === 'mes').reduce((s, l) => s + l.valor, 0);
+  const sai = f.ligacoes.filter((l) => l.de === 'mes').reduce((s, l) => s + l.valor, 0);
+  assert.equal(entra, 4000); assert.equal(sai, 4000);
+  // transporte (40, abaixo de 3% de 1840) vira "outras" do variável
+  assert.ok(f.nos.some((x) => x.id === 'g:variavel:outras' && x.valor === 40));
+  assert.ok(!f.nos.some((x) => x.rotulo === 'transporte'));
+  assert.equal(soma(['n:fixo']), 2000); // entra 1000 do mês e sai 1000 para moradia
+});
+
+test('fluxoDoMes: mês que gasta mais do que entra puxa do saldo de antes; mês vazio não tem fluxo', () => {
+  const m = '2030-06';
+  const f = fluxoDoMes([entrada(m, '05', 1000, { cliente: 'Alfa' }), gasto(m, '06', 'alimentacao', 1500)], m);
+  assert.equal(f.doSaldo, 500);
+  assert.equal(f.sobrou, 0);
+  assert.ok(f.nos.some((x) => x.id === 'saldo' && x.valor === 500));
+  assert.equal(f.nos.find((x) => x.id === 'mes')!.valor, 1500);
+  assert.deepEqual(fluxoDoMes([], m).nos, []);
 });

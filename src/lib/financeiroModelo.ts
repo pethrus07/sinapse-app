@@ -298,3 +298,81 @@ export function planoReserva(ls: Lancamento[], reserva: number, hojeMes: string,
   const guardado = doMes(foco, true);
   return { reserva: r2(reserva), meta, falta, ritmo, ritmoMeses: completos.length, chegaEm, aporte: { mes: foco, guardado, programado: r2(guardado + doMes(foco, false)) } };
 }
+
+/* ------------------------------------------------------------ fluxo do dinheiro (Sankey) */
+
+export type TipoNoFluxo = 'cliente' | 'saldo' | 'mes' | 'natureza' | 'reserva' | 'sobra' | 'categoria';
+export interface NoFluxo { id: string; rotulo: string; valor: number; coluna: 0 | 1 | 2 | 3; tipo: TipoNoFluxo; natureza?: Natureza }
+export interface LigacaoFluxo { de: string; para: string; valor: number }
+export interface FluxoMes {
+  mes: string;
+  nos: NoFluxo[];
+  ligacoes: LigacaoFluxo[];
+  entrou: number;
+  saiu: number;
+  guardado: number;
+  sobrou: number;   // entrou − saiu − guardado, quando positivo
+  doSaldo: number;  // o que saiu além do que entrou (veio do saldo de antes)
+}
+
+/**
+ * De onde veio e para onde foi o dinheiro do mês, em 4 colunas: clientes (e o saldo de antes,
+ * quando o mês gastou mais do que entrou) → o mês → natureza, reserva e sobra → categorias.
+ * Os dois lados fecham: o que chega no mês é o que sai dele. Categoria menor que `fatia` do gasto
+ * vira "outras" dentro da sua natureza (sem isso o lado direito vira uma escada de fios).
+ * Números das mesmas regras da Visão: entrada liquidada no mês, gasto de `naturezaDoMes`.
+ */
+export function fluxoDoMes(ls: Lancamento[], mes: string, fatia = 0.03): FluxoMes {
+  const v = visaoDoMes(ls, mes);
+  const nos: NoFluxo[] = [], ligacoes: LigacaoFluxo[] = [];
+  const porCliente = new Map<string, number>();
+  for (const l of ls) {
+    if (l.tipo !== 'entrada' || !liquidado(l) || mesRealizado(l) !== mes) continue;
+    const k = (l.cliente || '').trim() || 'Sem cliente';
+    porCliente.set(k, (porCliente.get(k) || 0) + n(l.valor));
+  }
+  const doSaldo = Math.max(0, r2(v.saiu + v.guardado - v.entrou));
+  const sobrou = Math.max(0, r2(v.entrou - v.saiu - v.guardado));
+  const total = r2(v.entrou + doSaldo);
+  if (total <= 0) return { mes, nos, ligacoes, entrou: v.entrou, saiu: v.saiu, guardado: v.guardado, sobrou, doSaldo };
+
+  nos.push({ id: 'mes', rotulo: mes, valor: total, coluna: 1, tipo: 'mes' });
+  for (const [c, val] of [...porCliente.entries()].sort((a, b) => b[1] - a[1])) {
+    nos.push({ id: 'c:' + c, rotulo: c, valor: r2(val), coluna: 0, tipo: 'cliente' });
+    ligacoes.push({ de: 'c:' + c, para: 'mes', valor: r2(val) });
+  }
+  if (doSaldo > 0) {
+    nos.push({ id: 'saldo', rotulo: 'Do saldo de antes', valor: doSaldo, coluna: 0, tipo: 'saldo' });
+    ligacoes.push({ de: 'saldo', para: 'mes', valor: doSaldo });
+  }
+  const cats = categoriasDoMes(ls, mes);
+  for (const k of NATUREZAS) {
+    const valNat = v.natureza[k];
+    if (valNat <= 0) continue;
+    nos.push({ id: 'n:' + k, rotulo: k, valor: valNat, coluna: 2, tipo: 'natureza', natureza: k });
+    ligacoes.push({ de: 'mes', para: 'n:' + k, valor: valNat });
+    let outras = 0;
+    for (const c of [...cats].sort((a, b) => b.porNatureza[k] - a.porNatureza[k])) {
+      const val = c.porNatureza[k];
+      if (val <= 0) continue;
+      if (val < fatia * v.saiu) { outras += val; continue; }
+      const id = `g:${k}:${c.categoria}`;
+      nos.push({ id, rotulo: c.categoria, valor: val, coluna: 3, tipo: 'categoria', natureza: k });
+      ligacoes.push({ de: 'n:' + k, para: id, valor: val });
+    }
+    if (outras > 0) {
+      const id = `g:${k}:outras`;
+      nos.push({ id, rotulo: 'outras', valor: r2(outras), coluna: 3, tipo: 'categoria', natureza: k });
+      ligacoes.push({ de: 'n:' + k, para: id, valor: r2(outras) });
+    }
+  }
+  if (v.guardado > 0) {
+    nos.push({ id: 'reserva', rotulo: 'Reserva', valor: v.guardado, coluna: 2, tipo: 'reserva' });
+    ligacoes.push({ de: 'mes', para: 'reserva', valor: v.guardado });
+  }
+  if (sobrou > 0) {
+    nos.push({ id: 'sobra', rotulo: 'Sobrou', valor: sobrou, coluna: 2, tipo: 'sobra' });
+    ligacoes.push({ de: 'mes', para: 'sobra', valor: sobrou });
+  }
+  return { mes, nos, ligacoes, entrou: v.entrou, saiu: v.saiu, guardado: v.guardado, sobrou, doSaldo };
+}

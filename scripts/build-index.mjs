@@ -111,6 +111,21 @@ function git(dir, args) {
   return saida;
 }
 
+// Dia em que cada arquivo entrou no vault (primeiro commit que o adicionou), para o grafo no
+// tempo: só ~1/5 das notas tem `criado:` no frontmatter. Um `git log` só, com cache por HEAD.
+// `--no-renames`: nota renomeada conta do dia da renomeação (sem isso ela nunca aparece como
+// adicionada e ficaria sem data).
+function nascimentoNoGit(VAULT) {
+  const saida = gitLogCacheado(VAULT, ['log', '--diff-filter=A', '--no-renames', '--name-only', '--format=@%cs', '--', '*.md']);
+  const dia = new Map();
+  let atual = '';
+  for (const l of saida.split('\n')) {
+    if (l.startsWith('@')) atual = l.slice(1).trim();
+    else if (l.trim() && atual) dia.set(l.trim(), atual); // do mais novo para o mais velho: fica o mais antigo
+  }
+  return dia;
+}
+
 // Timestamps (segundos) dos commits que mexeram na pasta, do mais novo para o mais velho.
 // `-- .` restringe à pasta: `qa-parresia/analise-5cvb` não herda os commits do repo inteiro.
 // Mesma chamada da História (commitsPorDia): um `git log` por pasta, não dois.
@@ -228,6 +243,7 @@ export function buildIndex(VAULT, OUT) {
   // Financeiro: um arquivo por mes (`tipo: financeiro`) com bloco JSON de lancamentos.
   const financeiro = { lancamentos: [], meses: [], retratos: [], orcamento: null };
 
+  const criadoFm = new Map(); // id → `criado:` do frontmatter (manda sobre o git, quando existe)
   for (const file of files) {
     const rel = relative(VAULT, file).replace(/\\/g, '/');
     const src = readFileSync(file, 'utf8');
@@ -235,6 +251,7 @@ export function buildIndex(VAULT, OUT) {
     const data = fm.data || {};
     const content = fm.content || '';
     const id = basename(file, '.md');
+    if (toYmd(data.criado)) criadoFm.set(id, toYmd(data.criado));
     // bloco ```roadmap { "items": [...] } ``` → canvas (aba Sistema)
     if ((data.tipo || '').toString() === 'roadmap') {
       const m = content.match(/```roadmap\s*\n([\s\S]*?)```/);
@@ -435,7 +452,13 @@ export function buildIndex(VAULT, OUT) {
     n.historia = eventos;
   }
 
-  const nodes = outNotes.map((n) => ({ id: n.id, title: n.title, area: n.area, type: n.type, degree: n.degree }));
+  // nasceu: `criado:` da nota; senão o dia em que entrou no git do vault; nota ainda sem commit = hoje
+  const noGit = nascimentoNoGit(VAULT);
+  const hojeYmd = new Date().toISOString().slice(0, 10);
+  const nodes = outNotes.map((n) => ({
+    id: n.id, title: n.title, area: n.area, type: n.type, degree: n.degree,
+    nasceu: criadoFm.get(n.id) || noGit.get(n.rel) || hojeYmd,
+  }));
   for (const [gkey, disp] of ghosts)
     nodes.push({ id: gkey, title: disp, area: '(sementes)', type: 'ghost', degree: 0, ghost: true });
 

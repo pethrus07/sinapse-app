@@ -84,6 +84,7 @@ export interface GraphNode {
   type: string;
   degree: number;
   ghost?: boolean;
+  nasceu?: string; // AAAA-MM-DD: `criado:` ou o dia em que a nota entrou no git do vault
 }
 
 export interface GraphEdge {

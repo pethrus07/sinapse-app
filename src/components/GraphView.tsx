@@ -34,6 +34,42 @@ export function GraphView({ data, onSelect }: Props) {
     redesenhar.current();
   }, [foco]);
 
+  // grafo no tempo: dia a dia, do nascimento da primeira nota até hoje. `ate` null = hoje (tudo)
+  const dias = useMemo(() => {
+    const ds = data.nodes.map((n) => n.nasceu).filter(Boolean).sort() as string[];
+    if (!ds.length) return [];
+    const out: string[] = [];
+    const fim = new Date().toISOString().slice(0, 10);
+    for (let d = new Date(ds[0] + 'T12:00:00'); d.toISOString().slice(0, 10) <= fim; d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0, 10));
+    return out;
+  }, [data]);
+  const [ate, setAte] = useState<string | null>(null);
+  const ateRef = useRef<string | null>(null);
+  const [tocando, setTocando] = useState(false);
+  useEffect(() => {
+    ateRef.current = ate;
+    redesenhar.current();
+  }, [ate]);
+  // ▶ toca o crescimento inteiro em ~12 s; chegando em hoje, para
+  useEffect(() => {
+    if (!tocando || !dias.length) return;
+    const passo = Math.max(1, Math.round(dias.length / 300));
+    const t = setInterval(() => {
+      setAte((a) => {
+        const i = a ? dias.indexOf(a) : -1;
+        const prox = i < 0 ? 0 : i + passo;
+        if (prox >= dias.length - 1) {
+          setTocando(false);
+          return null;
+        }
+        return dias[prox];
+      });
+    }, Math.max(25, 12000 / (dias.length / passo)));
+    return () => clearInterval(t);
+  }, [tocando, dias]);
+  const notasAte = useMemo(() => (ate ? data.nodes.filter((n) => !n.ghost && (n.nasceu || '') <= ate).length : data.nodes.filter((n) => !n.ghost).length), [data, ate]);
+  const dataBr = (d: string) => d.split('-').reverse().join('/');
+
   useEffect(() => {
     const wrap = wrapRef.current!;
     const canvas = canvasRef.current!;
@@ -114,10 +150,15 @@ export function GraphView({ data, onSelect }: Props) {
       const hood = hovered ? neighbor.get(hovered.id) : null;
       const apagado = (n: any) =>
         hovered ? n.id !== hovered.id && !(hood && hood.has(n.id)) : focoArea ? n.area !== focoArea : false;
+      // grafo no tempo: só existe quem já tinha nascido no dia escolhido; a última semana ganha anel
+      const ate = ateRef.current;
+      const vivo = (n: any) => !ate || (n.nasceu || '') <= ate;
+      const semanaAntes = ate ? new Date(new Date(ate + 'T12:00:00').getTime() - 7 * 864e5).toISOString().slice(0, 10) : '';
+      const novo = (n: any) => !!ate && (n.nasceu || '') > semanaAntes;
 
       for (const e of edges) {
         const s = e.source, t = e.target;
-        if (!s || !t || s.x == null) continue;
+        if (!s || !t || s.x == null || !vivo(s) || !vivo(t)) continue;
         const active = hovered && (s.id === hovered.id || t.id === hovered.id);
         const daArea = focoArea && !hovered && s.area === focoArea && t.area === focoArea;
         // cor de área pode vir em hsl (área nova): a transparência vai pelo globalAlpha
@@ -141,8 +182,16 @@ export function GraphView({ data, onSelect }: Props) {
       }
 
       for (const n of nodes) {
-        if (n.x == null) continue;
+        if (n.x == null || !vivo(n)) continue;
         const r = radius(n);
+        if (novo(n) && !apagado(n)) {
+          ctx.globalAlpha = 0.9;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r + 4 / transform.k, 0, Math.PI * 2);
+          ctx.lineWidth = 2 / transform.k;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+        }
         ctx.globalAlpha = apagado(n) ? 0.12 : 1;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
@@ -177,7 +226,7 @@ export function GraphView({ data, onSelect }: Props) {
       const candidatos = hovered ? [hovered, ...porGrau.filter((n) => hood?.has(n.id)), ...porGrau] : porGrau;
       const vistos = new Set<string>();
       for (const n of candidatos) {
-        if (n.x == null || n.ghost || vistos.has(n.id)) continue;
+        if (n.x == null || n.ghost || vistos.has(n.id) || !vivo(n)) continue;
         vistos.add(n.id);
         const prioridade = hovered && (n.id === hovered.id || hood?.has(n.id));
         if (!prioridade && (apagado(n) || escritos >= limite)) continue;
@@ -223,7 +272,7 @@ export function GraphView({ data, onSelect }: Props) {
       let best: any = null;
       let bd = Infinity;
       for (const n of nodes) {
-        if (n.x == null) continue;
+        if (n.x == null || (ateRef.current && (n.nasceu || '') > ateRef.current)) continue; // ainda não nasceu
         const dx = n.x - x, dy = n.y - y, d = dx * dx + dy * dy;
         const rr = radius(n) + 4 / transform.k;
         if (d < rr * rr && d < bd) {
@@ -299,11 +348,47 @@ export function GraphView({ data, onSelect }: Props) {
             <div className="gl-linhas">
               <span><i className="cheia" /> link entre notas</span>
               {fantasmas > 0 && <span><i className="tracejada" /> nota que ainda não existe ({fantasmas})</span>}
+              <span><i className="anel" /> nasceu na última semana (na barra de tempo)</span>
             </div>
+            <p className="gl-dica">Passe o mouse para ver os vizinhos. Scroll dá zoom e mostra mais nomes. Clique abre a nota.</p>
           </>
         )}
       </div>
-      <div className="graph-hint">passe o mouse para ver os vizinhos · scroll dá zoom e mostra mais nomes · clique abre a nota</div>
+      {dias.length > 1 && (
+        <div className="graph-tempo">
+          <button
+            className="gt-tocar"
+            aria-label={tocando ? 'Pausar' : 'Ver o vault crescer'}
+            title={tocando ? 'Pausar' : 'Ver o vault crescer desde o começo'}
+            onClick={() => {
+              if (!tocando && !ate) setAte(dias[0]);
+              setTocando((v) => !v);
+            }}
+          >
+            {tocando ? '❚❚' : '▶'}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={dias.length - 1}
+            value={ate ? dias.indexOf(ate) : dias.length - 1}
+            aria-label="Data do grafo"
+            onChange={(e) => {
+              setTocando(false);
+              const i = Number(e.target.value);
+              setAte(i >= dias.length - 1 ? null : dias[i]);
+            }}
+          />
+          <span className="gt-data">
+            {ate ? dataBr(ate) : 'hoje'} · <b>{notasAte}</b> notas
+          </span>
+          {ate && (
+            <button className="gt-hoje" onClick={() => { setTocando(false); setAte(null); }}>
+              hoje
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

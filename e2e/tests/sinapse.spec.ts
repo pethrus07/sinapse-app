@@ -99,3 +99,32 @@ test('legenda do grafo, área aberta na árvore e ficha da Skill Tree', async ({
 
   expect(erros, erros.join('\n')).toEqual([])
 })
+
+test('grafo no tempo, fluxo da Métis e mapa de clientes', async ({ page }) => {
+  const erros = coletarErros(page)
+  // grafo no tempo: voltar a barra mostra menos notas que hoje; "hoje" volta tudo
+  await page.goto('/#/grafo')
+  const barra = page.locator('.graph-tempo input[type=range]')
+  await expect(barra).toBeVisible()
+  const total = Number((await page.locator('.gt-data b').innerText()).trim())
+  await barra.fill('10')
+  const antes = Number((await page.locator('.gt-data b').innerText()).trim())
+  expect(antes).toBeLessThan(total)
+  await page.locator('.gt-hoje').click()
+  await expect(page.locator('.gt-data')).toContainText('hoje')
+  await page.screenshot({ path: `${SHOTS}/11-grafo-tempo.png` })
+
+  // fluxo: a aba existe e desenha o diagrama (ou diz que o mês está vazio)
+  await page.goto('/#/financeiro/fluxo')
+  await expect(page.locator('[data-grafico="fluxo"]')).toBeVisible()
+  await page.screenshot({ path: `${SHOTS}/12-metis-fluxo.png` })
+
+  // clientes: lê a nota de clientes do vault e desenha canais e clientes
+  await page.goto('/#/clientes')
+  await expect(page.getByRole('heading', { name: 'De onde vem o trabalho' })).toBeVisible()
+  expect(await page.locator('.cl-canal').count()).toBeGreaterThan(0)
+  expect(await page.locator('.cl-cli').count()).toBeGreaterThan(0)
+  await page.screenshot({ path: `${SHOTS}/13-clientes.png`, fullPage: true })
+
+  expect(erros, erros.join('\n')).toEqual([])
+})
