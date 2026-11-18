@@ -99,6 +99,11 @@ VAULT_PATH=/caminho npm run dev   # README.md:39 — vault em outro lugar
   `99-MOCS/LEMBRETES.md`, bloco ```lembretes (JSON); a tarefa do Agendador vem de
   `scripts/lembretes/instalar-tarefa.ps1 -Lembrete <id>` (lê janela e intervalo do próprio bloco; o Pedro
   instala). Primeiro lembrete: `agua`, dias úteis, 10h às 16h de hora em hora. Teste: `lembretes.test.mjs`.
+  **Aviso de data única** (18/11/2026, o "alarme" de um compromisso): bloco ```avisos do mesmo
+  `LEMBRETES.md` (`quando: "AAAA-MM-DD HH:MM"`, `titulo`, `texto`), lido por
+  `scripts/lembretes/avisar-uma-vez.mjs <id>` e agendado por `instalar-aviso.ps1 -Aviso <id>` (tarefa
+  `Sinapse-Aviso-<id>`, dispara uma vez, recupera se a máquina estava desligada, some em 7 dias). O
+  compromisso entra também no bloco `datas` da AGENDA, com a mesma hora.
 - `e2e/tests/frentes.spec.ts` escreve numa **cópia temporária** do vault: sobe um Vite próprio na
   porta 5174 com `VAULT_PATH` (a cópia), `INDEX_OUT` (índice fora de `src/data`) e `PROJETOS_PATH`
   (as pastas reais, só leitura do git), e no fim confere que o `git status` do vault real não mudou.
